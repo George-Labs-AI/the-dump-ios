@@ -45,10 +45,13 @@ struct ContentView: View {
                         StatusBanner(text: sessionStore.lastUploadStatus)
                     }
                     // Main content
-                    Text("Companion app to thedump.ai")
+                    Text("You Dump, AI Organizes")
                         .font(.system(size: Theme.fontSizeLG))
                         .foregroundColor(Theme.textPrimary)
                         .padding()
+                    Text("Visit \(Text("thedump.ai").foregroundColor(Theme.accent)) to see your organized notes")
+                        .font(.system(size: Theme.fontSizeLG))
+                        .foregroundColor(Theme.textPrimary)
                     ScrollView {
                         VStack(spacing: Theme.spacingLG) {
                             // Capture buttons
@@ -213,7 +216,7 @@ struct SessionHistorySection: View {
                         .font(.system(size: 24))
                         .foregroundColor(Theme.textSecondary.opacity(0.5))
                     
-                    Text("Nothing yet today")
+                    Text("Nothing yet this session")
                         .font(.system(size: Theme.fontSizeSM))
                         .foregroundColor(Theme.textSecondary)
                 }
