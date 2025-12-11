@@ -6,14 +6,21 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		35ABFAAD2EE0C25200721476 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 35ABFAAC2EE0C25200721476 /* FirebaseAuth */; };
+		35ABFAAF2EE0C25200721476 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 35ABFAAE2EE0C25200721476 /* FirebaseCore */; };
+		35C312B22EE0CB6E0066EBEC /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 35C312B12EE0CB6E0066EBEC /* FirebaseAnalytics */; };
+		35C312B42EE351340066EBEC /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = 35C312B32EE351340066EBEC /* FirebaseCrashlytics */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
-		35ABFA752EE0C05400721476 /* The_Dump_App_Two.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = The_Dump_App_Two.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		35ABFA752EE0C05400721476 /* The_Dump.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = The_Dump.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		35ABFA772EE0C05400721476 /* The_Dump_App_Two */ = {
+		35ABFA772EE0C05400721476 /* The_Dump */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = The_Dump_App_Two;
+			path = The_Dump;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -23,6 +30,10 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				35ABFAAF2EE0C25200721476 /* FirebaseCore in Frameworks */,
+				35C312B42EE351340066EBEC /* FirebaseCrashlytics in Frameworks */,
+				35ABFAAD2EE0C25200721476 /* FirebaseAuth in Frameworks */,
+				35C312B22EE0CB6E0066EBEC /* FirebaseAnalytics in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -32,7 +43,8 @@
 		35ABFA6C2EE0C05400721476 = {
 			isa = PBXGroup;
 			children = (
-				35ABFA772EE0C05400721476 /* The_Dump_App_Two */,
+				35ABFA772EE0C05400721476 /* The_Dump */,
+				35C312B02EE0CB6E0066EBEC /* Frameworks */,
 				35ABFA762EE0C05400721476 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -40,34 +52,46 @@
 		35ABFA762EE0C05400721476 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				35ABFA752EE0C05400721476 /* The_Dump_App_Two.app */,
+				35ABFA752EE0C05400721476 /* The_Dump.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		35C312B02EE0CB6E0066EBEC /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		35ABFA742EE0C05400721476 /* The_Dump_App_Two */ = {
+		35ABFA742EE0C05400721476 /* The_Dump */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 35ABFA802EE0C05700721476 /* Build configuration list for PBXNativeTarget "The_Dump_App_Two" */;
+			buildConfigurationList = 35ABFA802EE0C05700721476 /* Build configuration list for PBXNativeTarget "The_Dump" */;
 			buildPhases = (
 				35ABFA712EE0C05400721476 /* Sources */,
 				35ABFA722EE0C05400721476 /* Frameworks */,
 				35ABFA732EE0C05400721476 /* Resources */,
+				35C312B52EE351660066EBEC /* ShellScript */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				35ABFA772EE0C05400721476 /* The_Dump_App_Two */,
+				35ABFA772EE0C05400721476 /* The_Dump */,
 			);
-			name = The_Dump_App_Two;
+			name = The_Dump;
 			packageProductDependencies = (
+				35ABFAAC2EE0C25200721476 /* FirebaseAuth */,
+				35ABFAAE2EE0C25200721476 /* FirebaseCore */,
+				35C312B12EE0CB6E0066EBEC /* FirebaseAnalytics */,
+				35C312B32EE351340066EBEC /* FirebaseCrashlytics */,
 			);
-			productName = The_Dump_App_Two;
-			productReference = 35ABFA752EE0C05400721476 /* The_Dump_App_Two.app */;
+			productName = The_Dump;
+			productReference = 35ABFA752EE0C05400721476 /* The_Dump.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -85,7 +109,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 35ABFA702EE0C05400721476 /* Build configuration list for PBXProject "The_Dump_App_Two" */;
+			buildConfigurationList = 35ABFA702EE0C05400721476 /* Build configuration list for PBXProject "The_Dump" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -94,12 +118,15 @@
 			);
 			mainGroup = 35ABFA6C2EE0C05400721476;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				35ABFAAB2EE0C25200721476 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 35ABFA762EE0C05400721476 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				35ABFA742EE0C05400721476 /* The_Dump_App_Two */,
+				35ABFA742EE0C05400721476 /* The_Dump */,
 			);
 		};
 /* End PBXProject section */
@@ -113,6 +140,29 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		35C312B52EE351660066EBEC /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/GoogleService-Info.plist",
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}",
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}.dSYM",
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		35ABFA712EE0C05400721476 /* Sources */ = {
@@ -253,6 +303,9 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "For taking pictures of handwritten notes";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "For recording voice memos of ideas";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Upload pictures of handwritten notes and papers";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -284,6 +337,9 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "For taking pictures of handwritten notes";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "For recording voice memos of ideas";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Upload pictures of handwritten notes and papers";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -309,7 +365,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		35ABFA702EE0C05400721476 /* Build configuration list for PBXProject "The_Dump_App_Two" */ = {
+		35ABFA702EE0C05400721476 /* Build configuration list for PBXProject "The_Dump" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				35ABFA7E2EE0C05700721476 /* Debug */,
@@ -318,7 +374,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		35ABFA802EE0C05700721476 /* Build configuration list for PBXNativeTarget "The_Dump_App_Two" */ = {
+		35ABFA802EE0C05700721476 /* Build configuration list for PBXNativeTarget "The_Dump" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				35ABFA812EE0C05700721476 /* Debug */,
@@ -328,6 +384,40 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		35ABFAAB2EE0C25200721476 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.6.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		35ABFAAC2EE0C25200721476 /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 35ABFAAB2EE0C25200721476 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		35ABFAAE2EE0C25200721476 /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 35ABFAAB2EE0C25200721476 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		35C312B12EE0CB6E0066EBEC /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 35ABFAAB2EE0C25200721476 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
+		};
+		35C312B32EE351340066EBEC /* FirebaseCrashlytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 35ABFAAB2EE0C25200721476 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCrashlytics;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 35ABFA6D2EE0C05400721476 /* Project object */;
 }
