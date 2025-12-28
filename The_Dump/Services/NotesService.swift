@@ -1,4 +1,7 @@
 import Foundation
+#if DEBUG
+import os.log
+#endif
 
 class NotesService {
     static let shared = NotesService()
@@ -7,6 +10,54 @@ class NotesService {
     private let baseURL = "https://thedump.ai" 
     
     private init() {}
+
+#if DEBUG
+    private func debugLogRequest(_ request: URLRequest, label: String) {
+        let method = request.httpMethod ?? "(nil)"
+        let urlString = request.url?.absoluteString ?? "(nil url)"
+        let hasAuthHeader = request.value(forHTTPHeaderField: "Authorization") != nil
+        let contentType = request.value(forHTTPHeaderField: "Content-Type") ?? "(none)"
+        let accept = request.value(forHTTPHeaderField: "Accept") ?? "(none)"
+        
+        let querySummary: String = {
+            guard let url = request.url, let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+                return "(no query)"
+            }
+            let items = components.queryItems ?? []
+            guard !items.isEmpty else { return "(no query)" }
+            return items
+                .map { "\($0.name)=\($0.value ?? "")" }
+                .joined(separator: "&")
+        }()
+        
+        print("[NotesService][\(label)] Request: \(method) \(urlString)")
+        print("[NotesService][\(label)] Headers: hasAuthorization=\(hasAuthHeader) contentType=\(contentType) accept=\(accept)")
+        print("[NotesService][\(label)] Query: \(querySummary)")
+    }
+    
+    private func debugLogResponse(data: Data, response: URLResponse, label: String) {
+        guard let http = response as? HTTPURLResponse else {
+            print("[NotesService][\(label)] Response: (non-HTTP)")
+            return
+        }
+        
+        print("[NotesService][\(label)] Response: HTTP \(http.statusCode)")
+        
+        // Only dump body on errors to avoid noisy logs.
+        guard !(200...299).contains(http.statusCode) else { return }
+        
+        let bodyString = String(data: data, encoding: .utf8) ?? "(non-utf8 body, \(data.count) bytes)"
+        let truncated: String
+        if bodyString.count > 2000 {
+            let idx = bodyString.index(bodyString.startIndex, offsetBy: 2000)
+            truncated = String(bodyString[..<idx]) + "…(truncated)"
+        } else {
+            truncated = bodyString
+        }
+        
+        print("[NotesService][\(label)] Error body: \(truncated)")
+    }
+#endif
     
     // Helper to create an authorized request with the Firebase ID Token
     private func createRequest(endpoint: String, method: String = "GET") async throws -> URLRequest {
@@ -32,7 +83,13 @@ class NotesService {
         let request = try await createRequest(endpoint: "/api/note_counts")
         
         do {
+#if DEBUG
+            debugLogRequest(request, label: "note_counts")
+#endif
             let (data, response) = try await URLSession.shared.data(for: request)
+#if DEBUG
+            debugLogResponse(data: data, response: response, label: "note_counts")
+#endif
             
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw APIError.networkError(underlying: URLError(.badServerResponse))
@@ -59,9 +116,11 @@ class NotesService {
         cursorId: String? = nil,
         categoryName: String? = nil,
         mimeType: String? = nil,
+        mimeGroup: String? = nil,
         subCatName: String? = nil,
         startTime: String? = nil,
         endTime: String? = nil,
+        tz: String? = nil,
         q: String? = nil,
         noteType: String? = nil
     ) async throws -> NoteListResponse {
@@ -82,9 +141,11 @@ class NotesService {
         addQueryItem("cursor_id", cursorId)
         addQueryItem("category_name", categoryName)
         addQueryItem("mime_type", mimeType)
+        addQueryItem("mime_group", mimeGroup)
         addQueryItem("sub_cat_name", subCatName)
         addQueryItem("start_time", startTime)
         addQueryItem("end_time", endTime)
+        addQueryItem("tz", tz)
         addQueryItem("q", q)
         addQueryItem("note_type", noteType)
 
@@ -103,7 +164,13 @@ class NotesService {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         
         do {
+#if DEBUG
+            debugLogRequest(request, label: "pull_notes")
+#endif
             let (data, response) = try await URLSession.shared.data(for: request)
+#if DEBUG
+            debugLogResponse(data: data, response: response, label: "pull_notes")
+#endif
             
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw APIError.networkError(underlying: URLError(.badServerResponse))
@@ -132,7 +199,13 @@ class NotesService {
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         
         do {
+#if DEBUG
+            debugLogRequest(request, label: "pull_full_notes")
+#endif
             let (data, response) = try await URLSession.shared.data(for: request)
+#if DEBUG
+            debugLogResponse(data: data, response: response, label: "pull_full_notes")
+#endif
             
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw APIError.networkError(underlying: URLError(.badServerResponse))

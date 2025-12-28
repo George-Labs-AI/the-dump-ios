@@ -61,7 +61,7 @@ struct BrowseView: View {
                                     .listRowBackground(Theme.darkGray)
                                 }
                             } header: {
-                                Text("Mime Types")
+                                Text("File Types")
                                     .foregroundColor(Theme.textSecondary)
                             }
                         }
