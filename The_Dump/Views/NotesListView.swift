@@ -42,11 +42,15 @@ struct NotesListView: View {
                         }
                         
                         ForEach(viewModel.notes) { note in
-                            NoteListRowView(note: note)
-                                .listRowBackground(Theme.darkGray)
-                                .onAppear {
-                                    Task { await viewModel.loadMoreIfNeeded(currentItem: note) }
-                                }
+                            NavigationLink {
+                                NoteDetailView(noteID: note.id)
+                            } label: {
+                                NoteListRowView(note: note)
+                            }
+                            .listRowBackground(Theme.darkGray)
+                            .onAppear {
+                                Task { await viewModel.loadMoreIfNeeded(currentItem: note) }
+                            }
                         }
                         
                         if viewModel.isLoadingMore {
