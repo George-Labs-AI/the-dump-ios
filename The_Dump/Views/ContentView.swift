@@ -1,5 +1,7 @@
 import SwiftUI
 import Combine
+import UniformTypeIdentifiers
+
 //this is the view page that defines the other views
 //learned that @ is not a decorator but a property wrapper
 struct ContentView: View {
@@ -9,6 +11,7 @@ struct ContentView: View {
     @State private var showCamera = false
     @State private var showVoiceMemo = false
     @State private var showSettings = false
+    @State private var showFilePicker = false
     @State private var capturedImage: UIImage?
     
 //a view is a type of struct that is called out as a view, and it must provide a body variable that contains the layout
@@ -57,7 +60,8 @@ struct ContentView: View {
                             // Capture buttons
                             CaptureButtonsSection(
                                 onPhotoTap: { showCamera = true },
-                                onVoiceTap: { showVoiceMemo = true }
+                                onVoiceTap: { showVoiceMemo = true },
+                                onFileTap: { showFilePicker = true }
                             )
                             .padding(.top, Theme.spacingLG)
                             
@@ -88,6 +92,20 @@ struct ContentView: View {
             SettingsView()
                 .environmentObject(appState)
                 .environmentObject(sessionStore)
+        }
+        .fileImporter(
+            isPresented: $showFilePicker,
+            allowedContentTypes: [.item],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                if let url = urls.first {
+                    handleSelectedFile(url)
+                }
+            case .failure(let error):
+                sessionStore.lastUploadStatus = "File selection failed: \(error.localizedDescription)"
+            }
         }
         .onChange(of: capturedImage) { _, newImage in
             if let image = newImage {
@@ -130,6 +148,36 @@ struct ContentView: View {
             }
         }
     }
+
+    private func handleSelectedFile(_ url: URL) {
+        Task {
+            guard let email = appState.userEmail,
+                  let idToken = await appState.idToken else {
+                sessionStore.lastUploadStatus = "Not authenticated"
+                return
+            }
+
+            let item = SessionItem(
+                kind: .file,
+                originalFilename: url.lastPathComponent,
+                localFileURL: url,
+                status: .uploading
+            )
+
+            sessionStore.addItem(item)
+
+            do {
+                let response = try await UploadService.shared.uploadFile(
+                    fileURL: url,
+                    userEmail: email,
+                    idToken: idToken
+                )
+                sessionStore.markSuccess(id: item.id, storagePath: response.storagePath)
+            } catch {
+                sessionStore.markFailed(id: item.id, error: error.localizedDescription)
+            }
+        }
+    }
 }
 
 // MARK: - Subviews
@@ -151,25 +199,32 @@ struct StatusBanner: View {
 struct CaptureButtonsSection: View {
     let onPhotoTap: () -> Void
     let onVoiceTap: () -> Void
-    
+    let onFileTap: () -> Void
+
     var body: some View {
         VStack(spacing: Theme.spacingMD) {
             Text("Capture")
                 .font(.system(size: Theme.fontSizeXS, weight: .medium))
                 .foregroundColor(Theme.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            
+
             HStack(spacing: Theme.spacingMD) {
                 CaptureButton(
                     icon: "camera.fill",
                     label: "Photo",
                     action: onPhotoTap
                 )
-                
+
                 CaptureButton(
                     icon: "mic.fill",
                     label: "Voice",
                     action: onVoiceTap
+                )
+
+                CaptureButton(
+                    icon: "doc.fill",
+                    label: "File",
+                    action: onFileTap
                 )
             }
         }
@@ -254,17 +309,17 @@ struct SessionItemRow: View {
                 } else {
                     ZStack {
                         Theme.mediumGray
-                        Image(systemName: item.kind == .photo ? "photo" : "waveform")
+                        Image(systemName: iconForKind)
                             .foregroundColor(Theme.textSecondary)
                     }
                     .frame(width: 44, height: 44)
                     .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadiusSM))
                 }
             }
-            
+
             // Info
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.kind == .photo ? "Photo" : "Voice Memo")
+                Text(labelForKind)
                     .font(.system(size: Theme.fontSizeMD, weight: .medium))
                     .foregroundColor(Theme.textPrimary)
                 
@@ -284,6 +339,22 @@ struct SessionItemRow: View {
         .cornerRadius(Theme.cornerRadius)
     }
     
+    private var iconForKind: String {
+        switch item.kind {
+        case .photo: return "photo"
+        case .audio: return "waveform"
+        case .file: return "doc"
+        }
+    }
+
+    private var labelForKind: String {
+        switch item.kind {
+        case .photo: return "Photo"
+        case .audio: return "Voice Memo"
+        case .file: return "File"
+        }
+    }
+
     private var statusText: String {
         switch item.status {
         case .pending:

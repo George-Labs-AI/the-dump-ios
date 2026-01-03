@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 import Combine
+import UniformTypeIdentifiers
 
 class UploadService {
     static let shared = UploadService()
@@ -57,8 +58,56 @@ class UploadService {
             idToken: idToken
         )
     }
-    
+
+    // MARK: - File Upload
+
+    func uploadFile(
+        fileURL: URL,
+        userEmail: String,
+        idToken: String
+    ) async throws -> UploadResponse {
+        // Start security-scoped access for files from document picker
+        let didStartAccess = fileURL.startAccessingSecurityScopedResource()
+        defer {
+            if didStartAccess {
+                fileURL.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        let fileData = try Data(contentsOf: fileURL)
+
+        // Enforce 100MB size limit
+        let maxSize = 100 * 1024 * 1024
+        guard fileData.count <= maxSize else {
+            throw APIError.badRequest(message: "File exceeds 100MB limit")
+        }
+
+        let originalFilename = fileURL.lastPathComponent
+        let ext = fileURL.pathExtension.lowercased()
+        let contentType = mimeType(for: fileURL)
+
+        // Preserve original extension in generated filename
+        let filename = generateFilename(kind: "file", extension: ext.isEmpty ? "bin" : ext)
+
+        return try await uploadData(
+            data: fileData,
+            filename: filename,
+            contentType: contentType,
+            isQuickNote: false,
+            idToken: idToken
+        )
+    }
+
     // MARK: - Private Methods
+
+    private func mimeType(for url: URL) -> String {
+        let ext = url.pathExtension.lowercased()
+        if let utType = UTType(filenameExtension: ext),
+           let mime = utType.preferredMIMEType {
+            return mime
+        }
+        return "application/octet-stream"
+    }
     
     private func generateFilename(kind: String, extension ext: String) -> String {
         let uuid = UUID().uuidString.lowercased()

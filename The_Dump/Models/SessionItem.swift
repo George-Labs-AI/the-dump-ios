@@ -3,6 +3,7 @@ import Foundation
 enum SessionItemKind: String, Codable {
     case photo
     case audio
+    case file
 }
 
 enum UploadStatus: Equatable {
