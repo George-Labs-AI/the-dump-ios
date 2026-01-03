@@ -4,6 +4,7 @@ import Combine
 @MainActor
 final class NotesListViewModel: ObservableObject {
     enum Filter: Equatable {
+        case all
         case category(name: String)
         case mimeType(String)
         case dateGroup(name: String, startTime: String, endTime: String)
@@ -14,7 +15,8 @@ final class NotesListViewModel: ObservableObject {
     @Published private(set) var isLoadingMore: Bool = false
     @Published private(set) var errorMessage: String?
     @Published private(set) var hasMore: Bool = false
-    
+    @Published var searchQuery: String = ""
+
     private let filter: Filter
     private var nextCursorTime: String?
     private var nextCursorId: String?
@@ -73,41 +75,55 @@ final class NotesListViewModel: ObservableObject {
     }
     
     private func fetch(limit: Int, cursorTime: String?, cursorId: String?) async throws -> NoteListResponse {
+        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let q: String? = query.isEmpty ? nil : query
+
         switch filter {
+        case .all:
+            return try await NotesService.shared.fetchNotes(
+                limit: limit,
+                cursorTime: cursorTime,
+                cursorId: cursorId,
+                q: q
+            )
         case .category(let name):
             return try await NotesService.shared.fetchNotes(
                 limit: limit,
                 cursorTime: cursorTime,
                 cursorId: cursorId,
-                categoryName: name
+                categoryName: name,
+                q: q
             )
         case .mimeType(let mime):
             return try await NotesService.shared.fetchNotes(
                 limit: limit,
                 cursorTime: cursorTime,
                 cursorId: cursorId,
-                mimeGroup: mime
+                mimeGroup: mime,
+                q: q
             )
         case .dateGroup(_, let startTime, let endTime):
             let start = startTime.trimmingCharacters(in: .whitespacesAndNewlines)
             let end = endTime.trimmingCharacters(in: .whitespacesAndNewlines)
-            
+
             // "All Time" (or unknown): omit date parameters entirely.
             guard !start.isEmpty, !end.isEmpty else {
                 return try await NotesService.shared.fetchNotes(
                     limit: limit,
                     cursorTime: cursorTime,
-                    cursorId: cursorId
+                    cursorId: cursorId,
+                    q: q
                 )
             }
-            
+
             return try await NotesService.shared.fetchNotes(
                 limit: limit,
                 cursorTime: cursorTime,
                 cursorId: cursorId,
                 startTime: start,
                 endTime: end,
-                tz: TimeZone.current.identifier
+                tz: TimeZone.current.identifier,
+                q: q
             )
         }
     }

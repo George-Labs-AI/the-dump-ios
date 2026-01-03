@@ -2,7 +2,10 @@ import SwiftUI
 
 struct BrowseView: View {
     @StateObject private var viewModel = BrowseViewModel()
-    
+    @State private var searchText: String = ""
+    @State private var isShowingSearchResults: Bool = false
+    @State private var submittedSearchText: String = ""
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -80,7 +83,124 @@ struct BrowseView: View {
             .task {
                 await viewModel.loadCounts()
             }
+            .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search all notes")
+            .onSubmit(of: .search) {
+                guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                submittedSearchText = searchText
+                isShowingSearchResults = true
+            }
+            .navigationDestination(isPresented: $isShowingSearchResults) {
+                SearchResultsView(initialQuery: submittedSearchText)
+            }
         }
+    }
+}
+
+struct SearchResultsView: View {
+    let initialQuery: String
+    @StateObject private var viewModel: NotesListViewModel
+    @State private var searchText: String
+    @State private var searchTask: Task<Void, Never>?
+
+    init(initialQuery: String) {
+        self.initialQuery = initialQuery
+        self._searchText = State(initialValue: initialQuery)
+        let vm = NotesListViewModel(filter: .all)
+        vm.searchQuery = initialQuery
+        self._viewModel = StateObject(wrappedValue: vm)
+    }
+
+    var body: some View {
+        ZStack {
+            Theme.background.ignoresSafeArea()
+
+            Group {
+                if viewModel.isLoadingInitial && viewModel.notes.isEmpty {
+                    ProgressView("Searching…")
+                        .foregroundColor(Theme.textPrimary)
+                } else if viewModel.notes.isEmpty && !viewModel.isLoadingInitial {
+                    VStack(spacing: Theme.spacingMD) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 48))
+                            .foregroundColor(Theme.textSecondary.opacity(0.5))
+                        Text("No results found")
+                            .font(.system(size: Theme.fontSizeMD))
+                            .foregroundColor(Theme.textSecondary)
+                    }
+                } else {
+                    List {
+                        ForEach(viewModel.notes) { note in
+                            NavigationLink {
+                                NoteDetailView(noteID: note.id)
+                            } label: {
+                                SearchResultRowView(note: note)
+                            }
+                            .listRowBackground(Theme.darkGray)
+                            .onAppear {
+                                Task { await viewModel.loadMoreIfNeeded(currentItem: note) }
+                            }
+                        }
+
+                        if viewModel.isLoadingMore {
+                            HStack {
+                                Spacer()
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: Theme.textSecondary))
+                                Spacer()
+                            }
+                            .listRowBackground(Theme.background)
+                        }
+                    }
+                    .scrollContentBackground(.hidden)
+                    .listStyle(.plain)
+                    .refreshable {
+                        await viewModel.refresh()
+                    }
+                }
+            }
+        }
+        .navigationTitle("Search Results")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(Theme.background, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search all notes")
+        .onChange(of: searchText) { _, newValue in
+            searchTask?.cancel()
+            searchTask = Task {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                guard !Task.isCancelled else { return }
+                viewModel.searchQuery = newValue
+                await viewModel.refresh()
+            }
+        }
+        .task {
+            await viewModel.refresh()
+        }
+    }
+}
+
+private struct SearchResultRowView: View {
+    let note: NotePreview
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(note.preview.components(separatedBy: .newlines).first ?? "Untitled")
+                .font(.system(size: Theme.fontSizeMD, weight: .semibold))
+                .foregroundColor(Theme.textPrimary)
+                .lineLimit(1)
+
+            Text(note.preview)
+                .font(.system(size: Theme.fontSizeSM))
+                .foregroundColor(Theme.textSecondary)
+                .lineLimit(2)
+
+            if let category = note.category_name, !category.isEmpty {
+                Text(category)
+                    .font(.system(size: Theme.fontSizeXS))
+                    .foregroundColor(Theme.textSecondary)
+            }
+        }
+        .padding(.vertical, 8)
     }
 }
 

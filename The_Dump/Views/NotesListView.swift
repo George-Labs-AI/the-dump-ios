@@ -3,7 +3,9 @@ import SwiftUI
 struct NotesListView: View {
     private let title: String
     @StateObject private var viewModel: NotesListViewModel
-    
+    @State private var searchText: String = ""
+    @State private var searchTask: Task<Void, Never>?
+
     init(title: String, filter: NotesListViewModel.Filter) {
         self.title = title
         _viewModel = StateObject(wrappedValue: NotesListViewModel(filter: filter))
@@ -78,6 +80,20 @@ struct NotesListView: View {
         .task {
             // Only load once per navigation
             if viewModel.notes.isEmpty {
+                await viewModel.refresh()
+            }
+        }
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search notes")
+        .onChange(of: searchText) { _, newValue in
+            // Cancel previous debounce task
+            searchTask?.cancel()
+
+            // Debounce: wait 300ms before triggering search
+            searchTask = Task {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                guard !Task.isCancelled else { return }
+
+                viewModel.searchQuery = newValue
                 await viewModel.refresh()
             }
         }
