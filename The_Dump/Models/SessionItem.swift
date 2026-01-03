@@ -4,6 +4,7 @@ enum SessionItemKind: String, Codable {
     case photo
     case audio
     case file
+    case text
 }
 
 enum UploadStatus: Equatable {

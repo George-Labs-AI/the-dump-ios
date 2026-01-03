@@ -98,6 +98,28 @@ class UploadService {
         )
     }
 
+    // MARK: - Text Note Upload
+
+    func uploadTextNote(
+        content: String,
+        idToken: String
+    ) async throws -> UploadResponse {
+        guard !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw APIError.badRequest(message: "Note cannot be empty")
+        }
+
+        let data = Data(content.utf8)
+        let filename = generateFilename(kind: "note", extension: "txt")
+
+        return try await uploadData(
+            data: data,
+            filename: filename,
+            contentType: "text/plain",
+            isQuickNote: true,
+            idToken: idToken
+        )
+    }
+
     // MARK: - Private Methods
 
     private func mimeType(for url: URL) -> String {

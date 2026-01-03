@@ -12,6 +12,7 @@ struct ContentView: View {
     @State private var showVoiceMemo = false
     @State private var showSettings = false
     @State private var showFilePicker = false
+    @State private var showTextNote = false
     @State private var capturedImage: UIImage?
     
 //a view is a type of struct that is called out as a view, and it must provide a body variable that contains the layout
@@ -61,7 +62,8 @@ struct ContentView: View {
                             CaptureButtonsSection(
                                 onPhotoTap: { showCamera = true },
                                 onVoiceTap: { showVoiceMemo = true },
-                                onFileTap: { showFilePicker = true }
+                                onFileTap: { showFilePicker = true },
+                                onTextTap: { showTextNote = true }
                             )
                             .padding(.top, Theme.spacingLG)
                             
@@ -106,6 +108,11 @@ struct ContentView: View {
             case .failure(let error):
                 sessionStore.lastUploadStatus = "File selection failed: \(error.localizedDescription)"
             }
+        }
+        .sheet(isPresented: $showTextNote) {
+            TextNoteView()
+                .environmentObject(appState)
+                .environmentObject(sessionStore)
         }
         .onChange(of: capturedImage) { _, newImage in
             if let image = newImage {
@@ -200,6 +207,7 @@ struct CaptureButtonsSection: View {
     let onPhotoTap: () -> Void
     let onVoiceTap: () -> Void
     let onFileTap: () -> Void
+    let onTextTap: () -> Void
 
     var body: some View {
         VStack(spacing: Theme.spacingMD) {
@@ -208,7 +216,7 @@ struct CaptureButtonsSection: View {
                 .foregroundColor(Theme.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            HStack(spacing: Theme.spacingMD) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Theme.spacingMD) {
                 CaptureButton(
                     icon: "camera.fill",
                     label: "Photo",
@@ -225,6 +233,12 @@ struct CaptureButtonsSection: View {
                     icon: "doc.fill",
                     label: "File",
                     action: onFileTap
+                )
+
+                CaptureButton(
+                    icon: "keyboard",
+                    label: "Note",
+                    action: onTextTap
                 )
             }
         }
@@ -322,6 +336,7 @@ struct SessionItemRow: View {
                 Text(labelForKind)
                     .font(.system(size: Theme.fontSizeMD, weight: .medium))
                     .foregroundColor(Theme.textPrimary)
+                    .lineLimit(1)
                 
                 Text(statusText)
                     .font(.system(size: Theme.fontSizeXS))
@@ -344,6 +359,7 @@ struct SessionItemRow: View {
         case .photo: return "photo"
         case .audio: return "waveform"
         case .file: return "doc"
+        case .text: return "keyboard"
         }
     }
 
@@ -351,7 +367,8 @@ struct SessionItemRow: View {
         switch item.kind {
         case .photo: return "Photo"
         case .audio: return "Voice Memo"
-        case .file: return "File"
+        case .file: return item.originalFilename
+        case .text: return "Note"
         }
     }
 
