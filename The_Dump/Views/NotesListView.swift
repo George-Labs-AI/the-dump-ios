@@ -1,9 +1,13 @@
 import SwiftUI
 
+//The actual list of notes. Displays note previews in a scrollable list, handles pagination, handles search within the filtered set. Tapping a note navigates to NoteDetailView.
+
 struct NotesListView: View {
     private let title: String
     @StateObject private var viewModel: NotesListViewModel
-    
+    @State private var searchText: String = ""
+    @State private var searchTask: Task<Void, Never>?
+
     init(title: String, filter: NotesListViewModel.Filter) {
         self.title = title
         _viewModel = StateObject(wrappedValue: NotesListViewModel(filter: filter))
@@ -81,6 +85,20 @@ struct NotesListView: View {
                 await viewModel.refresh()
             }
         }
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search notes")
+        .onChange(of: searchText) { _, newValue in
+            // Cancel previous debounce task
+            searchTask?.cancel()
+
+            // Debounce: wait 300ms before triggering search
+            searchTask = Task {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                guard !Task.isCancelled else { return }
+
+                viewModel.searchQuery = newValue
+                await viewModel.refresh()
+            }
+        }
     }
 }
 
@@ -94,10 +112,13 @@ private struct NoteListRowView: View {
                 .foregroundColor(Theme.textPrimary)
                 .lineLimit(1)
             
-            Text(derivedSnippet(from: note.preview))
-                .font(.system(size: Theme.fontSizeSM))
-                .foregroundColor(Theme.textSecondary)
-                .lineLimit(2)
+            let snippet = derivedSnippet(from: note.preview)
+            if !snippet.isEmpty {
+                Text(snippet)
+                    .font(.system(size: Theme.fontSizeSM))
+                    .foregroundColor(Theme.textSecondary)
+                    .lineLimit(2)
+            }
             
             HStack(spacing: 8) {
                 if let modified = formattedDate(note.note_content_modified) {
@@ -127,7 +148,20 @@ private struct NoteListRowView: View {
     
     private func derivedSnippet(from preview: String) -> String {
         let trimmed = preview.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? " " : trimmed
+        guard !trimmed.isEmpty else { return "" }
+        
+        let title = derivedTitle(from: trimmed)
+        // If we couldn't derive a meaningful title, don't try to remove anything.
+        guard title != "Untitled" else { return trimmed }
+        
+        // Remove the title only if it is actually a prefix of the preview.
+        if trimmed.hasPrefix(title) {
+            let remainder = trimmed.dropFirst(title.count)
+            return remainder.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            // Safety fallback: avoid deleting content if title derivation doesn't match the prefix.
+            return trimmed
+        }
     }
     
     private func formattedDate(_ iso: String) -> String? {
