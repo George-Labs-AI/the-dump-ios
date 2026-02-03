@@ -224,4 +224,90 @@ class NotesService {
             throw APIError.networkError(underlying: error)
         }
     }
+
+    // Edit an existing note (partial updates allowed)
+    func editNote(
+        noteId: String,
+        entries: String? = nil,
+        title: String? = nil,
+        category: String? = nil,
+        subCategories: [String]? = nil,
+        type: String? = nil,
+        tags: [String]? = nil
+    ) async throws -> EditNoteResponseNote {
+        let cleanedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanedCategory = category?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanedType = type?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanedSubCategories = subCategories?
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let cleanedTags = tags?
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        if let entries, entries.utf8.count > 500 * 1024 {
+            throw APIError.badRequest(message: "Content too large (max 500KB)")
+        }
+
+        let hasUpdate =
+            entries != nil ||
+            cleanedTitle != nil ||
+            cleanedCategory != nil ||
+            cleanedSubCategories != nil ||
+            cleanedType != nil ||
+            cleanedTags != nil
+
+        guard hasUpdate else {
+            throw APIError.badRequest(message: "At least one field must be provided for update")
+        }
+
+        if let cleanedSubCategories, cleanedSubCategories.count > 3 {
+            throw APIError.badRequest(message: "Maximum of 3 sub-categories allowed")
+        }
+
+        var request = try await createRequest(endpoint: "/api/edit_note", method: "POST")
+        var body = EditNoteRequest(noteId: noteId)
+        body.entries = entries
+        body.title = cleanedTitle
+        body.category = cleanedCategory
+        body.subCategories = cleanedSubCategories
+        body.type = cleanedType
+        body.tags = cleanedTags
+
+        do {
+            request.httpBody = try JSONEncoder().encode(body)
+        } catch {
+            throw APIError.encodingFailed
+        }
+
+        do {
+#if DEBUG
+            debugLogRequest(request, label: "edit_note")
+#endif
+            let (data, response) = try await URLSession.shared.data(for: request)
+#if DEBUG
+            debugLogResponse(data: data, response: response, label: "edit_note")
+#endif
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.networkError(underlying: URLError(.badServerResponse))
+            }
+
+            let decoded = try JSONDecoder().decode(EditNoteResponse.self, from: data)
+
+            guard (200...299).contains(httpResponse.statusCode), let note = decoded.note else {
+                let message = decoded.error ?? "Failed to update note"
+                let errorResponse = APIErrorResponse(error: message)
+                throw APIError.from(statusCode: httpResponse.statusCode, errorResponse: errorResponse)
+            }
+
+            return note
+        } catch let error as APIError {
+            throw error
+        } catch let error as DecodingError {
+            throw APIError.decodingFailed(underlying: error)
+        } catch {
+            throw APIError.networkError(underlying: error)
+        }
+    }
 }
