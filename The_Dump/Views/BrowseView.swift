@@ -1,6 +1,6 @@
 import SwiftUI
 
-//main folders screen shows sections (categories, date groups, file types). Each row displays a name and count. 
+// main folders screen shows sections (categories, date groups, file types). Each row displays a name and count.
 
 struct BrowseView: View {
     @StateObject private var viewModel = BrowseViewModel()
@@ -241,6 +241,3 @@ private struct BrowseFolderRowView: View {
 #Preview {
     BrowseView()
 }
-
-
-

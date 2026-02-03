@@ -368,11 +368,11 @@ struct PlaybackControls: View {
                 } else {
                     player.play()
                 }
-            }) {
+            }, label: {
                 Image(systemName: player.isPlaying ? "pause.circle.fill" : "play.circle.fill")
                     .font(.system(size: 56))
                     .foregroundColor(Theme.accent)
-            }
+            })
         }
         .padding(.horizontal, Theme.spacingLG)
     }

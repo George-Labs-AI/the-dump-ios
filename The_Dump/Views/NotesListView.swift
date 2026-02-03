@@ -1,6 +1,6 @@
 import SwiftUI
 
-//The actual list of notes. Displays note previews in a scrollable list, handles pagination, handles search within the filtered set. Tapping a note navigates to NoteDetailView.
+// The actual list of notes. Displays note previews in a scrollable list, handles pagination, handles search within the filtered set. Tapping a note navigates to NoteDetailView.
 
 struct NotesListView: View {
     private let title: String
@@ -181,5 +181,3 @@ private struct NoteListRowView: View {
         NotesListView(title: "Work", filter: .category(name: "Work"))
     }
 }
-
-

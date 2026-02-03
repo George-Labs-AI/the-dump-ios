@@ -3,7 +3,7 @@
 //  The_Dump_App_Two
 //
 //  Created by Emily Smith on 12/10/25.
-//footer component
+// footer component
 
 import SwiftUI
 

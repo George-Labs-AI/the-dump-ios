@@ -1,6 +1,6 @@
 import SwiftUI
 
-//Thin routing layer. Receives kin (category, dategroup, or mimetype), name, count. Only job is to translate thos into the correct NotesListViewModel.Filter and pass it to NotesListView. For date roups, this is where DateGroupRangeBuilder computes the date range. 
+// Thin routing layer. Receives kin (category, dategroup, or mimetype), name, count. Only job is to translate thos into the correct NotesListViewModel.Filter and pass it to NotesListView. For date roups, this is where DateGroupRangeBuilder computes the date range.
 
 struct BrowseFolderDestinationView: View {
     enum Kind {
@@ -96,6 +96,3 @@ private enum DateGroupRangeBuilder {
         }
     }
 }
-
-
-

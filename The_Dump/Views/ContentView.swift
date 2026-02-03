@@ -2,12 +2,12 @@ import SwiftUI
 import Combine
 import UniformTypeIdentifiers
 
-//this is the view page that defines the other views
-//learned that @ is not a decorator but a property wrapper
+// this is the view page that defines the other views
+// learned that @ is not a decorator but a property wrapper
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var sessionStore = SessionStore()
-    //@state makes sure what the variable is set to doesn't change just becuase the code reloads, and state is often used for things that a user may change
+    // @state makes sure what the variable is set to doesn't change just becuase the code reloads, and state is often used for things that a user may change
     @State private var showCamera = false
     @State private var showVoiceMemo = false
     @State private var showSettings = false
@@ -15,11 +15,11 @@ struct ContentView: View {
     @State private var showTextNote = false
     @State private var capturedImage: UIImage?
     
-//a view is a type of struct that is called out as a view, and it must provide a body variable that contains the layout
-    //"some" view is used to not have to tell the compiler the exact type name of what is in the view, since it would be too complex. There can only be one body property per View
+// a view is a type of struct that is called out as a view, and it must provide a body variable that contains the layout
+    // "some" view is used to not have to tell the compiler the exact type name of what is in the view, since it would be too complex. There can only be one body property per View
     
     var body: some View {
-        //navigation stack is like a history so the app remembers where you came from to populate values that rely on previos screen actions
+        // navigation stack is like a history so the app remembers where you came from to populate values that rely on previos screen actions
         NavigationStack {
             ZStack {
                 Theme.background.ignoresSafeArea()
@@ -32,14 +32,14 @@ struct ContentView: View {
                        
                        Spacer()
                        
-                       Button(action: { showSettings = true }) {
+                       Button(action: { showSettings = true }, label: {
                            Image(systemName: "gearshape")
                                .font(.system(size: 18))
                                .foregroundColor(Theme.textSecondary)
                                .padding(8)
                                .background(Theme.darkGray)
                                .clipShape(Circle())
-                       }
+                       })
                    }
                    .padding(.horizontal, Theme.spacingMD)
                    .padding(.top, Theme.spacingSM)
@@ -74,7 +74,7 @@ struct ContentView: View {
                         }
                         .padding(.horizontal, Theme.spacingMD)
                     }
-                    .safeAreaInset(edge: .bottom){
+                    .safeAreaInset(edge: .bottom) {
                         AuthStatusFooter(email: appState.userEmail)
                             .padding()
                             .background(Theme.background)

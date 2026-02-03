@@ -140,5 +140,3 @@ final class NotesListViewModel: ObservableObject {
         }
     }
 }
-
-

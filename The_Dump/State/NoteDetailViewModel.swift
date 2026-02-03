@@ -41,8 +41,3 @@ final class NoteDetailViewModel: ObservableObject {
         isLoading = false
     }
 }
-
-
-
-
-

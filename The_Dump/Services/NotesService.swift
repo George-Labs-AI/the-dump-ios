@@ -155,8 +155,7 @@ class NotesService {
 
         // Create request manually since we used URLComponents
         let token = try await AuthService.shared.getIDToken()
-        
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -226,4 +225,3 @@ class NotesService {
         }
     }
 }
-
