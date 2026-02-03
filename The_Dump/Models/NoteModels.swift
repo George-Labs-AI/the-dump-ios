@@ -53,4 +53,3 @@ struct NoteDetail: Identifiable, Codable {
     
     var id: String { organized_note_id }
 }
-

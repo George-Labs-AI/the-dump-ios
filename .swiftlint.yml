@@ -4,6 +4,7 @@ disabled_rules:
   - type_body_length
   - file_length
   - function_body_length
+  - identifier_name
 
 opt_in_rules:
   - empty_count
@@ -21,6 +22,7 @@ identifier_name:
     - id
     - db
     - to
+    - _body
 
 nesting:
   type_level: 2

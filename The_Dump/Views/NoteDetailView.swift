@@ -1,7 +1,7 @@
 import SwiftUI
 import Combine
 
-//Shows the full content of a single note
+// Shows the full content of a single note
 
 struct NoteDetailView: View {
     private let noteID: String
@@ -307,5 +307,3 @@ private struct FlowLayout: Layout {
         NoteDetailView(noteID: "example-id")
     }
 }
-
-

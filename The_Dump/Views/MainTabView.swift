@@ -21,6 +21,3 @@ struct MainTabView: View {
     MainTabView()
         .environmentObject(AppState())
 }
-
-
-
