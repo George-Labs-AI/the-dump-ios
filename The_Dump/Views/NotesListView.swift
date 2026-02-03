@@ -107,12 +107,12 @@ private struct NoteListRowView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(derivedTitle(from: note.preview))
+            Text(displayTitle())
                 .font(.system(size: Theme.fontSizeMD, weight: .semibold))
                 .foregroundColor(Theme.textPrimary)
                 .lineLimit(1)
             
-            let snippet = derivedSnippet(from: note.preview)
+            let snippet = derivedSnippet()
             if !snippet.isEmpty {
                 Text(snippet)
                     .font(.system(size: Theme.fontSizeSM))
@@ -137,8 +137,12 @@ private struct NoteListRowView: View {
         .padding(.vertical, 8)
     }
     
-    private func derivedTitle(from preview: String) -> String {
-        let lines = preview
+    private func displayTitle() -> String {
+        if let title = note.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+            return title
+        }
+
+        let lines = note.preview
             .split(whereSeparator: \.isNewline)
             .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
@@ -146,22 +150,19 @@ private struct NoteListRowView: View {
         return lines.first ?? "Untitled"
     }
     
-    private func derivedSnippet(from preview: String) -> String {
-        let trimmed = preview.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func derivedSnippet() -> String {
+        let trimmed = note.preview.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "" }
         
-        let title = derivedTitle(from: trimmed)
-        // If we couldn't derive a meaningful title, don't try to remove anything.
+        let title = displayTitle()
         guard title != "Untitled" else { return trimmed }
-        
-        // Remove the title only if it is actually a prefix of the preview.
+
         if trimmed.hasPrefix(title) {
             let remainder = trimmed.dropFirst(title.count)
             return remainder.trimmingCharacters(in: .whitespacesAndNewlines)
-        } else {
-            // Safety fallback: avoid deleting content if title derivation doesn't match the prefix.
-            return trimmed
         }
+
+        return trimmed
     }
     
     private func formattedDate(_ iso: String) -> String? {

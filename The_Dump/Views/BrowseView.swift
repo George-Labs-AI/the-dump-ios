@@ -198,15 +198,18 @@ private struct SearchResultRowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(note.preview.components(separatedBy: .newlines).first ?? "Untitled")
+            Text(displayTitle())
                 .font(.system(size: Theme.fontSizeMD, weight: .semibold))
                 .foregroundColor(Theme.textPrimary)
                 .lineLimit(1)
 
-            Text(note.preview)
-                .font(.system(size: Theme.fontSizeSM))
-                .foregroundColor(Theme.textSecondary)
-                .lineLimit(2)
+            let snippet = derivedSnippet()
+            if !snippet.isEmpty {
+                Text(snippet)
+                    .font(.system(size: Theme.fontSizeSM))
+                    .foregroundColor(Theme.textSecondary)
+                    .lineLimit(2)
+            }
 
             if let category = note.category_name, !category.isEmpty {
                 Text(category)
@@ -215,6 +218,34 @@ private struct SearchResultRowView: View {
             }
         }
         .padding(.vertical, 8)
+    }
+
+    private func displayTitle() -> String {
+        if let title = note.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+            return title
+        }
+
+        let lines = note.preview
+            .split(whereSeparator: \.isNewline)
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        return lines.first ?? "Untitled"
+    }
+
+    private func derivedSnippet() -> String {
+        let trimmed = note.preview.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+
+        let title = displayTitle()
+        guard title != "Untitled" else { return trimmed }
+
+        if trimmed.hasPrefix(title) {
+            let remainder = trimmed.dropFirst(title.count)
+            return remainder.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        return trimmed
     }
 }
 

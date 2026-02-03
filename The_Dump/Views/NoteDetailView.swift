@@ -14,6 +14,8 @@ struct NoteDetailView: View {
     }
 
     var body: some View {
+        let navTitle = viewModel.note.map { displayTitle(for: $0) } ?? "Note"
+
         ZStack {
             Theme.background.ignoresSafeArea()
 
@@ -56,7 +58,6 @@ struct NoteDetailView: View {
                 }
             }
         }
-        .navigationTitle("Note")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(Theme.background, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
@@ -80,6 +81,20 @@ struct NoteDetailView: View {
         .task {
             await viewModel.loadIfNeeded()
         }
+        .navigationTitle(navTitle)
+    }
+
+    private func displayTitle(for note: NoteDetail) -> String {
+        if let title = note.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+            return title
+        }
+
+        let lines = note.note_content
+            .split(whereSeparator: \.isNewline)
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        return lines.first ?? "Note"
     }
 }
 

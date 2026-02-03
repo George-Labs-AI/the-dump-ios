@@ -29,6 +29,7 @@ struct NoteDetailResponse: Codable {
 // Represents a single note in the list view (lightweight)
 struct NotePreview: Identifiable, Codable {
     let organized_note_id: String
+    let title: String?
     let preview: String
     let note_content_modified: String
     let category_name: String?
@@ -43,6 +44,7 @@ struct NotePreview: Identifiable, Codable {
 // Represents the full note content (heavyweight)
 struct NoteDetail: Identifiable, Codable {
     let organized_note_id: String
+    let title: String?
     let note_content: String
     let note_content_modified: String
     let category_name: String?

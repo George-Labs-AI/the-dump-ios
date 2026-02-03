@@ -27,7 +27,7 @@ The Browse tab starts by calling an endpoint that returns **counts** for categor
 - pull‑to‑refresh
 - infinite scroll pagination using `next_cursor_time` and `next_cursor_id`
 
-Selecting a note navigates to a detail screen that fetches the full note text from the backend and displays it in a scroll view.
+Selecting a note navigates to a detail screen that fetches the full note text and title from the backend and displays the content in a scroll view.
 
 ---
 
@@ -39,7 +39,7 @@ Selecting a note navigates to a detail screen that fetches the full note text fr
 
 ### Models (shared data types)
 - `Models/APIError.swift`: Central place for mapping HTTP/decoding/network failures into user‑readable errors.
-- `Models/NoteModels.swift`: Codable structs for the backend note APIs (counts, previews, full note details).
+- `Models/NoteModels.swift`: Codable structs for the backend note APIs (counts, previews with titles, full note details with titles).
 - `Models/SessionItem.swift`: Data model for “Uploads This Session” items (kind, status, thumbnail/local file URL).
 - `Models/UploadResponse.swift`: Codable struct for the backend response that returns the signed upload URL and storage path.
 
@@ -69,8 +69,8 @@ Selecting a note navigates to a detail screen that fetches the full note text fr
 - `Views/ContentView.swift`: Dump screen; launches camera/voice memo/settings and shows session upload history.
 - `Views/VoiceMemoView.swift`: Record + playback + upload voice memos; includes permission handling.
 - `Views/BrowseView.swift`: Folder list (categories/date groups/file types) with pull‑to‑refresh.
-- `Views/NotesListView.swift`: Paginated list of note previews; navigates to note detail.
-- `Views/NoteDetailView.swift`: Displays the full note text.
+- `Views/NotesListView.swift`: Paginated list of note previews with API titles; navigates to note detail.
+- `Views/NoteDetailView.swift`: Displays the full note text and uses the API title in the navigation bar.
 - `Views/SettingsView.swift`: Shows account info, session upload count, clear session history, sign out, and a debug link.
 - `Views/DebugNotesView.swift`: Developer-only screen to manually test the notes APIs and inspect raw results.
 
