@@ -54,9 +54,7 @@ struct NoteDetailView: View {
                                     TextField("Title", text: $draftTitle)
                                         .textInputAutocapitalization(.sentences)
                                         .disableAutocorrection(false)
-                                        .padding(Theme.spacingSM)
-                                        .background(Theme.darkGray)
-                                        .cornerRadius(Theme.cornerRadiusSM)
+                                        .padding(.vertical, Theme.spacingXS)
 
                                     if draftTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                         Text("Title is required.")
@@ -72,9 +70,9 @@ struct NoteDetailView: View {
                                         .font(.system(size: Theme.fontSizeMD))
                                         .foregroundColor(Theme.textPrimary)
                                         .frame(minHeight: 220)
-                                        .padding(Theme.spacingSM)
-                                        .background(Theme.darkGray)
-                                        .cornerRadius(Theme.cornerRadiusSM)
+                                        .padding(.vertical, Theme.spacingXS)
+                                        .background(Color.clear)
+                                        .scrollContentBackground(.hidden)
                                 }
                             } else {
                                 // Main content
@@ -85,30 +83,6 @@ struct NoteDetailView: View {
                                     .textSelection(.enabled)
                             }
 
-                            if isEditing {
-                                HStack(spacing: Theme.spacingSM) {
-                                    Button("Cancel") {
-                                        cancelEdits()
-                                    }
-                                    .buttonStyle(SecondaryButtonStyle())
-
-                                    Button("Save") {
-                                        Task {
-                                            let trimmedTitle = draftTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-                                            let saved = await viewModel.saveEdits(
-                                                title: trimmedTitle,
-                                                content: draftContent
-                                            )
-                                            if saved {
-                                                isEditing = false
-                                            }
-                                        }
-                                    }
-                                    .buttonStyle(PrimaryButtonStyle(isEnabled: canSave))
-                                    .disabled(!canSave || viewModel.isSaving)
-                                }
-                                .padding(.top, Theme.spacingSM)
-                            }
                         }
                         .padding(Theme.spacingLG)
                     }
@@ -127,7 +101,7 @@ struct NoteDetailView: View {
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                if viewModel.note != nil {
+                if viewModel.note != nil && !isEditing {
                     Button {
                         showMetadataSheet = true
                     } label: {
@@ -137,12 +111,34 @@ struct NoteDetailView: View {
                 }
             }
 
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
                 if viewModel.note != nil {
-                    Button(isEditing ? "Done" : "Edit") {
-                        toggleEditMode()
+                    if isEditing {
+                        Button("Cancel") {
+                            cancelEdits()
+                        }
+                        .foregroundColor(Theme.textSecondary)
+
+                        Button(viewModel.isSaving ? "Saving..." : "Save") {
+                            Task {
+                                let trimmedTitle = draftTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+                                let saved = await viewModel.saveEdits(
+                                    title: trimmedTitle,
+                                    content: draftContent
+                                )
+                                if saved {
+                                    isEditing = false
+                                }
+                            }
+                        }
+                        .foregroundColor(Theme.accent)
+                        .disabled(!canSave || viewModel.isSaving)
+                    } else {
+                        Button("Edit") {
+                            toggleEditMode()
+                        }
+                        .foregroundColor(Theme.accent)
                     }
-                    .foregroundColor(Theme.accent)
                 }
             }
         }
