@@ -29,6 +29,7 @@ struct NoteDetailResponse: Codable {
 // Represents a single note in the list view (lightweight)
 struct NotePreview: Identifiable, Codable {
     let organized_note_id: String
+    let title: String?
     let preview: String
     let note_content_modified: String
     let category_name: String?
@@ -43,6 +44,7 @@ struct NotePreview: Identifiable, Codable {
 // Represents the full note content (heavyweight)
 struct NoteDetail: Identifiable, Codable {
     let organized_note_id: String
+    let title: String?
     let note_content: String
     let note_content_modified: String
     let category_name: String?
@@ -51,5 +53,46 @@ struct NoteDetail: Identifiable, Codable {
     let mime_type: String?
     let note_type: String?
     
+    var id: String { organized_note_id }
+}
+
+// MARK: - Edit Note
+
+struct EditNoteRequest: Codable {
+    let noteId: String
+    var entries: String?
+    var title: String?
+    var category: String?
+    var subCategories: [String]?
+    var type: String?
+    var tags: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case noteId = "note_id"
+        case entries
+        case title
+        case category
+        case subCategories = "sub_categories"
+        case type
+        case tags
+    }
+}
+
+struct EditNoteResponse: Codable {
+    let success: Bool?
+    let note: EditNoteResponseNote?
+    let error: String?
+}
+
+struct EditNoteResponseNote: Codable, Identifiable {
+    let organized_note_id: String
+    let title: String?
+    let note_content: String?
+    let note_content_modified: String?
+    let category_name: String?
+    let sub_cat_names: [String]?
+    let note_type: String?
+    let mime_type: String?
+
     var id: String { organized_note_id }
 }
