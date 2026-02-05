@@ -63,6 +63,9 @@ class NotesService {
     private func createRequest(endpoint: String, method: String = "GET") async throws -> URLRequest {
         // 1. Get the fresh Firebase token from existing AuthService
         let token = try await AuthService.shared.getIDToken()
+#if DEBUG
+        print("[NotesService] TOKEN: \(token)")
+#endif
         
         // 2. Construct the URL
         guard let url = URL(string: "\(baseURL)\(endpoint)") else {
