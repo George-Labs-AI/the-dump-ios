@@ -25,17 +25,26 @@ struct TheDumpApp: App {
 
 struct RootView: View {
     @EnvironmentObject var appState: AppState
-    
+
     var body: some View {
         Group {
             if appState.isAuthenticated {
-                MainTabView()
+                if appState.hasCompletedOnboarding {
+                    MainTabView()
+                } else {
+                    OnboardingView()
+                }
             } else {
                 AuthView()
             }
         }
         .onAppear {
             appState.listenToAuthChanges()
+        }
+        .onChange(of: appState.currentUser) { _, newUser in
+            if newUser != nil {
+                appState.checkOnboardingStatus()
+            }
         }
     }
 }

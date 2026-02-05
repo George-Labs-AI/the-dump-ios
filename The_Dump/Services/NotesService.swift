@@ -63,6 +63,9 @@ class NotesService {
     private func createRequest(endpoint: String, method: String = "GET") async throws -> URLRequest {
         // 1. Get the fresh Firebase token from existing AuthService
         let token = try await AuthService.shared.getIDToken()
+#if DEBUG
+        print("[NotesService] TOKEN: \(token)")
+#endif
         
         // 2. Construct the URL
         guard let url = URL(string: "\(baseURL)\(endpoint)") else {
@@ -302,6 +305,58 @@ class NotesService {
             }
 
             return note
+        } catch let error as APIError {
+            throw error
+        } catch let error as DecodingError {
+            throw APIError.decodingFailed(underlying: error)
+        } catch {
+            throw APIError.networkError(underlying: error)
+        }
+    }
+
+    // Update user categories
+    func updateCategories(_ categories: [Category]) async throws -> Int {
+        guard !categories.isEmpty else {
+            throw APIError.badRequest(message: "At least one category is required")
+        }
+
+        // Validate all categories have non-empty names
+        for category in categories {
+            let trimmedName = category.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmedName.isEmpty {
+                throw APIError.badRequest(message: "Category name cannot be empty")
+            }
+        }
+
+        var request = try await createRequest(endpoint: "/api/categories/update", method: "POST")
+        let body = UpdateCategoriesRequest(categories: categories)
+
+        do {
+            request.httpBody = try JSONEncoder().encode(body)
+        } catch {
+            throw APIError.encodingFailed
+        }
+
+        do {
+#if DEBUG
+            debugLogRequest(request, label: "categories_update")
+#endif
+            let (data, response) = try await URLSession.shared.data(for: request)
+#if DEBUG
+            debugLogResponse(data: data, response: response, label: "categories_update")
+#endif
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.networkError(underlying: URLError(.badServerResponse))
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+                throw APIError.from(statusCode: httpResponse.statusCode, errorResponse: errorResponse)
+            }
+
+            let decoded = try JSONDecoder().decode(UpdateCategoriesResponse.self, from: data)
+            return decoded.updatedCount
         } catch let error as APIError {
             throw error
         } catch let error as DecodingError {

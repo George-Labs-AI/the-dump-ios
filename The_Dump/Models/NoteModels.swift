@@ -96,3 +96,33 @@ struct EditNoteResponseNote: Codable, Identifiable {
 
     var id: String { organized_note_id }
 }
+
+// MARK: - Categories
+
+struct Category: Codable {
+    let name: String
+    let definition: String?
+    let keywords: [String]?
+    let source: String?
+
+    init(name: String, definition: String? = nil, keywords: [String]? = nil, source: String? = nil) {
+        self.name = name
+        self.definition = definition
+        self.keywords = keywords
+        self.source = source
+    }
+}
+
+struct UpdateCategoriesRequest: Codable {
+    let categories: [Category]
+}
+
+struct UpdateCategoriesResponse: Codable {
+    let status: String
+    let updatedCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case updatedCount = "updated_count"
+    }
+}

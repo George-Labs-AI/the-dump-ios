@@ -8,7 +8,8 @@ class AppState: ObservableObject {
     @Published var isAuthenticated = false
     @Published var userEmail: String?
     @Published var currentUser: User?
-    
+    @Published var hasCompletedOnboarding = false
+
     private var authStateHandle: AuthStateDidChangeListenerHandle?
     
     var idToken: String? {
@@ -38,6 +39,20 @@ class AppState: ObservableObject {
     
     func signOut() throws {
         try Auth.auth().signOut()
+    }
+
+    func checkOnboardingStatus() {
+        guard let userId = currentUser?.uid else {
+            hasCompletedOnboarding = false
+            return
+        }
+        hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "onboarding_completed_\(userId)")
+    }
+
+    func markOnboardingComplete() {
+        guard let userId = currentUser?.uid else { return }
+        UserDefaults.standard.set(true, forKey: "onboarding_completed_\(userId)")
+        hasCompletedOnboarding = true
     }
     
     deinit {
