@@ -65,17 +65,9 @@ class AppState: ObservableObject {
     }
 
     private func checkServerForCategories(userId: String) async {
+        defer { isCheckingOnboardingStatus = false }
         do {
             let counts = try await NotesService.shared.fetchCounts()
-
-            guard currentUser?.uid == userId else { return }
-
-            // If onboarding was completed while this task was running, do not override it.
-            if UserDefaults.standard.bool(forKey: "onboarding_completed_\(userId)") {
-                hasCompletedOnboarding = true
-                isCheckingOnboardingStatus = false
-                return
-            }
 
             // If user has any categories on server, they've completed onboarding
             if !counts.categories.isEmpty {
@@ -95,16 +87,8 @@ class AppState: ObservableObject {
             print("[AppState] Failed to check categories: \(error) - showing onboarding")
 #endif
             // On error, default to showing onboarding (safe fallback)
-            guard currentUser?.uid == userId else { return }
-            if UserDefaults.standard.bool(forKey: "onboarding_completed_\(userId)") {
-                hasCompletedOnboarding = true
-                isCheckingOnboardingStatus = false
-                return
-            }
             hasCompletedOnboarding = false
         }
-        guard currentUser?.uid == userId else { return }
-        isCheckingOnboardingStatus = false
     }
 
     func markOnboardingComplete() {
