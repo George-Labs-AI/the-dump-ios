@@ -9,6 +9,7 @@ class AppState: ObservableObject {
     @Published var userEmail: String?
     @Published var currentUser: User?
     @Published var hasCompletedOnboarding = false
+    @Published var isCheckingOnboardingStatus = false
 
     private var authStateHandle: AuthStateDidChangeListenerHandle?
     
@@ -44,9 +45,50 @@ class AppState: ObservableObject {
     func checkOnboardingStatus() {
         guard let userId = currentUser?.uid else {
             hasCompletedOnboarding = false
+            isCheckingOnboardingStatus = false
             return
         }
-        hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "onboarding_completed_\(userId)")
+
+        // Fast path: check local cache first (instant)
+        if UserDefaults.standard.bool(forKey: "onboarding_completed_\(userId)") {
+            hasCompletedOnboarding = true
+            isCheckingOnboardingStatus = false
+            return
+        }
+
+        // Slow path: check server for existing categories
+        // This handles: new device, reinstall, or user who completed onboarding elsewhere
+        isCheckingOnboardingStatus = true
+        Task {
+            await checkServerForCategories(userId: userId)
+        }
+    }
+
+    private func checkServerForCategories(userId: String) async {
+        defer { isCheckingOnboardingStatus = false }
+        do {
+            let counts = try await NotesService.shared.fetchCounts()
+
+            // If user has any categories on server, they've completed onboarding
+            if !counts.categories.isEmpty {
+#if DEBUG
+                print("[AppState] Found \(counts.categories.count) categories on server - skipping onboarding")
+#endif
+                UserDefaults.standard.set(true, forKey: "onboarding_completed_\(userId)")
+                hasCompletedOnboarding = true
+            } else {
+#if DEBUG
+                print("[AppState] No categories on server - showing onboarding")
+#endif
+                hasCompletedOnboarding = false
+            }
+        } catch {
+#if DEBUG
+            print("[AppState] Failed to check categories: \(error) - showing onboarding")
+#endif
+            // On error, default to showing onboarding (safe fallback)
+            hasCompletedOnboarding = false
+        }
     }
 
     func markOnboardingComplete() {

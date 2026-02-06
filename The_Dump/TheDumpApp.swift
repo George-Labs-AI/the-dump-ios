@@ -29,7 +29,14 @@ struct RootView: View {
     var body: some View {
         Group {
             if appState.isAuthenticated {
-                if appState.hasCompletedOnboarding {
+                if appState.isCheckingOnboardingStatus {
+                    // Brief loading state while checking server for categories
+                    ZStack {
+                        Theme.background.ignoresSafeArea()
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    }
+                } else if appState.hasCompletedOnboarding {
                     MainTabView()
                 } else {
                     OnboardingView()
