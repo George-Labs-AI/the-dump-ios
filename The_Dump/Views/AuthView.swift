@@ -86,7 +86,9 @@ struct AuthView: View {
                             .autocapitalization(.none)
                             .autocorrectionDisabled()
 
-                            Button(action: { showPassword.toggle() }) {
+                            Button {
+                                showPassword.toggle()
+                            } label: {
                                 Image(systemName: showPassword ? "eye.slash.fill" : "eye.fill")
                                     .foregroundColor(Theme.textSecondary)
                             }
@@ -118,7 +120,9 @@ struct AuthView: View {
                                 .autocapitalization(.none)
                                 .autocorrectionDisabled()
 
-                                Button(action: { showConfirmPassword.toggle() }) {
+                                Button {
+                                    showConfirmPassword.toggle()
+                                } label: {
                                     Image(systemName: showConfirmPassword ? "eye.slash.fill" : "eye.fill")
                                         .foregroundColor(Theme.textSecondary)
                                 }
@@ -131,7 +135,9 @@ struct AuthView: View {
 
                 // Forgot password link (sign in only)
                 if !isSignUpMode {
-                    Button(action: { showForgotPassword = true }) {
+                    Button {
+                        showForgotPassword = true
+                    } label: {
                         Text("Forgot Password?")
                             .font(.system(size: Theme.fontSizeSM))
                             .foregroundColor(Theme.textSecondary)
@@ -148,7 +154,9 @@ struct AuthView: View {
                 }
 
                 // Submit button
-                Button(action: submit) {
+                Button {
+                    submit()
+                } label: {
                     HStack {
                         if isLoading {
                             ProgressView()
@@ -165,7 +173,9 @@ struct AuthView: View {
                 .padding(.top, Theme.spacingSM)
 
                 // Toggle between sign in / sign up
-                Button(action: toggleMode) {
+                Button {
+                    toggleMode()
+                } label: {
                     Text(isSignUpMode ? "Already have an account? Sign In" : "Don't have an account? Sign Up")
                         .font(.system(size: Theme.fontSizeSM))
                         .foregroundColor(Theme.textSecondary)
@@ -271,7 +281,9 @@ struct ForgotPasswordView: View {
 
                         Spacer()
 
-                        Button(action: { dismiss() }) {
+                        Button {
+                            dismiss()
+                        } label: {
                             Text("Back to Sign In")
                                 .frame(maxWidth: .infinity)
                         }
@@ -311,7 +323,9 @@ struct ForgotPasswordView: View {
                                 .padding(.horizontal, Theme.spacingLG)
                         }
 
-                        Button(action: sendResetEmail) {
+                        Button {
+                            sendResetEmail()
+                        } label: {
                             HStack {
                                 if isLoading {
                                     ProgressView()
