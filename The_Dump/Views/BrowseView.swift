@@ -3,10 +3,13 @@ import SwiftUI
 // main folders screen shows sections (categories, date groups, file types). Each row displays a name and count.
 
 struct BrowseView: View {
+    @EnvironmentObject var appState: AppState
     @StateObject private var viewModel = BrowseViewModel()
+    @StateObject private var sessionStore = SessionStore()
     @State private var searchText: String = ""
     @State private var isShowingSearchResults: Bool = false
     @State private var submittedSearchText: String = ""
+    @State private var showSettings = false
 
     var body: some View {
         NavigationStack {
@@ -105,6 +108,20 @@ struct BrowseView: View {
             }
             .navigationDestination(isPresented: $isShowingSearchResults) {
                 SearchResultsView(initialQuery: submittedSearchText)
+            }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: { showSettings = true }) {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 18))
+                            .foregroundColor(Theme.textSecondary)
+                    }
+                }
+            }
+            .sheet(isPresented: $showSettings) {
+                SettingsView()
+                    .environmentObject(appState)
+                    .environmentObject(sessionStore)
             }
         }
     }
@@ -271,4 +288,5 @@ private struct BrowseFolderRowView: View {
 
 #Preview {
     BrowseView()
+        .environmentObject(AppState())
 }
