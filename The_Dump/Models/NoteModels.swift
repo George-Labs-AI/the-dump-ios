@@ -146,3 +146,24 @@ struct UpdateCategoriesResponse: Codable {
         case categories
     }
 }
+
+// MARK: - Sub-Categories
+
+struct CreateSubCategoryRequest: Codable {
+    let categoryName: String
+    let subCatName: String
+    let subCatDescription: String?
+    let subCatKeywords: String?
+
+    enum CodingKeys: String, CodingKey {
+        case categoryName = "category_name"
+        case subCatName = "sub_cat_name"
+        case subCatDescription = "sub_cat_description"
+        case subCatKeywords = "sub_cat_keywords"
+    }
+}
+
+struct CreateSubCategoryResponse: Codable {
+    let success: Bool?
+    let error: String?
+}

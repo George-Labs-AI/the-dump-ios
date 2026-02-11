@@ -71,8 +71,7 @@ Selecting a note navigates to a detail screen that fetches the full note text an
 - `Views/BrowseView.swift`: Folder list (categories/date groups/file types) with pull‑to‑refresh.
 - `Views/NotesListView.swift`: Paginated list of note previews with API titles; navigates to note detail.
 - `Views/NoteDetailView.swift`: Displays the full note text and uses the API title in the navigation bar.
-- `Views/SettingsView.swift`: Shows account info, session upload count, clear session history, sign out, and a debug link.
-- `Views/DebugNotesView.swift`: Developer-only screen to manually test the notes APIs and inspect raw results.
+- `Views/SettingsView.swift`: Shows account info, session upload count, clear session history, and sign out.
 
 ---
 

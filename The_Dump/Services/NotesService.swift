@@ -381,4 +381,66 @@ class NotesService {
             throw APIError.networkError(underlying: error)
         }
     }
+
+    // Create a new sub-category
+    func createSubCategory(
+        categoryName: String,
+        subCatName: String,
+        subCatDescription: String? = nil,
+        subCatKeywords: String? = nil
+    ) async throws {
+        let trimmedCategory = categoryName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedSubCat = subCatName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmedCategory.isEmpty else {
+            throw APIError.badRequest(message: "Category name is required")
+        }
+
+        guard !trimmedSubCat.isEmpty else {
+            throw APIError.badRequest(message: "Sub-category name is required")
+        }
+
+        var request = try await createRequest(endpoint: "/api/subcategories", method: "POST")
+        let body = CreateSubCategoryRequest(
+            categoryName: trimmedCategory,
+            subCatName: trimmedSubCat,
+            subCatDescription: subCatDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
+            subCatKeywords: subCatKeywords
+        )
+
+        do {
+            request.httpBody = try JSONEncoder().encode(body)
+        } catch {
+            throw APIError.encodingFailed
+        }
+
+        do {
+#if DEBUG
+            debugLogRequest(request, label: "create_subcategory")
+            if let bodyData = request.httpBody,
+               let bodyString = String(data: bodyData, encoding: .utf8) {
+                print("[NotesService][create_subcategory] Request body: \(bodyString)")
+            }
+#endif
+            let (data, response) = try await URLSession.shared.data(for: request)
+#if DEBUG
+            debugLogResponse(data: data, response: response, label: "create_subcategory")
+#endif
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.networkError(underlying: URLError(.badServerResponse))
+            }
+
+            if !(200...299).contains(httpResponse.statusCode) {
+                let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+                throw APIError.from(statusCode: httpResponse.statusCode, errorResponse: errorResponse)
+            }
+        } catch let error as APIError {
+            throw error
+        } catch let error as DecodingError {
+            throw APIError.decodingFailed(underlying: error)
+        } catch {
+            throw APIError.networkError(underlying: error)
+        }
+    }
 }

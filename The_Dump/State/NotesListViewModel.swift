@@ -10,20 +10,63 @@ final class NotesListViewModel: ObservableObject {
         case dateGroup(name: String, startTime: String, endTime: String)
         case recent(limit: Int)
     }
-    
+
     @Published private(set) var notes: [NotePreview] = []
     @Published private(set) var isLoadingInitial: Bool = false
     @Published private(set) var isLoadingMore: Bool = false
     @Published private(set) var errorMessage: String?
     @Published private(set) var hasMore: Bool = false
     @Published var searchQuery: String = ""
+    @Published var selectedSubCategory: String?
+    @Published private(set) var availableSubCategories: [String] = []
 
     private let filter: Filter
     private var nextCursorTime: String?
     private var nextCursorId: String?
-    
+
+    /// Returns the category name if this filter is a category filter
+    var categoryName: String? {
+        if case .category(let name) = filter {
+            return name
+        }
+        return nil
+    }
+
     init(filter: Filter) {
         self.filter = filter
+    }
+
+    /// Load available subcategories from the notes in the current category.
+    /// Skips rebuilding when a sub-category filter is active, because the
+    /// filtered results only contain that one sub-category and would wipe the list.
+    func loadSubCategories() async {
+        guard case .category = filter else { return }
+        guard selectedSubCategory == nil else { return }
+
+        // Collect unique subcategories from all loaded notes
+        var subCats = Set<String>()
+        for note in notes {
+            if let names = note.sub_cat_names {
+                for name in names where !name.isEmpty {
+                    subCats.insert(name)
+                }
+            }
+        }
+
+        availableSubCategories = subCats.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    /// Add a new subcategory to the available list (called after creating one)
+    func addSubCategoryToList(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmed.isEmpty, !availableSubCategories.contains(where: { $0.lowercased() == trimmed }) else { return }
+        availableSubCategories.append(name)
+        availableSubCategories.sort { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    /// Clear the subcategory filter
+    func clearSubCategoryFilter() {
+        selectedSubCategory = nil
     }
     
     func refresh() async {
@@ -40,12 +83,13 @@ final class NotesListViewModel: ObservableObject {
             nextCursorTime = response.next_cursor_time
             nextCursorId = response.next_cursor_id
             hasMore = response.has_more
+            await loadSubCategories()
         } catch {
             errorMessage = error.localizedDescription
             notes = []
             hasMore = false
         }
-        
+
         isLoadingInitial = false
     }
     
@@ -71,10 +115,11 @@ final class NotesListViewModel: ObservableObject {
             nextCursorTime = response.next_cursor_time
             nextCursorId = response.next_cursor_id
             hasMore = response.has_more
+            await loadSubCategories()
         } catch {
             errorMessage = error.localizedDescription
         }
-        
+
         isLoadingMore = false
     }
     
@@ -96,6 +141,7 @@ final class NotesListViewModel: ObservableObject {
                 cursorTime: cursorTime,
                 cursorId: cursorId,
                 categoryName: name,
+                subCatName: selectedSubCategory,
                 q: q
             )
         case .mimeType(let mime):

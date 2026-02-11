@@ -53,9 +53,6 @@ struct ContentView: View {
                         .font(.system(size: Theme.fontSizeLG))
                         .foregroundColor(Theme.textPrimary)
                         .padding()
-                    Text("Visit \(Text("thedump.ai").foregroundColor(Theme.accent)) to see your organized notes")
-                        .font(.system(size: Theme.fontSizeLG))
-                        .foregroundColor(Theme.textPrimary)
                     ScrollView {
                         VStack(spacing: Theme.spacingLG) {
                             // Capture buttons
