@@ -306,6 +306,8 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				GOOGLE_APP_ID = "1:233207431940:ios:c9c5a4a7668fc38bb04651";
+				INFOPLIST_KEY_CFBundleDisplayName = "The Dump";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCameraUsageDescription = "For taking pictures of handwritten notes";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "For recording voice memos of ideas";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Upload pictures of handwritten notes and papers";
@@ -343,6 +345,8 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				GOOGLE_APP_ID = "1:233207431940:ios:c9c5a4a7668fc38bb04651";
+				INFOPLIST_KEY_CFBundleDisplayName = "The Dump";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCameraUsageDescription = "For taking pictures of handwritten notes";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "For recording voice memos of ideas";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Upload pictures of handwritten notes and papers";
