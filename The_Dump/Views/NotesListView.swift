@@ -8,6 +8,8 @@ struct NotesListView: View {
     @State private var searchText: String = ""
     @State private var searchTask: Task<Void, Never>?
     @State private var showAddSubCategory: Bool = false
+    @State private var noteToDelete: NotePreview?
+    @State private var showDeleteConfirmation: Bool = false
 
     init(title: String, filter: NotesListViewModel.Filter) {
         self.title = title
@@ -48,7 +50,7 @@ struct NotesListView: View {
                                     .font(.system(size: Theme.fontSizeSM))
                                     .foregroundColor(Theme.accent)
                             }
-                            .listRowBackground(Theme.darkGray)
+                            .listRowBackground(Theme.surface)
                         }
 
                         // Sub-category filter section (only for category views)
@@ -65,8 +67,8 @@ struct NotesListView: View {
                                     }
                                 )
                             }
-                            .listRowBackground(Theme.darkGray)
-                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                            .listRowBackground(Theme.surface)
+                            .listRowInsets(EdgeInsets(top: Theme.spacingSM, leading: Theme.spacingMD, bottom: Theme.spacingSM, trailing: Theme.spacingSM))
                         }
 
                         ForEach(viewModel.notes) { note in
@@ -75,7 +77,15 @@ struct NotesListView: View {
                             } label: {
                                 NoteListRowView(note: note)
                             }
-                            .listRowBackground(Theme.darkGray)
+                            .listRowBackground(Theme.surface)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    noteToDelete = note
+                                    showDeleteConfirmation = true
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
                             .onAppear {
                                 Task { await viewModel.loadMoreIfNeeded(currentItem: note) }
                             }
@@ -123,6 +133,19 @@ struct NotesListView: View {
                 await viewModel.refresh()
             }
         }
+        .alert("Delete Note", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {
+                noteToDelete = nil
+            }
+            Button("Delete", role: .destructive) {
+                if let note = noteToDelete {
+                    Task { await viewModel.deleteNote(noteId: note.id) }
+                    noteToDelete = nil
+                }
+            }
+        } message: {
+            Text("Are you sure you want to delete this note? This action cannot be undone.")
+        }
         .sheet(isPresented: $showAddSubCategory) {
             if let categoryName = viewModel.categoryName {
                 AddSubCategoryView(categoryName: categoryName) { newSubCatName in
@@ -146,91 +169,90 @@ private struct SubCategoryFilterRow: View {
     private let infoText = "Add sub-categories within categories. Each note in the category will be checked to see if it matches the sub-category description, and added automatically to the sub-category if there's a strong match. Each note can be assigned to up to 3 sub-categories."
 
     var body: some View {
-        HStack(spacing: Theme.spacingSM) {
-            // Dropdown for selecting sub-category
-            Menu {
-                Button("All Sub-Categories") {
-                    selectedSubCategory = nil
-                    onFilterChange()
-                }
-
-                if !availableSubCategories.isEmpty {
-                    Divider()
-
-                    ForEach(availableSubCategories, id: \.self) { subCat in
-                        Button(subCat) {
-                            selectedSubCategory = subCat
+        VStack(alignment: .leading, spacing: Theme.spacingSM) {
+            // Filter pills row
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Theme.spacingSM) {
+                    // "All" pill — always first
+                    FilterPill(
+                        label: "All",
+                        isActive: selectedSubCategory == nil,
+                        onTap: {
+                            selectedSubCategory = nil
                             onFilterChange()
                         }
+                    )
+
+                    ForEach(availableSubCategories, id: \.self) { subCat in
+                        FilterPill(
+                            label: subCat,
+                            isActive: selectedSubCategory == subCat,
+                            onTap: {
+                                selectedSubCategory = subCat
+                                onFilterChange()
+                            }
+                        )
                     }
-                }
-            } label: {
-                HStack {
-                    Text(selectedSubCategory ?? "Sub-category")
-                        .font(.system(size: Theme.fontSizeSM))
-                        .foregroundColor(Theme.textPrimary)
-                        .lineLimit(1)
 
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10))
-                        .foregroundColor(Theme.textSecondary)
-                }
-                .padding(.horizontal, Theme.spacingSM)
-                .padding(.vertical, 6)
-                .background(Theme.mediumGray)
-                .cornerRadius(Theme.cornerRadiusSM)
-            }
-
-            // Clear filter button (only shown when a filter is active)
-            if selectedSubCategory != nil {
-                Button {
-                    selectedSubCategory = nil
-                    onFilterChange()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundColor(Theme.textSecondary)
-                }
-            }
-
-            Spacer()
-
-            // Add sub-category button and info button grouped together
-            HStack(spacing: Theme.spacingSM) {
-                Button(action: onAddTapped) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(Theme.accent)
-
-                        Text("add sub-category")
-                            .font(.system(size: Theme.fontSizeXS))
-                            .foregroundColor(Theme.accent)
+                    // Add sub-category pill
+                    Button(action: onAddTapped) {
+                        HStack(spacing: Theme.spacingXS) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 10, weight: .semibold))
+                            Text("Add")
+                                .font(.system(size: Theme.fontSizeXS))
+                        }
+                        .foregroundColor(Theme.accent)
+                        .padding(.horizontal, Theme.spacingSMPlus)
+                        .padding(.vertical, Theme.spacingSM)
+                        .background(Theme.accent.opacity(0.1))
+                        .clipShape(Capsule())
                     }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+                    .buttonStyle(.plain)
 
-                // Info button with popover
-                Button(action: { showInfoPopover = true }) {
-                    Image(systemName: "questionmark.circle")
-                        .font(.system(size: 14))
-                        .foregroundColor(Theme.textSecondary)
-                        .frame(width: 24, height: 24)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .popover(isPresented: $showInfoPopover, arrowEdge: .top) {
-                    Text(infoText)
-                        .font(.system(size: Theme.fontSizeSM))
-                        .foregroundColor(Theme.textPrimary)
-                        .padding(Theme.spacingMD)
-                        .frame(maxWidth: 280)
-                        .background(Theme.darkGray)
-                        .presentationCompactAdaptation(.popover)
+                    // Info button
+                    Button(action: { showInfoPopover = true }) {
+                        Image(systemName: "questionmark.circle")
+                            .font(.system(size: 14))
+                            .foregroundColor(Theme.textSecondary)
+                            .frame(width: 24, height: 24)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .popover(isPresented: $showInfoPopover, arrowEdge: .top) {
+                        Text(infoText)
+                            .font(.system(size: Theme.fontSizeSM))
+                            .foregroundColor(Theme.textPrimary)
+                            .padding(Theme.spacingMD)
+                            .frame(maxWidth: 280)
+                            .background(Theme.surface)
+                            .presentationCompactAdaptation(.popover)
+                    }
                 }
             }
         }
+    }
+}
+
+// MARK: - Filter Pill
+
+private struct FilterPill: View {
+    let label: String
+    let isActive: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            Text(label)
+                .font(.system(size: Theme.fontSizeSM, weight: isActive ? .semibold : .regular))
+                .foregroundColor(isActive ? Theme.background : Theme.textPrimary)
+                .padding(.horizontal, Theme.spacingSMPlus)
+                .padding(.vertical, Theme.spacingSM)
+                .background(isActive ? Theme.textPrimary : Theme.surface2)
+                .clipShape(Capsule())
+                .lineLimit(1)
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -239,15 +261,19 @@ private struct NoteListRowView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(displayTitle())
-                .font(.system(size: Theme.fontSizeMD, weight: .semibold))
-                .foregroundColor(Theme.textPrimary)
-                .lineLimit(1)
+            HStack(spacing: 6) {
+                Text(mediaTypeEmoji())
+                    .font(.system(size: 14))
+                Text(displayTitle())
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(Theme.textPrimary)
+                    .lineLimit(1)
+            }
             
             let snippet = derivedSnippet()
             if !snippet.isEmpty {
                 Text(snippet)
-                    .font(.system(size: Theme.fontSizeSM))
+                    .font(.system(size: 13))
                     .foregroundColor(Theme.textSecondary)
                     .lineLimit(2)
             }
@@ -255,20 +281,20 @@ private struct NoteListRowView: View {
             HStack(spacing: 8) {
                 if let modified = formattedDate(note.note_content_modified) {
                     Text(modified)
-                        .font(.system(size: Theme.fontSizeXS))
+                        .font(.system(size: 11))
                         .foregroundColor(Theme.textSecondary)
                 }
-                
+
                 if let category = note.category_name, !category.isEmpty {
                     Text(category)
-                        .font(.system(size: Theme.fontSizeXS))
+                        .font(.system(size: 11))
                         .foregroundColor(Theme.textSecondary)
                 }
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, Theme.spacingSM)
     }
-    
+
     private func displayTitle() -> String {
         if let title = note.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
             return title
@@ -281,7 +307,16 @@ private struct NoteListRowView: View {
         
         return lines.first ?? "Untitled"
     }
-    
+
+    private func mediaTypeEmoji() -> String {
+        if let mime = note.mime_type?.lowercased() {
+            if mime.hasPrefix("audio/") { return "🎙️" }
+            if mime.hasPrefix("image/") { return "🖼️" }
+            if mime.hasPrefix("video/") { return "🎬" }
+        }
+        return "📝"
+    }
+
     private func derivedSnippet() -> String {
         let trimmed = note.preview.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "" }
