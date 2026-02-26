@@ -112,7 +112,7 @@ struct OnboardingCategoriesView: View {
 
                             Text("\(viewModel.categoryCount) \(viewModel.categoryCount == 1 ? "category" : "categories")")
                                 .font(.system(size: Theme.fontSizeSM))
-                                .foregroundColor(viewModel.isCategoryCountValid ? .green : Theme.accent)
+                                .foregroundColor(viewModel.isCategoryCountValid ? Theme.success : Theme.accent)
                         }
 
                         if viewModel.categories.isEmpty {
@@ -121,7 +121,7 @@ struct OnboardingCategoriesView: View {
                                 .foregroundColor(Theme.textSecondary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(Theme.spacingMD)
-                                .background(Theme.darkGray)
+                                .background(Theme.surface)
                                 .cornerRadius(Theme.cornerRadius)
                         } else {
                             FlowLayout(spacing: Theme.spacingSM) {
@@ -168,10 +168,10 @@ private struct DomainChip: View {
             Text(name)
                 .font(.system(size: Theme.fontSizeSM, weight: .medium))
                 .foregroundColor(isSelected ? Theme.textPrimary : Theme.textSecondary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(isSelected ? Theme.accent : Theme.mediumGray)
-                .cornerRadius(20)
+                .padding(.horizontal, Theme.spacingSMPlus)
+                .padding(.vertical, Theme.spacingSM)
+                .background(isSelected ? Theme.accent : Theme.surface2)
+                .cornerRadius(Theme.cornerRadiusPill)
         }
         .buttonStyle(.plain)
     }
@@ -185,17 +185,17 @@ private struct SuggestionChip: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 4) {
+            HStack(spacing: Theme.spacingXS) {
                 Image(systemName: "plus")
                     .font(.system(size: 12, weight: .medium))
                 Text(text)
                     .font(.system(size: Theme.fontSizeSM))
             }
             .foregroundColor(Theme.accent)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .padding(.horizontal, Theme.spacingSMPlus)
+            .padding(.vertical, Theme.spacingXS)
             .background(Theme.accent.opacity(0.15))
-            .cornerRadius(16)
+            .cornerRadius(Theme.cornerRadiusCapture)
         }
         .buttonStyle(.plain)
     }
@@ -208,7 +208,7 @@ private struct RemovableTagChip: View {
     let onRemove: () -> Void
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Theme.spacingXS) {
             Text(text)
                 .font(.system(size: Theme.fontSizeSM))
                 .foregroundColor(Theme.textPrimary)
@@ -219,10 +219,10 @@ private struct RemovableTagChip: View {
                     .foregroundColor(Theme.textSecondary)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Theme.mediumGray)
-        .cornerRadius(16)
+        .padding(.horizontal, Theme.spacingSMPlus)
+        .padding(.vertical, Theme.spacingSM)
+        .background(Theme.surface2)
+        .cornerRadius(Theme.cornerRadiusCapture)
     }
 }
 
@@ -233,7 +233,7 @@ private struct ExistingCategoryChip: View {
     let count: Int
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Theme.spacingXS) {
             Text(name)
                 .font(.system(size: Theme.fontSizeSM))
                 .foregroundColor(Theme.textSecondary)
@@ -241,14 +241,14 @@ private struct ExistingCategoryChip: View {
             Text("\(count)")
                 .font(.system(size: Theme.fontSizeXS))
                 .foregroundColor(Theme.textSecondary)
-                .padding(.horizontal, 6)
+                .padding(.horizontal, Theme.spacingXS)
                 .padding(.vertical, 2)
-                .background(Theme.mediumGray.opacity(0.5))
-                .cornerRadius(8)
+                .background(Theme.surface2.opacity(0.5))
+                .cornerRadius(Theme.cornerRadiusSM)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Theme.darkGray)
-        .cornerRadius(16)
+        .padding(.horizontal, Theme.spacingSMPlus)
+        .padding(.vertical, Theme.spacingSM)
+        .background(Theme.surface)
+        .cornerRadius(Theme.cornerRadiusCapture)
     }
 }

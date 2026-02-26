@@ -97,6 +97,21 @@ struct EditNoteResponseNote: Codable, Identifiable {
     var id: String { organized_note_id }
 }
 
+// MARK: - Delete Note
+
+struct DeleteNoteRequest: Codable {
+    let noteId: String
+
+    enum CodingKeys: String, CodingKey {
+        case noteId = "note_id"
+    }
+}
+
+struct DeleteNoteResponse: Codable {
+    let success: Bool
+    let note_id: String
+}
+
 // MARK: - Categories
 
 struct Category: Codable {

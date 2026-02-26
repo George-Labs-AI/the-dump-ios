@@ -1,5 +1,6 @@
 import Foundation
 import StoreKit
+import Combine
 
 @MainActor
 class SubscriptionViewModel: ObservableObject {
@@ -22,11 +23,29 @@ class SubscriptionViewModel: ObservableObject {
     }
 
     var formattedPrice: String {
-        product?.displayPrice ?? "—"
+        product?.displayPrice ?? "$29.99"
     }
 
     var usagePercentage: Double {
         usageStatus?.usagePercentage ?? 0
+    }
+
+    var notesPercentage: Double {
+        usageStatus?.notesPercentage ?? 0
+    }
+
+    var wordsPercentage: Double {
+        usageStatus?.wordsPercentage ?? 0
+    }
+
+    /// Human-readable string for the limiting factor shown in banners
+    var limitingFactorLabel: String {
+        guard let status = usageStatus else { return "" }
+        if status.notesPercentage >= status.wordsPercentage {
+            return "\(status.notesUsed.formatted()) of \(status.monthlyNoteLimit.formatted()) notes used"
+        } else {
+            return "\(status.wordsUsed.formatted()) of \(status.monthlyWordLimit.formatted()) words used"
+        }
     }
 
     var formattedResetDate: String? {
@@ -46,6 +65,26 @@ class SubscriptionViewModel: ObservableObject {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         guard let date = formatter.date(from: trialEndsAt) ?? ISO8601DateFormatter().date(from: trialEndsAt) else {
+            return nil
+        }
+        let display = DateFormatter()
+        display.dateStyle = .medium
+        return display.string(from: date)
+    }
+
+    var subscriptionProvider: SubscriptionProvider? {
+        usageStatus?.subscriptionProvider
+    }
+
+    var isBillingRetry: Bool {
+        usageStatus?.subscriptionStatus == .billingRetry
+    }
+
+    var formattedExpiryDate: String? {
+        guard let expiresAt = usageStatus?.subscriptionExpiresAt else { return nil }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard let date = formatter.date(from: expiresAt) ?? ISO8601DateFormatter().date(from: expiresAt) else {
             return nil
         }
         let display = DateFormatter()
@@ -90,11 +129,11 @@ class SubscriptionViewModel: ObservableObject {
         defer { isPurchasing = false }
 
         do {
-            let transaction = try await StoreKitService.shared.purchase()
+            let (transaction, jwsRepresentation) = try await StoreKitService.shared.purchase()
 
             // Verify with backend
             let verifyResponse = try await SubscriptionService.shared.verifyPurchase(
-                signedTransaction: transaction.jwsRepresentation
+                signedTransaction: jwsRepresentation
             )
 
             if verifyResponse.success {
@@ -108,7 +147,7 @@ class SubscriptionViewModel: ObservableObject {
         } catch let error as APIError {
             switch error {
             case .conflict:
-                errorMessage = "This purchase is already linked to another account."
+                errorMessage = "This purchase is already linked to another account, or you have an active web subscription."
             default:
                 errorMessage = error.localizedDescription
             }
@@ -128,14 +167,14 @@ class SubscriptionViewModel: ObservableObject {
         errorMessage = nil
         defer { isPurchasing = false }
 
-        guard let transaction = await StoreKitService.shared.checkEntitlement() else {
+        guard let (transaction, jwsRepresentation) = await StoreKitService.shared.checkEntitlement() else {
             errorMessage = "No active subscription found to restore."
             return
         }
 
         do {
             let verifyResponse = try await SubscriptionService.shared.verifyPurchase(
-                signedTransaction: transaction.jwsRepresentation
+                signedTransaction: jwsRepresentation
             )
 
             if verifyResponse.success {
@@ -145,7 +184,7 @@ class SubscriptionViewModel: ObservableObject {
         } catch let error as APIError {
             switch error {
             case .conflict:
-                errorMessage = "This purchase is already linked to another account."
+                errorMessage = "This purchase is already linked to another account, or you have an active web subscription."
             default:
                 errorMessage = error.localizedDescription
             }
@@ -155,14 +194,14 @@ class SubscriptionViewModel: ObservableObject {
     }
 
     /// Called from transaction listener when a background transaction update arrives
-    func handleTransactionUpdate(_ transaction: Transaction) async {
+    func handleTransactionUpdate(_ transaction: Transaction, jwsRepresentation: String) async {
         if transaction.revocationDate != nil {
             // Subscription was revoked — refresh status from backend
             usageStatus = try? await SubscriptionService.shared.fetchUsageStatus()
         } else {
             // Renewal or new entitlement — verify and refresh
             _ = try? await SubscriptionService.shared.verifyPurchase(
-                signedTransaction: transaction.jwsRepresentation
+                signedTransaction: jwsRepresentation
             )
             await transaction.finish()
             usageStatus = try? await SubscriptionService.shared.fetchUsageStatus()

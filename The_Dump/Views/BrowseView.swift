@@ -28,18 +28,19 @@ struct BrowseView: View {
                                         .font(.system(size: Theme.fontSizeSM))
                                         .foregroundColor(Theme.accent)
                                 }
-                                .listRowBackground(Theme.darkGray)
+                                .listRowBackground(Theme.surface)
                             }
 
                             Section {
                                 NavigationLink {
                                     NotesListView(title: "Recent", filter: .recent(limit: 10))
                                 } label: {
-                                    BrowseFolderRowView(title: "Recent", count: 10)
+                                    BrowseFolderRowView(icon: "🕐", title: "Recent", count: 10)
                                 }
-                                .listRowBackground(Theme.darkGray)
+                                .listRowBackground(Theme.surface)
                             } header: {
                                 Text("Recent")
+                                    .sectionLabel()
                                     .foregroundColor(Theme.textSecondary)
                             }
 
@@ -48,12 +49,13 @@ struct BrowseView: View {
                                     NavigationLink {
                                         BrowseFolderDestinationView(kind: .category, name: row.name, count: row.count)
                                     } label: {
-                                        BrowseFolderRowView(title: row.name, count: row.count)
+                                        BrowseFolderRowView(icon: "📁", title: row.name, count: row.count)
                                     }
-                                    .listRowBackground(Theme.darkGray)
+                                    .listRowBackground(Theme.surface)
                                 }
                             } header: {
                                 Text("Categories")
+                                    .sectionLabel()
                                     .foregroundColor(Theme.textSecondary)
                             }
                             
@@ -62,12 +64,13 @@ struct BrowseView: View {
                                     NavigationLink {
                                         BrowseFolderDestinationView(kind: .dateGroup, name: row.name, count: row.count)
                                     } label: {
-                                        BrowseFolderRowView(title: row.name, count: row.count)
+                                        BrowseFolderRowView(icon: "📅", title: row.name, count: row.count)
                                     }
-                                    .listRowBackground(Theme.darkGray)
+                                    .listRowBackground(Theme.surface)
                                 }
                             } header: {
                                 Text("Date Groups")
+                                    .sectionLabel()
                                     .foregroundColor(Theme.textSecondary)
                             }
                             
@@ -76,12 +79,13 @@ struct BrowseView: View {
                                     NavigationLink {
                                         BrowseFolderDestinationView(kind: .mimeType, name: row.name, count: row.count)
                                     } label: {
-                                        BrowseFolderRowView(title: row.name, count: row.count)
+                                        BrowseFolderRowView(icon: "📎", title: row.name, count: row.count)
                                     }
-                                    .listRowBackground(Theme.darkGray)
+                                    .listRowBackground(Theme.surface)
                                 }
                             } header: {
                                 Text("File Types")
+                                    .sectionLabel()
                                     .foregroundColor(Theme.textSecondary)
                             }
                         }
@@ -113,7 +117,7 @@ struct BrowseView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: { showSettings = true }) {
                         Image(systemName: "gearshape")
-                            .font(.system(size: 18))
+                            .font(.system(size: Theme.fontSizeLG))
                             .foregroundColor(Theme.textSecondary)
                     }
                 }
@@ -166,7 +170,7 @@ struct SearchResultsView: View {
                             } label: {
                                 SearchResultRowView(note: note)
                             }
-                            .listRowBackground(Theme.darkGray)
+                            .listRowBackground(Theme.surface)
                             .onAppear {
                                 Task { await viewModel.loadMoreIfNeeded(currentItem: note) }
                             }
@@ -234,7 +238,7 @@ private struct SearchResultRowView: View {
                     .foregroundColor(Theme.textSecondary)
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, Theme.spacingSM)
     }
 
     private func displayTitle() -> String {
@@ -267,22 +271,29 @@ private struct SearchResultRowView: View {
 }
 
 private struct BrowseFolderRowView: View {
+    let icon: String
     let title: String
     let count: Int
-    
+
     var body: some View {
-        HStack(spacing: Theme.spacingMD) {
+        HStack(spacing: Theme.spacingSMPlus) {
+            Text(icon)
+                .font(.system(size: 18))
+                .frame(width: 32, height: 32)
+                .background(Theme.surface2)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadiusCatIcon))
+
             Text(title)
                 .font(.system(size: Theme.fontSizeMD, weight: .medium))
                 .foregroundColor(Theme.textPrimary)
-            
+
             Spacer()
-            
+
             Text("\(count)")
                 .font(.system(size: Theme.fontSizeSM, weight: .semibold))
                 .foregroundColor(Theme.textSecondary)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, Theme.spacingXS)
     }
 }
 

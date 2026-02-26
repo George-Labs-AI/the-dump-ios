@@ -245,17 +245,17 @@ private struct MetadataPill: View {
     let icon: String
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: Theme.spacingXS) {
             Image(systemName: icon)
                 .font(.system(size: 10))
             Text(text)
                 .font(.system(size: Theme.fontSizeXS))
         }
         .foregroundColor(Theme.textSecondary)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Theme.darkGray)
-        .cornerRadius(12)
+        .padding(.horizontal, Theme.spacingSM)
+        .padding(.vertical, Theme.spacingXS)
+        .background(Theme.surface)
+        .cornerRadius(Theme.cornerRadius)
     }
 }
 
@@ -276,7 +276,7 @@ private struct NoteMetadataSheet: View {
                         Section {
                             MetadataRow(label: "Category", value: category)
                         }
-                        .listRowBackground(Theme.darkGray)
+                        .listRowBackground(Theme.surface)
                     }
 
                     // Subcategories
@@ -288,7 +288,7 @@ private struct NoteMetadataSheet: View {
                                     .foregroundColor(Theme.textPrimary)
                             }
                         }
-                        .listRowBackground(Theme.darkGray)
+                        .listRowBackground(Theme.surface)
                     }
 
                     // Tags
@@ -300,7 +300,7 @@ private struct NoteMetadataSheet: View {
                                 }
                             }
                         }
-                        .listRowBackground(Theme.darkGray)
+                        .listRowBackground(Theme.surface)
                     }
 
                     // Details
@@ -315,7 +315,7 @@ private struct NoteMetadataSheet: View {
 
                         MetadataRow(label: "Modified", value: formattedFullDate(note.note_content_modified) ?? "Unknown")
                     }
-                    .listRowBackground(Theme.darkGray)
+                    .listRowBackground(Theme.surface)
                 }
                 .scrollContentBackground(.hidden)
                 .listStyle(.insetGrouped)
@@ -382,10 +382,10 @@ private struct TagChip: View {
         Text(text)
             .font(.system(size: Theme.fontSizeSM))
             .foregroundColor(Theme.textPrimary)
-            .padding(.horizontal, 10)
+            .padding(.horizontal, Theme.spacingSMPlus)
             .padding(.vertical, 6)
-            .background(Theme.mediumGray)
-            .cornerRadius(14)
+            .background(Theme.surface2)
+            .cornerRadius(Theme.cornerRadiusXS)
     }
 }
 

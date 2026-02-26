@@ -141,7 +141,7 @@ private struct CategoryDefinitionCard: View {
                     .scrollContentBackground(.hidden)
                     .padding(Theme.spacingSM)
                     .frame(minHeight: 80)
-                    .background(Theme.mediumGray)
+                    .background(Theme.surface2)
                     .foregroundColor(Theme.textPrimary)
                     .cornerRadius(Theme.cornerRadiusSM)
                     .onChange(of: definition) { _, newValue in
@@ -157,7 +157,7 @@ private struct CategoryDefinitionCard: View {
 
                 TextField("e.g., meeting, project, deadline", text: $keywords)
                     .padding(Theme.spacingSM)
-                    .background(Theme.mediumGray)
+                    .background(Theme.surface2)
                     .foregroundColor(Theme.textPrimary)
                     .cornerRadius(Theme.cornerRadiusSM)
                     .onChange(of: keywords) { _, newValue in
@@ -166,7 +166,7 @@ private struct CategoryDefinitionCard: View {
             }
         }
         .padding(Theme.spacingMD)
-        .background(Theme.darkGray)
+        .background(Theme.surface)
         .cornerRadius(Theme.cornerRadius)
         .onAppear {
             definition = category.definition

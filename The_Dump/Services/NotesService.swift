@@ -443,4 +443,46 @@ class NotesService {
             throw APIError.networkError(underlying: error)
         }
     }
+
+    // Delete a note permanently
+    func deleteNote(noteId: String) async throws {
+        let trimmedId = noteId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedId.isEmpty else {
+            throw APIError.badRequest(message: "Note ID is required")
+        }
+
+        var request = try await createRequest(endpoint: "/api/delete_note", method: "POST")
+        let body = DeleteNoteRequest(noteId: trimmedId)
+
+        do {
+            request.httpBody = try JSONEncoder().encode(body)
+        } catch {
+            throw APIError.encodingFailed
+        }
+
+        do {
+#if DEBUG
+            debugLogRequest(request, label: "delete_note")
+#endif
+            let (data, response) = try await URLSession.shared.data(for: request)
+#if DEBUG
+            debugLogResponse(data: data, response: response, label: "delete_note")
+#endif
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.networkError(underlying: URLError(.badServerResponse))
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+                throw APIError.from(statusCode: httpResponse.statusCode, errorResponse: errorResponse)
+            }
+        } catch let error as APIError {
+            throw error
+        } catch let error as DecodingError {
+            throw APIError.decodingFailed(underlying: error)
+        } catch {
+            throw APIError.networkError(underlying: error)
+        }
+    }
 }

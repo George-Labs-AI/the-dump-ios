@@ -6,7 +6,8 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     
     @State private var showLogoutConfirmation = false
-    
+    @AppStorage("appearance") private var appearance: AppAppearance = .system
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -22,9 +23,23 @@ struct SettingsView: View {
                             Text(appState.userEmail ?? "—")
                                 .foregroundColor(Theme.textPrimary)
                         }
-                        .listRowBackground(Theme.darkGray)
+                        .listRowBackground(Theme.surface)
                     } header: {
                         Text("Account")
+                            .foregroundColor(Theme.textSecondary)
+                    }
+
+                    // Appearance section
+                    Section {
+                        Picker("Appearance", selection: $appearance) {
+                            ForEach(AppAppearance.allCases, id: \.self) { option in
+                                Text(option.label).tag(option)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .listRowBackground(Theme.surface)
+                    } header: {
+                        Text("Appearance")
                             .foregroundColor(Theme.textSecondary)
                     }
 
@@ -35,7 +50,7 @@ struct SettingsView: View {
                     Section {
                         NavigationLink("Manage Categories", destination: CategoryManagementView())
                             .foregroundColor(Theme.accent)
-                            .listRowBackground(Theme.darkGray)
+                            .listRowBackground(Theme.surface)
                     } header: {
                         Text("Categories")
                             .foregroundColor(Theme.textSecondary)
@@ -50,14 +65,14 @@ struct SettingsView: View {
                             Text("\(sessionStore.items.count)")
                                 .foregroundColor(Theme.textPrimary)
                         }
-                        .listRowBackground(Theme.darkGray)
+                        .listRowBackground(Theme.surface)
                         
                         if !sessionStore.items.isEmpty {
                             Button("Clear Session History") {
                                 sessionStore.clear()
                             }
                             .foregroundColor(Theme.accent)
-                            .listRowBackground(Theme.darkGray)
+                            .listRowBackground(Theme.surface)
                         }
                     } header: {
                         Text("Session")
@@ -70,7 +85,7 @@ struct SettingsView: View {
                             showLogoutConfirmation = true
                         }
                         .foregroundColor(Theme.accent)
-                        .listRowBackground(Theme.darkGray)
+                        .listRowBackground(Theme.surface)
                     }
                     
                     // App info
@@ -82,7 +97,31 @@ struct SettingsView: View {
                             Text(appVersion)
                                 .foregroundColor(Theme.textPrimary)
                         }
-                        .listRowBackground(Theme.darkGray)
+                        .listRowBackground(Theme.surface)
+
+                        Link(destination: URL(string: "https://thedumpapp.com/privacy")!) {
+                            HStack {
+                                Text("Privacy Policy")
+                                    .foregroundColor(Theme.textPrimary)
+                                Spacer()
+                                Image(systemName: "arrow.up.right")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(Theme.textSecondary)
+                            }
+                        }
+                        .listRowBackground(Theme.surface)
+
+                        Link(destination: URL(string: "https://thedumpapp.com/terms")!) {
+                            HStack {
+                                Text("Terms of Use")
+                                    .foregroundColor(Theme.textPrimary)
+                                Spacer()
+                                Image(systemName: "arrow.up.right")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(Theme.textSecondary)
+                            }
+                        }
+                        .listRowBackground(Theme.surface)
                     } header: {
                         Text("About")
                             .foregroundColor(Theme.textSecondary)

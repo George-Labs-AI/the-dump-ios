@@ -35,7 +35,7 @@ struct AddSubCategoryView: View {
                                     .foregroundColor(Theme.textSecondary)
                             }
                             .padding(Theme.spacingMD)
-                            .background(Theme.mediumGray)
+                            .background(Theme.surface2)
                             .cornerRadius(Theme.cornerRadiusSM)
                         }
 
@@ -50,7 +50,7 @@ struct AddSubCategoryView: View {
                                 .font(.system(size: Theme.fontSizeMD))
                                 .foregroundColor(Theme.textPrimary)
                                 .padding(Theme.spacingMD)
-                                .background(Theme.darkGray)
+                                .background(Theme.surface)
                                 .cornerRadius(Theme.cornerRadiusSM)
                                 .autocorrectionDisabled()
                                 .textInputAutocapitalization(.never)
@@ -67,7 +67,7 @@ struct AddSubCategoryView: View {
                                 .font(.system(size: Theme.fontSizeMD))
                                 .foregroundColor(Theme.textPrimary)
                                 .padding(Theme.spacingMD)
-                                .background(Theme.darkGray)
+                                .background(Theme.surface)
                                 .cornerRadius(Theme.cornerRadiusSM)
                                 .lineLimit(3...6)
                         }
@@ -83,7 +83,7 @@ struct AddSubCategoryView: View {
                                 .font(.system(size: Theme.fontSizeMD))
                                 .foregroundColor(Theme.textPrimary)
                                 .padding(Theme.spacingMD)
-                                .background(Theme.darkGray)
+                                .background(Theme.surface)
                                 .cornerRadius(Theme.cornerRadiusSM)
                                 .autocorrectionDisabled()
                                 .textInputAutocapitalization(.never)

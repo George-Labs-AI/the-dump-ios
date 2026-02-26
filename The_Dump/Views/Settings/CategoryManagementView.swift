@@ -57,7 +57,7 @@ struct CategoryManagementView: View {
                                             .foregroundColor(Theme.textSecondary)
                                             .font(.system(size: Theme.fontSizeSM))
                                     }
-                                    .listRowBackground(Theme.darkGray)
+                                    .listRowBackground(Theme.surface)
                                 }
                             } header: {
                                 Text("Your Categories")
