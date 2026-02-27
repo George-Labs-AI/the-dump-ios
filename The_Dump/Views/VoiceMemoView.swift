@@ -291,7 +291,7 @@ struct CircleButton: View {
         Button(action: action) {
             ZStack {
                 Circle()
-                    .fill(Theme.mediumGray)
+                    .fill(Theme.surface2)
                     .frame(width: size, height: size)
                 
                 Image(systemName: icon)

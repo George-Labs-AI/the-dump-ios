@@ -123,6 +123,19 @@ final class NotesListViewModel: ObservableObject {
         isLoadingMore = false
     }
     
+    func deleteNote(noteId: String) async -> Bool {
+        errorMessage = nil
+
+        do {
+            try await NotesService.shared.deleteNote(noteId: noteId)
+            notes.removeAll { $0.id == noteId }
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
     private func fetch(limit: Int, cursorTime: String?, cursorId: String?) async throws -> NoteListResponse {
         let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         let q: String? = query.isEmpty ? nil : query

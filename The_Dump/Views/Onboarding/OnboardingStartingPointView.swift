@@ -104,7 +104,7 @@ private struct PresetCard: View {
             }
             .frame(maxWidth: .infinity)
             .padding(Theme.spacingMD)
-            .background(Theme.darkGray)
+            .background(Theme.surface)
             .cornerRadius(Theme.cornerRadius)
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.cornerRadius)

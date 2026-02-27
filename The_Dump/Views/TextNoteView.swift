@@ -21,7 +21,7 @@ struct TextNoteView: View {
                     TextEditor(text: $noteContent)
                         .focused($isTextEditorFocused)
                         .scrollContentBackground(.hidden)
-                        .background(Theme.darkGray)
+                        .background(Theme.surface)
                         .foregroundColor(Theme.textPrimary)
                         .font(.system(size: Theme.fontSizeMD))
                         .cornerRadius(Theme.cornerRadius)

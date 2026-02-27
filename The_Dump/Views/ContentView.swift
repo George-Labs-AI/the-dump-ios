@@ -15,6 +15,8 @@ struct ContentView: View {
     @State private var showTextNote = false
     @State private var showPaywall = false
     @State private var capturedImage: UIImage?
+    @State private var showErrorAlert = false
+    @State private var errorAlertMessage = ""
     
 // a view is a type of struct that is called out as a view, and it must provide a body variable that contains the layout
     // "some" view is used to not have to tell the compiler the exact type name of what is in the view, since it would be too complex. There can only be one body property per View
@@ -28,17 +30,17 @@ struct ContentView: View {
                 VStack(spacing: 0) {
                     HStack {
                        Text("The Dump")
-                           .font(.system(size: 18, weight: .semibold))
+                           .font(.system(size: Theme.fontSizeXL, weight: .bold))
                            .foregroundColor(Theme.textPrimary)
                        
                        Spacer()
                        
                        Button(action: { showSettings = true }, label: {
                            Image(systemName: "gearshape")
-                               .font(.system(size: 18))
+                               .font(.system(size: Theme.fontSizeLG))
                                .foregroundColor(Theme.textSecondary)
-                               .padding(8)
-                               .background(Theme.darkGray)
+                               .padding(Theme.spacingSM)
+                               .background(Theme.surface)
                                .clipShape(Circle())
                        })
                    }
@@ -47,16 +49,18 @@ struct ContentView: View {
                    .padding(.bottom, Theme.spacingMD)
                     // Status bar
                     if appState.subscriptionViewModel.isBlocked {
-                        BlockedBanner(onUpgradeTap: { showPaywall = true })
+                        BlockedBanner(
+                            reason: appState.subscriptionViewModel.usageStatus?.blockedReason,
+                            onUpgradeTap: { showPaywall = true }
+                        )
+                    } else if appState.subscriptionViewModel.isBillingRetry {
+                        BillingRetryBanner()
                     } else if appState.subscriptionViewModel.usagePercentage >= 80 {
-                        UsageWarningBanner(percentage: appState.subscriptionViewModel.usagePercentage)
+                        UsageWarningBanner(label: appState.subscriptionViewModel.limitingFactorLabel)
                     }
 
-                    if !sessionStore.lastUploadStatus.isEmpty {
-                        StatusBanner(text: sessionStore.lastUploadStatus)
-                    }
                     // Main content
-                    Text("You Dump, AI Organizes")
+                    Text("Your brain dump, organized by AI.")
                         .font(.system(size: Theme.fontSizeLG))
                         .foregroundColor(Theme.textPrimary)
                         .padding()
@@ -76,7 +80,7 @@ struct ContentView: View {
                             
                             Spacer(minLength: Theme.spacingXL)
                         }
-                        .padding(.horizontal, Theme.spacingMD)
+                        .padding(.horizontal, Theme.screenH)
                     }
                     .safeAreaInset(edge: .bottom) {
                         AuthStatusFooter(email: appState.userEmail)
@@ -110,7 +114,8 @@ struct ContentView: View {
                     handleSelectedFile(url)
                 }
             case .failure(let error):
-                sessionStore.lastUploadStatus = "File selection failed: \(error.localizedDescription)"
+                errorAlertMessage = "File selection failed: \(error.localizedDescription)"
+                showErrorAlert = true
             }
         }
         .sheet(isPresented: $showTextNote) {
@@ -128,6 +133,11 @@ struct ContentView: View {
             }
         }
         .environmentObject(sessionStore)
+        .alert("Something went wrong", isPresented: $showErrorAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorAlertMessage)
+        }
     }
     }
 
@@ -143,7 +153,8 @@ struct ContentView: View {
         Task {
             guard let email = appState.userEmail,
                   let idToken = await appState.idToken else {
-                sessionStore.lastUploadStatus = "Not authenticated"
+                errorAlertMessage = "Unable to upload. Please check your connection and try again."
+                showErrorAlert = true
                 return
             }
             
@@ -175,7 +186,8 @@ struct ContentView: View {
         Task {
             guard let email = appState.userEmail,
                   let idToken = await appState.idToken else {
-                sessionStore.lastUploadStatus = "Not authenticated"
+                errorAlertMessage = "Unable to upload. Please check your connection and try again."
+                showErrorAlert = true
                 return
             }
 
@@ -204,20 +216,6 @@ struct ContentView: View {
 
 // MARK: - Subviews
 
-struct StatusBanner: View {
-    let text: String
-    
-    var body: some View {
-        Text(text)
-            .font(.system(size: Theme.fontSizeSM))
-            .foregroundColor(Theme.textPrimary)
-            .padding(.vertical, Theme.spacingSM)
-            .padding(.horizontal, Theme.spacingMD)
-            .frame(maxWidth: .infinity)
-            .background(Theme.darkGray)
-    }
-}
-
 struct CaptureButtonsSection: View {
     let onPhotoTap: () -> Void
     let onVoiceTap: () -> Void
@@ -227,32 +225,36 @@ struct CaptureButtonsSection: View {
     var body: some View {
         VStack(spacing: Theme.spacingMD) {
             Text("Capture")
-                .font(.system(size: Theme.fontSizeXS, weight: .medium))
+                .sectionLabel()
                 .foregroundColor(Theme.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Theme.spacingMD) {
                 CaptureButton(
-                    icon: "camera.fill",
+                    emoji: "📸",
                     label: "Photo",
+                    subLabel: "Take a photo",
                     action: onPhotoTap
                 )
 
                 CaptureButton(
-                    icon: "mic.fill",
+                    emoji: "🎤",
                     label: "Voice",
+                    subLabel: "Record audio",
                     action: onVoiceTap
                 )
 
                 CaptureButton(
-                    icon: "doc.fill",
+                    emoji: "📄",
                     label: "File",
+                    subLabel: "Upload file",
                     action: onFileTap
                 )
 
                 CaptureButton(
-                    icon: "keyboard",
+                    emoji: "✍️",
                     label: "Note",
+                    subLabel: "Write text",
                     action: onTextTap
                 )
             }
@@ -261,25 +263,37 @@ struct CaptureButtonsSection: View {
 }
 
 struct CaptureButton: View {
-    let icon: String
+    let emoji: String
     let label: String
+    let subLabel: String
     let action: () -> Void
-    
+
     var body: some View {
         Button(action: action) {
             VStack(spacing: Theme.spacingSM) {
-                Image(systemName: icon)
-                    .font(.system(size: 28))
-                    .foregroundColor(Theme.accent)
-                
-                Text(label)
-                    .font(.system(size: Theme.fontSizeSM, weight: .medium))
-                    .foregroundColor(Theme.textPrimary)
+                ZStack {
+                    Circle()
+                        .fill(Theme.accent.opacity(0.1))
+                        .frame(width: 48, height: 48)
+
+                    Text(emoji)
+                        .font(.system(size: 22))
+                }
+
+                VStack(spacing: 2) {
+                    Text(label)
+                        .font(.system(size: Theme.fontSizeSM, weight: .medium))
+                        .foregroundColor(Theme.textPrimary)
+
+                    Text(subLabel)
+                        .font(.system(size: 11))
+                        .foregroundColor(Theme.textSecondary)
+                }
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, Theme.spacingLG)
-            .background(Theme.darkGray)
-            .cornerRadius(Theme.cornerRadius)
+            .background(Theme.surface)
+            .cornerRadius(Theme.cornerRadiusCapture)
         }
     }
 }
@@ -290,7 +304,7 @@ struct SessionHistorySection: View {
     var body: some View {
         VStack(spacing: Theme.spacingMD) {
             Text("Your Uploads This Session")
-                .font(.system(size: Theme.fontSizeXS, weight: .medium))
+                .sectionLabel()
                 .foregroundColor(Theme.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
             
@@ -308,7 +322,7 @@ struct SessionHistorySection: View {
                 .padding(.vertical, Theme.spacingXL)
                 .background(
                     RoundedRectangle(cornerRadius: Theme.cornerRadius)
-                        .strokeBorder(Theme.darkGray, style: StrokeStyle(lineWidth: 1, dash: [6]))
+                        .strokeBorder(Theme.surface, style: StrokeStyle(lineWidth: 1, dash: [6]))
                 )
             } else {
                 LazyVStack(spacing: Theme.spacingSM) {
@@ -337,7 +351,7 @@ struct SessionItemRow: View {
                         .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadiusSM))
                 } else {
                     ZStack {
-                        Theme.mediumGray
+                        Theme.surface2
                         Image(systemName: iconForKind)
                             .foregroundColor(Theme.textSecondary)
                     }
@@ -365,7 +379,7 @@ struct SessionItemRow: View {
             statusIcon
         }
         .padding(Theme.spacingMD)
-        .background(Theme.darkGray)
+        .background(Theme.surface)
         .cornerRadius(Theme.cornerRadius)
     }
     
@@ -403,7 +417,7 @@ struct SessionItemRow: View {
     private var statusColor: Color {
         switch item.status {
         case .success:
-            return .green
+            return Theme.success
         case .failed:
             return Theme.accent
         default:
@@ -415,12 +429,10 @@ struct SessionItemRow: View {
     private var statusIcon: some View {
         switch item.status {
         case .uploading:
-            ProgressView()
-                .progressViewStyle(CircularProgressViewStyle(tint: Theme.textSecondary))
-                .scaleEffect(0.8)
+            PulsingDot()
         case .success:
             Image(systemName: "checkmark.circle.fill")
-                .foregroundColor(.green)
+                .foregroundColor(Theme.success)
         case .failed:
             Image(systemName: "exclamationmark.circle.fill")
                 .foregroundColor(Theme.accent)
@@ -431,14 +443,28 @@ struct SessionItemRow: View {
     }
 }
 
+struct PulsingDot: View {
+    @State private var isAnimating = false
+
+    var body: some View {
+        Circle()
+            .fill(Theme.accent)
+            .frame(width: 10, height: 10)
+            .opacity(isAnimating ? 0.3 : 1.0)
+            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isAnimating)
+            .onAppear { isAnimating = true }
+    }
+}
+
 struct BlockedBanner: View {
+    let reason: String?
     let onUpgradeTap: () -> Void
 
     var body: some View {
         HStack {
             Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundColor(Theme.accent)
-            Text("You've reached your usage limit.")
+                .foregroundColor(Theme.warning)
+            Text(reason ?? "You've reached your usage limit.")
                 .font(.system(size: Theme.fontSizeSM))
                 .foregroundColor(Theme.textPrimary)
             Spacer()
@@ -448,25 +474,41 @@ struct BlockedBanner: View {
         }
         .padding(.vertical, Theme.spacingSM)
         .padding(.horizontal, Theme.spacingMD)
-        .background(Theme.accent.opacity(0.1))
+        .background(Theme.accentSubtle)
     }
 }
 
-struct UsageWarningBanner: View {
-    let percentage: Double
-
+struct BillingRetryBanner: View {
     var body: some View {
         HStack {
-            Image(systemName: "chart.bar.fill")
-                .foregroundColor(.orange)
-            Text("\(Int(percentage))% of your monthly limit used")
+            Image(systemName: "creditcard.trianglebadge.exclamationmark")
+                .foregroundColor(Theme.warning)
+            Text("Payment issue — please update your payment method")
                 .font(.system(size: Theme.fontSizeSM))
                 .foregroundColor(Theme.textPrimary)
         }
         .padding(.vertical, Theme.spacingSM)
         .padding(.horizontal, Theme.spacingMD)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.orange.opacity(0.1))
+        .background(Theme.warning.opacity(0.1))
+    }
+}
+
+struct UsageWarningBanner: View {
+    let label: String
+
+    var body: some View {
+        HStack {
+            Image(systemName: "chart.bar.fill")
+                .foregroundColor(Theme.warning)
+            Text(label)
+                .font(.system(size: Theme.fontSizeSM))
+                .foregroundColor(Theme.textPrimary)
+        }
+        .padding(.vertical, Theme.spacingSM)
+        .padding(.horizontal, Theme.spacingMD)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.warning.opacity(0.1))
     }
 }
 

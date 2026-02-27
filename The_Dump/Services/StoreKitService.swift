@@ -4,8 +4,7 @@ import StoreKit
 class StoreKitService {
     static let shared = StoreKitService()
 
-    // TODO: Replace with your actual product ID from App Store Connect
-    static let subscriptionProductID = "com.georgelabs.thedump.subscription.monthly"
+    static let subscriptionProductID = "12"
 
     private(set) var product: Product?
     private var transactionListenerTask: Task<Void, Never>?
@@ -30,9 +29,9 @@ class StoreKitService {
         }
     }
 
-    /// Initiates a purchase and returns the verified transaction.
+    /// Initiates a purchase and returns the verified transaction with its JWS representation.
     /// The caller is responsible for calling `transaction.finish()` after backend verification.
-    func purchase() async throws -> Transaction {
+    func purchase() async throws -> (transaction: Transaction, jwsRepresentation: String) {
         guard let product else {
             throw StoreKitError.productNotFound
         }
@@ -48,7 +47,7 @@ class StoreKitService {
                 throw StoreKitError.unexpectedProduct(transaction.productID)
             }
 
-            return transaction
+            return (transaction, verification.jwsRepresentation)
 
         case .userCancelled:
             throw StoreKitError.userCancelled
@@ -61,18 +60,18 @@ class StoreKitService {
         }
     }
 
-    func checkEntitlement() async -> Transaction? {
+    func checkEntitlement() async -> (transaction: Transaction, jwsRepresentation: String)? {
         for await result in Transaction.currentEntitlements {
             guard let transaction = try? checkVerified(result),
                   transaction.productID == Self.subscriptionProductID else {
                 continue
             }
-            return transaction
+            return (transaction, result.jwsRepresentation)
         }
         return nil
     }
 
-    func listenForTransactions(onTransaction: @escaping (Transaction) async -> Void) {
+    func listenForTransactions(onTransaction: @escaping (Transaction, String) async -> Void) {
         transactionListenerTask?.cancel()
         transactionListenerTask = Task.detached {
             for await result in Transaction.updates {
@@ -80,7 +79,7 @@ class StoreKitService {
 #if DEBUG
                 print("[StoreKitService] Transaction update: \(transaction.productID) revoked=\(transaction.revocationDate != nil)")
 #endif
-                await onTransaction(transaction)
+                await onTransaction(transaction, result.jwsRepresentation)
             }
         }
     }

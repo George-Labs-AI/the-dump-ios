@@ -9,20 +9,43 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     }
 }
 
+enum AppAppearance: String, CaseIterable {
+    case system
+    case light
+    case dark
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .system: return "System"
+        case .light: return "Light"
+        case .dark: return "Dark"
+        }
+    }
+}
+
 @main
 struct TheDumpApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var appState = AppState()
+    @AppStorage("appearance") private var appearance: AppAppearance = .system
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(appState)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(appearance.colorScheme)
                 .task {
                     // Start listening for StoreKit transaction updates (renewals, revocations)
-                    StoreKitService.shared.listenForTransactions { transaction in
-                        await appState.subscriptionViewModel.handleTransactionUpdate(transaction)
+                    StoreKitService.shared.listenForTransactions { transaction, jwsRepresentation in
+                        await appState.subscriptionViewModel.handleTransactionUpdate(transaction, jwsRepresentation: jwsRepresentation)
                     }
                 }
         }
@@ -40,7 +63,7 @@ struct RootView: View {
                     ZStack {
                         Theme.background.ignoresSafeArea()
                         ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .progressViewStyle(CircularProgressViewStyle(tint: Theme.textPrimary))
                     }
                 } else if appState.hasCompletedOnboarding {
                     MainTabView()

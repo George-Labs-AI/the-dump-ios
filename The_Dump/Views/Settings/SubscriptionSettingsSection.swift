@@ -13,34 +13,62 @@ struct SubscriptionSettingsSection: View {
                 Spacer()
                 tierBadge
             }
-            .listRowBackground(Theme.darkGray)
+            .listRowBackground(Theme.surface)
 
-            // Token usage
+            // Usage
             if let status = viewModel.usageStatus {
-                VStack(alignment: .leading, spacing: Theme.spacingSM) {
-                    HStack {
-                        Text("Usage")
-                            .foregroundColor(Theme.textSecondary)
-                        Spacer()
-                        Text("\(status.tokensUsed.formatted()) / \(status.monthlyTokenLimit.formatted())")
-                            .font(.system(size: Theme.fontSizeXS))
-                            .foregroundColor(Theme.textSecondary)
-                    }
-
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(Theme.mediumGray)
-                                .frame(height: 6)
-
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(usageBarColor)
-                                .frame(width: geo.size.width * min(status.usagePercentage / 100, 1.0), height: 6)
+                VStack(alignment: .leading, spacing: Theme.spacingMD) {
+                    // Notes usage
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Notes")
+                                .foregroundColor(Theme.textSecondary)
+                            Spacer()
+                            Text("\(status.notesUsed.formatted()) / \(status.monthlyNoteLimit.formatted())")
+                                .font(.system(size: Theme.fontSizeXS))
+                                .foregroundColor(Theme.textSecondary)
                         }
+
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Theme.surface2)
+                                    .frame(height: 6)
+
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(barColor(for: status.notesPercentage))
+                                    .frame(width: geo.size.width * min(status.notesPercentage / 100, 1.0), height: 6)
+                            }
+                        }
+                        .frame(height: 6)
                     }
-                    .frame(height: 6)
+
+                    // Words usage
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Words")
+                                .foregroundColor(Theme.textSecondary)
+                            Spacer()
+                            Text("\(status.wordsUsed.formatted()) / \(status.monthlyWordLimit.formatted())")
+                                .font(.system(size: Theme.fontSizeXS))
+                                .foregroundColor(Theme.textSecondary)
+                        }
+
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Theme.surface2)
+                                    .frame(height: 6)
+
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(barColor(for: status.wordsPercentage))
+                                    .frame(width: geo.size.width * min(status.wordsPercentage / 100, 1.0), height: 6)
+                            }
+                        }
+                        .frame(height: 6)
+                    }
                 }
-                .listRowBackground(Theme.darkGray)
+                .listRowBackground(Theme.surface)
 
                 // Reset date
                 if let resetDate = viewModel.formattedResetDate {
@@ -51,7 +79,7 @@ struct SubscriptionSettingsSection: View {
                         Text(resetDate)
                             .foregroundColor(Theme.textPrimary)
                     }
-                    .listRowBackground(Theme.darkGray)
+                    .listRowBackground(Theme.surface)
                 }
 
                 // Trial end date
@@ -63,7 +91,31 @@ struct SubscriptionSettingsSection: View {
                         Text(trialEnd)
                             .foregroundColor(Theme.accent)
                     }
-                    .listRowBackground(Theme.darkGray)
+                    .listRowBackground(Theme.surface)
+                }
+
+                // Subscription expiry date
+                if let expiryDate = viewModel.formattedExpiryDate {
+                    HStack {
+                        Text("Expires")
+                            .foregroundColor(Theme.textSecondary)
+                        Spacer()
+                        Text(expiryDate)
+                            .foregroundColor(Theme.textPrimary)
+                    }
+                    .listRowBackground(Theme.surface)
+                }
+
+                // Billing retry warning
+                if viewModel.isBillingRetry {
+                    HStack(spacing: Theme.spacingSM) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(Theme.warning)
+                        Text("Payment issue — update your payment method in Settings > Apple ID")
+                            .font(.system(size: Theme.fontSizeXS))
+                            .foregroundColor(Theme.warning)
+                    }
+                    .listRowBackground(Theme.warning.opacity(0.1))
                 }
             }
 
@@ -73,18 +125,30 @@ struct SubscriptionSettingsSection: View {
                     showPaywall = true
                 }
                 .foregroundColor(Theme.accent)
-                .listRowBackground(Theme.darkGray)
+                .listRowBackground(Theme.surface)
             }
 
-            // Manage subscription (paid only)
-            if viewModel.tier == .paid {
-                Button("Manage Subscription") {
-                    if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
-                        UIApplication.shared.open(url)
+            // Manage subscription (provider-aware)
+            if viewModel.tier == .paid || viewModel.tier == .preApproved {
+                if viewModel.subscriptionProvider == .apple {
+                    Button("Manage Subscription") {
+                        if let url = URL(string: "itms-apps://apps.apple.com/account/subscriptions") {
+                            UIApplication.shared.open(url)
+                        }
                     }
+                    .foregroundColor(Theme.accent)
+                    .listRowBackground(Theme.surface)
+                } else if viewModel.subscriptionProvider == .stripe {
+                    HStack {
+                        Text("Manage Subscription")
+                            .foregroundColor(Theme.textSecondary)
+                        Spacer()
+                        Text("Manage on web")
+                            .font(.system(size: Theme.fontSizeXS))
+                            .foregroundColor(Theme.textSecondary)
+                    }
+                    .listRowBackground(Theme.surface)
                 }
-                .foregroundColor(Theme.accent)
-                .listRowBackground(Theme.darkGray)
             }
         } header: {
             Text("Subscription")
@@ -117,15 +181,14 @@ struct SubscriptionSettingsSection: View {
     private var tierColor: Color {
         switch viewModel.tier {
         case .free: return Theme.textSecondary
-        case .trial: return .orange
-        case .paid, .preApproved: return .green
+        case .trial: return Theme.warning
+        case .paid, .preApproved: return Theme.success
         }
     }
 
-    private var usageBarColor: Color {
-        guard let percentage = viewModel.usageStatus?.usagePercentage else { return .green }
+    private func barColor(for percentage: Double) -> Color {
         if percentage >= 90 { return Theme.accent }
-        if percentage >= 70 { return .orange }
-        return .green
+        if percentage >= 70 { return Theme.warning }
+        return Theme.success
     }
 }

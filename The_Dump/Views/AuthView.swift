@@ -385,12 +385,12 @@ struct DumpTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
             .padding(Theme.spacingMD)
-            .background(Theme.darkGray)
+            .background(Theme.surface)
             .foregroundColor(Theme.textPrimary)
             .cornerRadius(Theme.cornerRadiusSM)
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.cornerRadiusSM)
-                    .stroke(Theme.lightGray, lineWidth: 1)
+                    .stroke(Theme.surface3, lineWidth: 1)
             )
     }
 }
@@ -400,13 +400,13 @@ struct DumpPasswordFieldStyle: TextFieldStyle {
         configuration
             .padding(.leading, Theme.spacingMD)
             .padding(.vertical, Theme.spacingMD)
-            .padding(.trailing, Theme.spacingXL + 12) // Extra space for eye icon
-            .background(Theme.darkGray)
+            .padding(.trailing, Theme.spacingXL + Theme.spacingSMPlus) // Extra space for eye icon
+            .background(Theme.surface)
             .foregroundColor(Theme.textPrimary)
             .cornerRadius(Theme.cornerRadiusSM)
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.cornerRadiusSM)
-                    .stroke(Theme.lightGray, lineWidth: 1)
+                    .stroke(Theme.surface3, lineWidth: 1)
             )
     }
 }

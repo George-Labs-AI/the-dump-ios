@@ -5,17 +5,14 @@ import Combine
 @MainActor
 class SessionStore: ObservableObject {
     @Published var items: [SessionItem] = []
-    @Published var lastUploadStatus: String = ""
     
     func addItem(_ item: SessionItem) {
         items.insert(item, at: 0)
-        updateLastStatus(for: item)
     }
     
     func updateStatus(id: String, status: UploadStatus) {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
         items[index].status = status
-        updateLastStatus(for: items[index])
     }
     
     func markUploading(id: String) {
@@ -36,10 +33,5 @@ class SessionStore: ObservableObject {
     
     func clear() {
         items.removeAll()
-        lastUploadStatus = ""
-    }
-    
-    private func updateLastStatus(for item: SessionItem) {
-        lastUploadStatus = item.status.displayText
     }
 }
