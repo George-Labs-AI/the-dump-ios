@@ -11,6 +11,11 @@ struct AddSubCategoryView: View {
     @State private var isLoading: Bool = false
     @State private var errorMessage: String?
     @State private var showInfo: Bool = false
+    @FocusState private var focusedField: Field?
+
+    private enum Field: Hashable {
+        case name, description, keywords
+    }
 
     var body: some View {
         NavigationStack {
@@ -54,6 +59,7 @@ struct AddSubCategoryView: View {
                                 .cornerRadius(Theme.cornerRadiusSM)
                                 .autocorrectionDisabled()
                                 .textInputAutocapitalization(.never)
+                                .focused($focusedField, equals: .name)
                         }
 
                         // Description (optional)
@@ -70,6 +76,7 @@ struct AddSubCategoryView: View {
                                 .background(Theme.surface)
                                 .cornerRadius(Theme.cornerRadiusSM)
                                 .lineLimit(3...6)
+                                .focused($focusedField, equals: .description)
                         }
 
                         // Keywords
@@ -87,6 +94,7 @@ struct AddSubCategoryView: View {
                                 .cornerRadius(Theme.cornerRadiusSM)
                                 .autocorrectionDisabled()
                                 .textInputAutocapitalization(.never)
+                                .focused($focusedField, equals: .keywords)
 
                             Text("Stored as {keyword1, keyword2}")
                                 .font(.system(size: Theme.fontSizeXS))
@@ -99,6 +107,20 @@ struct AddSubCategoryView: View {
                                 .foregroundColor(Theme.accent)
                                 .padding(.top, Theme.spacingSM)
                         }
+
+                        // Submit button inside scroll content so it's reachable above the keyboard
+                        Button(action: addSubCategory) {
+                            if isLoading {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: Theme.textPrimary))
+                            } else {
+                                Text("Add")
+                            }
+                        }
+                        .disabled(isAddDisabled)
+                        .buttonStyle(PrimaryButtonStyle(isEnabled: !isAddDisabled))
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .padding(.top, Theme.spacingMD)
 
                         Spacer(minLength: Theme.spacingXL)
                     }
@@ -124,20 +146,12 @@ struct AddSubCategoryView: View {
                     }
                 }
 
-                ToolbarItem(placement: .bottomBar) {
-                    HStack {
-                        Spacer()
-                        Button(action: addSubCategory) {
-                            if isLoading {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: Theme.textPrimary))
-                            } else {
-                                Text("Add")
-                            }
-                        }
-                        .disabled(isAddDisabled)
-                        .buttonStyle(PrimaryButtonStyle(isEnabled: !isAddDisabled))
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        focusedField = nil
                     }
+                    .foregroundColor(Theme.accent)
                 }
             }
             .alert("About Sub-Categories", isPresented: $showInfo) {
