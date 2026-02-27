@@ -10,7 +10,7 @@ These are all required. The backend's `SignedDataVerifier` uses them to verify t
 
 | Variable | Value | Where to find it |
 |---|---|---|
-| `APPLE_APP_ID` | `6759177500` | App Store Connect > Your App > General > App Information > Apple ID |
+| `APPLE_APP_ID` | `6756441587` | App Store Connect > Your App > General > App Information > Apple ID |
 | `APPLE_BUNDLE_ID` | `George-Labs.The-Dump-App-Two` | Your Xcode project's bundle identifier |
 | `APPLE_KEY_ID` | *(your key ID)* | App Store Connect > Users and Access > Integrations > In-App Purchase > Keys |
 | `APPLE_ISSUER_ID` | *(your issuer ID)* | Same page as above, shown at the top |
@@ -97,7 +97,7 @@ Your subscription currently shows "Missing Metadata". In App Store Connect, you 
 
 ### Before sandbox testing
 - [ ] Set `APPLE_BUNDLE_ID` env var to `George-Labs.The-Dump-App-Two`
-- [ ] Set `APPLE_APP_ID` env var to `6759177500`
+- [ ] Set `APPLE_APP_ID` env var to `6756441587`
 - [ ] Set `APPLE_KEY_ID` env var
 - [ ] Set `APPLE_ISSUER_ID` env var
 - [ ] Set `APPLE_PRIVATE_KEY` env var (from .p8 file)
