@@ -15,6 +15,8 @@ struct ContentView: View {
     @State private var showTextNote = false
     @State private var showPaywall = false
     @State private var capturedImage: UIImage?
+    @State private var showErrorAlert = false
+    @State private var errorAlertMessage = ""
     
 // a view is a type of struct that is called out as a view, and it must provide a body variable that contains the layout
     // "some" view is used to not have to tell the compiler the exact type name of what is in the view, since it would be too complex. There can only be one body property per View
@@ -112,7 +114,8 @@ struct ContentView: View {
                     handleSelectedFile(url)
                 }
             case .failure(let error):
-                sessionStore.lastUploadStatus = "File selection failed: \(error.localizedDescription)"
+                errorAlertMessage = "File selection failed: \(error.localizedDescription)"
+                showErrorAlert = true
             }
         }
         .sheet(isPresented: $showTextNote) {
@@ -130,6 +133,11 @@ struct ContentView: View {
             }
         }
         .environmentObject(sessionStore)
+        .alert("Something went wrong", isPresented: $showErrorAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorAlertMessage)
+        }
     }
     }
 
@@ -145,7 +153,8 @@ struct ContentView: View {
         Task {
             guard let email = appState.userEmail,
                   let idToken = await appState.idToken else {
-                sessionStore.lastUploadStatus = "Not authenticated"
+                errorAlertMessage = "Unable to upload. Please check your connection and try again."
+                showErrorAlert = true
                 return
             }
             
@@ -177,7 +186,8 @@ struct ContentView: View {
         Task {
             guard let email = appState.userEmail,
                   let idToken = await appState.idToken else {
-                sessionStore.lastUploadStatus = "Not authenticated"
+                errorAlertMessage = "Unable to upload. Please check your connection and try again."
+                showErrorAlert = true
                 return
             }
 
@@ -205,20 +215,6 @@ struct ContentView: View {
 }
 
 // MARK: - Subviews
-
-struct StatusBanner: View {
-    let text: String
-    
-    var body: some View {
-        Text(text)
-            .font(.system(size: Theme.fontSizeSM))
-            .foregroundColor(Theme.textPrimary)
-            .padding(.vertical, Theme.spacingSM)
-            .padding(.horizontal, Theme.spacingMD)
-            .frame(maxWidth: .infinity)
-            .background(Theme.surface)
-    }
-}
 
 struct CaptureButtonsSection: View {
     let onPhotoTap: () -> Void
