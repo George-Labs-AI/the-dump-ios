@@ -106,9 +106,14 @@ struct CategoryManagementView: View {
         errorMessage = nil
 
         do {
-            let response = try await NotesService.shared.fetchCounts()
-            existingCategories = response.categories
-                .map { (name: $0.key, count: $0.value) }
+            async let userCategories = NotesService.shared.fetchCategories()
+            async let noteCounts = NotesService.shared.fetchCounts()
+
+            let (categoriesResponse, countsResponse) = try await (userCategories, noteCounts)
+            let countsByName = countsResponse.categories
+
+            existingCategories = categoriesResponse.categories
+                .map { (name: $0.name, count: countsByName[$0.name] ?? 0) }
                 .sorted { $0.name.lowercased() < $1.name.lowercased() }
             isLoading = false
         } catch {

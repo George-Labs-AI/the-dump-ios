@@ -162,6 +162,10 @@ struct UpdateCategoriesResponse: Codable {
     }
 }
 
+struct FetchCategoriesResponse: Codable {
+    let categories: [CategoryResponse]
+}
+
 // MARK: - Sub-Categories
 
 struct CreateSubCategoryRequest: Codable {

@@ -7,12 +7,12 @@
 - Imported by: None.
 
 ## /Users/emilysmith/Desktop/The_Dump_iOS/The_Dump/Models/NoteModels.swift
-- Purpose: Note API models with preview and detail titles.
+- Purpose: Note and category API models with preview, detail, and category fetch/update types.
 - Imports: Foundation.
 - Imported by: `The_Dump/Services/NotesService.swift`, `The_Dump/State/NotesListViewModel.swift`, `The_Dump/State/NoteDetailViewModel.swift`, `The_Dump/Views/NotesListView.swift`, `The_Dump/Views/NoteDetailView.swift`, `The_Dump/Views/BrowseView.swift`.
 
 ## /Users/emilysmith/Desktop/The_Dump_iOS/The_Dump/Services/NotesService.swift
-- Purpose: Notes API networking for list, detail, and edit.
+- Purpose: Notes API networking for list, detail, edit, and category fetch.
 - Imports: Foundation, os.log (DEBUG).
 - Imported by: `The_Dump/State/NotesListViewModel.swift`, `The_Dump/State/NoteDetailViewModel.swift`.
 
