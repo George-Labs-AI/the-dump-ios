@@ -15,7 +15,18 @@ struct OriginalAssetView: View {
                     if isImage {
                         imageViewer
                     } else if isAudio {
-                        AudioAssetPlayerView(url: URL(string: asset.signed_url)!, filename: asset.filename)
+                        if let audioURL = URL(string: asset.signed_url) {
+                            AudioAssetPlayerView(url: audioURL, filename: asset.filename)
+                        } else {
+                            VStack(spacing: Theme.spacingMD) {
+                                Image(systemName: "exclamationmark.triangle")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(Theme.textSecondary)
+                                Text("Invalid audio URL.")
+                                    .font(.system(size: Theme.fontSizeSM))
+                                    .foregroundColor(Theme.textSecondary)
+                            }
+                        }
                     } else {
                         fallbackView
                     }

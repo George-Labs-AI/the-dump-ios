@@ -131,13 +131,12 @@ struct BrowseView: View {
     }
 
     private func emojiForMimeType(_ name: String) -> String {
-        switch name.lowercased() {
-        case "image":    return "📷"
-        case "voice":    return "🎤"
-        case "text":     return "✏️"
-        case "document": return "📤"
-        default:         return "📎"
-        }
+        let lower = name.lowercased()
+        if lower.hasPrefix("image") { return "📷" }
+        if lower.hasPrefix("audio") || lower.hasPrefix("voice") { return "🎤" }
+        if lower.hasPrefix("text") { return "✏️" }
+        if lower.hasPrefix("document") || lower.hasPrefix("application") { return "📤" }
+        return "📎"
     }
 }
 

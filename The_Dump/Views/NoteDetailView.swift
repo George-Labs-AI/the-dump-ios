@@ -111,7 +111,7 @@ struct NoteDetailView: View {
                             ProgressView()
                                 .controlSize(.small)
                         } else {
-                            Image(systemName: "photo.on.rectangle")
+                            Image(systemName: viewModel.assetIconName)
                                 .foregroundColor(Theme.textSecondary)
                         }
                     }
