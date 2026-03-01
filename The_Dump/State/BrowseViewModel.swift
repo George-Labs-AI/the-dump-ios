@@ -22,6 +22,7 @@ final class BrowseViewModel: ObservableObject {
     @Published private(set) var categoryRows: [FolderRow] = []
     @Published private(set) var dateGroupRows: [FolderRow] = []
     @Published private(set) var mimeTypeRows: [FolderRow] = []
+    @Published private(set) var recentCount: Int = 0
     
     func loadCounts() async {
         guard !isLoading else { return }
@@ -29,15 +30,20 @@ final class BrowseViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            let counts = try await NotesService.shared.fetchCounts()
+            async let countsTask = NotesService.shared.fetchCounts()
+            async let recentTask = NotesService.shared.fetchNotes(limit: 10, cursorTime: nil, cursorId: nil)
+            let counts = try await countsTask
+            let recent = try await recentTask
             categoryRows = Self.sortedRows(dict: counts.categories, kind: .category)
             dateGroupRows = Self.sortedDateGroupRows(dict: counts.date_groups)
             mimeTypeRows = Self.sortedRows(dict: counts.mime_types, kind: .mimeType)
+            recentCount = recent.notes.count
         } catch {
             errorMessage = error.localizedDescription
             categoryRows = []
             dateGroupRows = []
             mimeTypeRows = []
+            recentCount = 0
         }
         
         isLoading = false

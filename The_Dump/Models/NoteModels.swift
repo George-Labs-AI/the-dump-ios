@@ -186,3 +186,12 @@ struct CreateSubCategoryResponse: Codable {
     let success: Bool?
     let error: String?
 }
+
+// MARK: - Original Asset
+
+struct NoteAssetResponse: Codable, Equatable {
+    let signed_url: String
+    let content_type: String
+    let filename: String
+    let expires_in: Int
+}

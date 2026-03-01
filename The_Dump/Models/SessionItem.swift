@@ -10,7 +10,8 @@ enum SessionItemKind: String, Codable {
 enum UploadStatus: Equatable {
     case pending
     case uploading
-    case success(storagePath: String)
+    case processing
+    case processed(noteId: String, title: String?, category: String?)
     case failed(error: String)
     
     var displayText: String {
@@ -19,8 +20,13 @@ enum UploadStatus: Equatable {
             return "Pending…"
         case .uploading:
             return "Uploading…"
-        case .success(let path):
-            return "Uploaded to \(path)"
+        case .processing:
+            return "Processing…"
+        case .processed(_, _, let category):
+            if let category, !category.isEmpty {
+                return "Organized → \(category)"
+            }
+            return "Organized"
         case .failed(let error):
             return "Failed: \(error)"
         }
@@ -39,7 +45,8 @@ struct SessionItem: Identifiable {
     let originalFilename: String
     var localFileURL: URL?
     var status: UploadStatus
-    var thumbnailData: Data? // For photos
+    var thumbnailData: Data?
+    var fileUuid: String?
     
     init(
         id: String = UUID().uuidString,
@@ -48,7 +55,8 @@ struct SessionItem: Identifiable {
         originalFilename: String,
         localFileURL: URL? = nil,
         status: UploadStatus = .pending,
-        thumbnailData: Data? = nil
+        thumbnailData: Data? = nil,
+        fileUuid: String? = nil
     ) {
         self.id = id
         self.createdAt = createdAt
@@ -57,5 +65,6 @@ struct SessionItem: Identifiable {
         self.localFileURL = localFileURL
         self.status = status
         self.thumbnailData = thumbnailData
+        self.fileUuid = fileUuid
     }
 }

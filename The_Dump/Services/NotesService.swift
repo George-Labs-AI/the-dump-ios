@@ -476,6 +476,84 @@ class NotesService {
         }
     }
 
+    // Check processing status for uploaded files
+    func checkFileStatus(fileUuids: [String]) async throws -> [FileStatusItem] {
+        guard !fileUuids.isEmpty else { return [] }
+
+        var request = try await createRequest(endpoint: "/api/file_status", method: "POST")
+        let body = FileStatusRequest(fileUuids: fileUuids)
+
+        do {
+            request.httpBody = try JSONEncoder().encode(body)
+        } catch {
+            throw APIError.encodingFailed
+        }
+
+        do {
+#if DEBUG
+            debugLogRequest(request, label: "file_status")
+#endif
+            let (data, response) = try await URLSession.shared.data(for: request)
+#if DEBUG
+            debugLogResponse(data: data, response: response, label: "file_status")
+#endif
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.networkError(underlying: URLError(.badServerResponse))
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+                throw APIError.from(statusCode: httpResponse.statusCode, errorResponse: errorResponse)
+            }
+
+            return try JSONDecoder().decode(FileStatusResponse.self, from: data).statuses
+        } catch let error as APIError {
+            throw error
+        } catch let error as DecodingError {
+            throw APIError.decodingFailed(underlying: error)
+        } catch {
+            throw APIError.networkError(underlying: error)
+        }
+    }
+
+    // Fetch the original asset's signed URL for a given note.
+    // Returns nil when the backend responds with 404 (no original file).
+    func fetchNoteAsset(noteId: String) async throws -> NoteAssetResponse? {
+        let request = try await createRequest(endpoint: "/api/note/\(noteId)/asset")
+
+        do {
+#if DEBUG
+            debugLogRequest(request, label: "note_asset")
+#endif
+            let (data, response) = try await URLSession.shared.data(for: request)
+#if DEBUG
+            debugLogResponse(data: data, response: response, label: "note_asset")
+#endif
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.networkError(underlying: URLError(.badServerResponse))
+            }
+
+            if httpResponse.statusCode == 404 {
+                return nil
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+                throw APIError.from(statusCode: httpResponse.statusCode, errorResponse: errorResponse)
+            }
+
+            return try JSONDecoder().decode(NoteAssetResponse.self, from: data)
+        } catch let error as APIError {
+            throw error
+        } catch let error as DecodingError {
+            throw APIError.decodingFailed(underlying: error)
+        } catch {
+            throw APIError.networkError(underlying: error)
+        }
+    }
+
     // Delete a note permanently
     func deleteNote(noteId: String) async throws {
         let trimmedId = noteId.trimmingCharacters(in: .whitespacesAndNewlines)

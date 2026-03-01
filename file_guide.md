@@ -12,9 +12,9 @@
 - Imported by: `The_Dump/Services/NotesService.swift`, `The_Dump/State/NotesListViewModel.swift`, `The_Dump/State/NoteDetailViewModel.swift`, `The_Dump/Views/NotesListView.swift`, `The_Dump/Views/NoteDetailView.swift`, `The_Dump/Views/BrowseView.swift`.
 
 ## /Users/emilysmith/Desktop/The_Dump_iOS/The_Dump/Services/NotesService.swift
-- Purpose: Notes API networking for list, detail, edit, and category fetch.
+- Purpose: Notes API networking for list, detail, edit, category fetch, and file processing status polling.
 - Imports: Foundation, os.log (DEBUG).
-- Imported by: `The_Dump/State/NotesListViewModel.swift`, `The_Dump/State/NoteDetailViewModel.swift`.
+- Imported by: `The_Dump/State/NotesListViewModel.swift`, `The_Dump/State/NoteDetailViewModel.swift`, `The_Dump/State/SessionStore.swift`.
 
 ## /Users/emilysmith/Desktop/The_Dump_iOS/The_Dump/Views/NotesListView.swift
 - Purpose: Paginated list of note previews using API titles.
@@ -24,7 +24,7 @@
 ## /Users/emilysmith/Desktop/The_Dump_iOS/The_Dump/Views/NoteDetailView.swift
 - Purpose: Full note view using API title in navigation.
 - Imports: SwiftUI, Combine.
-- Imported by: `The_Dump/Views/NotesListView.swift`, `The_Dump/Views/BrowseView.swift`.
+- Imported by: `The_Dump/Views/NotesListView.swift`, `The_Dump/Views/BrowseView.swift`, `The_Dump/Views/ContentView.swift`.
 
 ## /Users/emilysmith/Desktop/The_Dump_iOS/The_Dump/Views/BrowseView.swift
 - Purpose: Folder list and search results using API titles in previews.

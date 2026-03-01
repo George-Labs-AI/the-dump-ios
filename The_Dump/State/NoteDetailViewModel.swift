@@ -7,6 +7,9 @@ final class NoteDetailViewModel: ObservableObject {
     @Published private(set) var isLoading: Bool = false
     @Published private(set) var isSaving: Bool = false
     @Published private(set) var errorMessage: String?
+    @Published private(set) var isLoadingAsset: Bool = false
+    @Published private(set) var assetResponse: NoteAssetResponse? = nil
+    @Published var assetErrorMessage: String? = nil
     
     private let noteID: String
     
@@ -85,5 +88,32 @@ final class NoteDetailViewModel: ObservableObject {
             isSaving = false
             return false
         }
+    }
+
+    /// Whether this note has an original file that can be previewed.
+    var hasOriginalAsset: Bool {
+        guard let mimeType = note?.mime_type?.lowercased() else { return false }
+        return mimeType != "text"
+    }
+
+    /// Fetch the original asset signed URL on demand.
+    func fetchOriginalAsset() async {
+        guard !isLoadingAsset else { return }
+        isLoadingAsset = true
+        assetErrorMessage = nil
+        assetResponse = nil
+
+        do {
+            let response = try await NotesService.shared.fetchNoteAsset(noteId: noteID)
+            if let response {
+                assetResponse = response
+            } else {
+                assetErrorMessage = "No original file available for this note."
+            }
+        } catch {
+            assetErrorMessage = error.localizedDescription
+        }
+
+        isLoadingAsset = false
     }
 }

@@ -7,6 +7,8 @@ struct NoteDetailView: View {
     private let noteID: String
     @StateObject private var viewModel: NoteDetailViewModel
     @State private var showMetadataSheet = false
+    @State private var showOriginalAsset = false
+    @State private var showAssetError = false
     @State private var isEditing = false
     @State private var draftTitle = ""
     @State private var draftContent = ""
@@ -101,6 +103,23 @@ struct NoteDetailView: View {
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                if viewModel.note != nil && !isEditing && viewModel.hasOriginalAsset {
+                    Button {
+                        Task { await viewModel.fetchOriginalAsset() }
+                    } label: {
+                        if viewModel.isLoadingAsset {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "photo.on.rectangle")
+                                .foregroundColor(Theme.textSecondary)
+                        }
+                    }
+                    .disabled(viewModel.isLoadingAsset)
+                }
+            }
+
+            ToolbarItem(placement: .topBarTrailing) {
                 if viewModel.note != nil && !isEditing {
                     Button {
                         showMetadataSheet = true
@@ -146,6 +165,28 @@ struct NoteDetailView: View {
             if let note = viewModel.note {
                 NoteMetadataSheet(note: note)
             }
+        }
+        .sheet(isPresented: $showOriginalAsset) {
+            if let asset = viewModel.assetResponse {
+                OriginalAssetView(asset: asset)
+            }
+        }
+        .onChange(of: viewModel.assetResponse) { _, newValue in
+            if newValue != nil {
+                showOriginalAsset = true
+            }
+        }
+        .onChange(of: viewModel.assetErrorMessage) { _, newValue in
+            if newValue != nil {
+                showAssetError = true
+            }
+        }
+        .alert("Original File", isPresented: $showAssetError) {
+            Button("OK", role: .cancel) {
+                viewModel.assetErrorMessage = nil
+            }
+        } message: {
+            Text(viewModel.assetErrorMessage ?? "")
         }
         .task {
             await viewModel.loadIfNeeded()

@@ -107,7 +107,7 @@ struct TextNoteView: View {
                     content: noteContent,
                     idToken: idToken
                 )
-                sessionStore.markSuccess(id: item.id, storagePath: response.storagePath)
+                sessionStore.markProcessing(id: item.id, fileUuid: response.uuid)
                 dismiss()
             } catch {
                 sessionStore.markFailed(id: item.id, error: error.localizedDescription)

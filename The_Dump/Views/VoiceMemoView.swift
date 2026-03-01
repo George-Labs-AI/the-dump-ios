@@ -231,7 +231,7 @@ struct VoiceMemoView: View {
                     userEmail: email,
                     idToken: idToken
                 )
-                sessionStore.markSuccess(id: item.id, storagePath: response.storagePath)
+                sessionStore.markProcessing(id: item.id, fileUuid: response.uuid)
                 
                 // Clean up local file after successful upload
                 try? FileManager.default.removeItem(at: fileURL)

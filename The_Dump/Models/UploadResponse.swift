@@ -31,3 +31,35 @@ struct UploadMetadata: Codable {
 struct APIErrorResponse: Codable {
     let error: String
 }
+
+// MARK: - File Processing Status (polling response)
+
+struct FileStatusRequest: Codable {
+    let fileUuids: [String]
+    
+    enum CodingKeys: String, CodingKey {
+        case fileUuids = "file_uuids"
+    }
+}
+
+struct FileStatusItem: Codable {
+    let fileUuid: String
+    let status: String
+    let organizedNoteId: String?
+    let title: String?
+    let categoryName: String?
+    let error: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case fileUuid = "file_uuid"
+        case status
+        case organizedNoteId = "organized_note_id"
+        case title
+        case categoryName = "category_name"
+        case error
+    }
+}
+
+struct FileStatusResponse: Codable {
+    let statuses: [FileStatusItem]
+}

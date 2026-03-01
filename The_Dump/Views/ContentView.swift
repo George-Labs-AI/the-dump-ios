@@ -175,7 +175,7 @@ struct ContentView: View {
                     userEmail: email,
                     idToken: idToken
                 )
-                sessionStore.markSuccess(id: item.id, storagePath: response.storagePath)
+                sessionStore.markProcessing(id: item.id, fileUuid: response.uuid)
             } catch {
                 sessionStore.markFailed(id: item.id, error: error.localizedDescription)
             }
@@ -206,7 +206,7 @@ struct ContentView: View {
                     userEmail: email,
                     idToken: idToken
                 )
-                sessionStore.markSuccess(id: item.id, storagePath: response.storagePath)
+                sessionStore.markProcessing(id: item.id, fileUuid: response.uuid)
             } catch {
                 sessionStore.markFailed(id: item.id, error: error.localizedDescription)
             }
@@ -303,7 +303,7 @@ struct SessionHistorySection: View {
     
     var body: some View {
         VStack(spacing: Theme.spacingMD) {
-            Text("Your Uploads This Session")
+            Text("Processing")
                 .sectionLabel()
                 .foregroundColor(Theme.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -314,7 +314,7 @@ struct SessionHistorySection: View {
                         .font(.system(size: 24))
                         .foregroundColor(Theme.textSecondary.opacity(0.5))
                     
-                    Text("Nothing yet this session")
+                    Text("Nothing processing right now")
                         .font(.system(size: Theme.fontSizeSM))
                         .foregroundColor(Theme.textSecondary)
                 }
@@ -327,7 +327,14 @@ struct SessionHistorySection: View {
             } else {
                 LazyVStack(spacing: Theme.spacingSM) {
                     ForEach(items) { item in
-                        SessionItemRow(item: item)
+                        if case .processed(let noteId, _, _) = item.status {
+                            NavigationLink(destination: NoteDetailView(noteID: noteId)) {
+                                SessionItemRow(item: item)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            SessionItemRow(item: item)
+                        }
                     }
                 }
             }
@@ -407,8 +414,13 @@ struct SessionItemRow: View {
             return "Pending"
         case .uploading:
             return "Uploading…"
-        case .success:
-            return "Uploaded"
+        case .processing:
+            return "Processing…"
+        case .processed(_, _, let category):
+            if let category, !category.isEmpty {
+                return "Organized → \(category)"
+            }
+            return "Organized"
         case .failed(let error):
             return error
         }
@@ -416,7 +428,7 @@ struct SessionItemRow: View {
     
     private var statusColor: Color {
         switch item.status {
-        case .success:
+        case .processed:
             return Theme.success
         case .failed:
             return Theme.accent
@@ -428,11 +440,16 @@ struct SessionItemRow: View {
     @ViewBuilder
     private var statusIcon: some View {
         switch item.status {
-        case .uploading:
+        case .uploading, .processing:
             PulsingDot()
-        case .success:
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundColor(Theme.success)
+        case .processed:
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(Theme.success)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Theme.textSecondary)
+            }
         case .failed:
             Image(systemName: "exclamationmark.circle.fill")
                 .foregroundColor(Theme.accent)
