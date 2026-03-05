@@ -6,6 +6,8 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     
     @State private var showLogoutConfirmation = false
+    @State private var showDeleteConfirmation = false
+    @State private var showDeletePasswordSheet = false
     @AppStorage("appearance") private var appearance: AppAppearance = .system
 
     var body: some View {
@@ -86,6 +88,12 @@ struct SettingsView: View {
                         }
                         .foregroundColor(Theme.accent)
                         .listRowBackground(Theme.surface)
+
+                        Button("Delete Account") {
+                            showDeleteConfirmation = true
+                        }
+                        .foregroundColor(.red)
+                        .listRowBackground(Theme.surface)
                     }
                     
                     // App info
@@ -155,6 +163,19 @@ struct SettingsView: View {
         } message: {
             Text("Are you sure you want to sign out?")
         }
+        .alert("Delete Account?", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Continue", role: .destructive) {
+                showDeletePasswordSheet = true
+            }
+        } message: {
+            Text("This will permanently delete your account and all your data. This action cannot be undone.")
+        }
+        .sheet(isPresented: $showDeletePasswordSheet) {
+            DeleteAccountSheet()
+                .environmentObject(appState)
+                .environmentObject(sessionStore)
+        }
     }
     
     private var appVersion: String {
@@ -170,6 +191,95 @@ struct SettingsView: View {
             dismiss()
         } catch {
             print("Sign out error: \(error)")
+        }
+    }
+}
+
+private struct DeleteAccountSheet: View {
+    @EnvironmentObject var appState: AppState
+    @EnvironmentObject var sessionStore: SessionStore
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var password = ""
+    @State private var isDeleting = false
+    @State private var errorMessage: String?
+    @State private var showError = false
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Theme.background.ignoresSafeArea()
+
+                VStack(spacing: Theme.spacingLG) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 48))
+                        .foregroundColor(.red)
+                        .padding(.top, Theme.spacingXL)
+
+                    Text("Enter your password to confirm account deletion")
+                        .font(.system(size: Theme.fontSizeMD))
+                        .foregroundColor(Theme.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, Theme.spacingLG)
+
+                    SecureField("Password", text: $password)
+                        .textFieldStyle(DumpPasswordFieldStyle())
+                        .textContentType(.password)
+                        .padding(.horizontal, Theme.spacingLG)
+                        .disabled(isDeleting)
+
+                    if isDeleting {
+                        ProgressView("Deleting account...")
+                            .foregroundColor(Theme.textSecondary)
+                    } else {
+                        Button(role: .destructive) {
+                            Task { await performDeletion() }
+                        } label: {
+                            Text("Delete My Account")
+                                .font(.system(size: Theme.fontSizeMD, weight: .semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, Theme.spacingSMPlus)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.red)
+                        .disabled(password.isEmpty)
+                        .padding(.horizontal, Theme.spacingLG)
+                    }
+
+                    Spacer()
+                }
+            }
+            .navigationTitle("Delete Account")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") { dismiss() }
+                        .foregroundColor(Theme.textPrimary)
+                        .disabled(isDeleting)
+                }
+            }
+            .toolbarBackground(Theme.background, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .interactiveDismissDisabled(isDeleting)
+        }
+        .alert("Deletion Failed", isPresented: $showError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage ?? "An unexpected error occurred. Please try again.")
+        }
+    }
+
+    private func performDeletion() async {
+        isDeleting = true
+        defer { isDeleting = false }
+
+        do {
+            sessionStore.clear()
+            try await appState.deleteAccount(password: password)
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+            showError = true
         }
     }
 }

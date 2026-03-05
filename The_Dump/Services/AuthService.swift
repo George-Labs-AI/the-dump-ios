@@ -5,6 +5,8 @@ enum AuthError: LocalizedError {
     case signInFailed(underlying: Error)
     case signUpFailed(underlying: Error)
     case passwordResetFailed(underlying: Error)
+    case reauthenticationFailed(underlying: Error)
+    case accountDeletionFailed(underlying: Error)
     case invalidCredentials
     case networkError
     case unknownError
@@ -16,6 +18,10 @@ enum AuthError: LocalizedError {
         case .signUpFailed(let error):
             return parseFirebaseError(error)
         case .passwordResetFailed(let error):
+            return parseFirebaseError(error)
+        case .reauthenticationFailed(let error):
+            return parseFirebaseError(error)
+        case .accountDeletionFailed(let error):
             return parseFirebaseError(error)
         case .invalidCredentials:
             return "Invalid email or password"
@@ -101,5 +107,29 @@ class AuthService {
     
     var isSignedIn: Bool {
         Auth.auth().currentUser != nil
+    }
+
+    func reauthenticate(password: String) async throws {
+        guard let user = Auth.auth().currentUser,
+              let email = user.email else {
+            throw AuthError.invalidCredentials
+        }
+        let credential = EmailAuthProvider.credential(withEmail: email, password: password)
+        do {
+            try await user.reauthenticate(with: credential)
+        } catch {
+            throw AuthError.reauthenticationFailed(underlying: error)
+        }
+    }
+
+    func deleteFirebaseAccount() async throws {
+        guard let user = Auth.auth().currentUser else {
+            throw AuthError.invalidCredentials
+        }
+        do {
+            try await user.delete()
+        } catch {
+            throw AuthError.accountDeletionFailed(underlying: error)
+        }
     }
 }
