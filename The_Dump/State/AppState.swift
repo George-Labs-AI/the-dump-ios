@@ -97,6 +97,30 @@ class AppState: ObservableObject {
         }
     }
 
+    func deleteAccount(password: String) async throws {
+        // Step 1: Re-authenticate (Firebase requires recent auth to delete)
+        try await AuthService.shared.reauthenticate(password: password)
+
+        // Step 2: Delete all user data on backend (while token is still valid)
+        try await NotesService.shared.deleteAccount()
+
+        // Step 3: Delete the Firebase Auth account
+        try await AuthService.shared.deleteFirebaseAccount()
+
+        // Step 4: Clean up local state
+        clearLocalData()
+    }
+
+    private func clearLocalData() {
+        if let userId = currentUser?.uid {
+            UserDefaults.standard.removeObject(forKey: "onboarding_completed_\(userId)")
+        }
+        isAuthenticated = false
+        userEmail = nil
+        currentUser = nil
+        hasCompletedOnboarding = false
+    }
+
     func markOnboardingComplete() {
         guard let userId = currentUser?.uid else { return }
         UserDefaults.standard.set(true, forKey: "onboarding_completed_\(userId)")
