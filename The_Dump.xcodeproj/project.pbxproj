@@ -7,17 +7,74 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		354AB73D2F7AFCE6008C9760 /* TheDumpShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 354AB7332F7AFCE5008C9760 /* TheDumpShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		35ABFAAD2EE0C25200721476 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 35ABFAAC2EE0C25200721476 /* FirebaseAuth */; };
 		35ABFAAF2EE0C25200721476 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 35ABFAAE2EE0C25200721476 /* FirebaseCore */; };
 		35C312B22EE0CB6E0066EBEC /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 35C312B12EE0CB6E0066EBEC /* FirebaseAnalytics */; };
 		35C312B42EE351340066EBEC /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = 35C312B32EE351340066EBEC /* FirebaseCrashlytics */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		354AB73B2F7AFCE6008C9760 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 35ABFA6D2EE0C05400721476 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 354AB7322F7AFCE5008C9760;
+			remoteInfo = TheDumpShare;
+		};
+		354AB74B2F7AFD80008C9760 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 35ABFA6D2EE0C05400721476 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 35ABFA742EE0C05400721476;
+			remoteInfo = The_Dump;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		354AB73E2F7AFCE6008C9760 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				354AB73D2F7AFCE6008C9760 /* TheDumpShare.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		354AB7332F7AFCE5008C9760 /* TheDumpShare.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TheDumpShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		354AB7472F7AFD80008C9760 /* TheDumpShareTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TheDumpShareTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		35ABFA752EE0C05400721476 /* The_Dump.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = The_Dump.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		354AB7412F7AFCE6008C9760 /* Exceptions for "TheDumpShare" folder in "TheDumpShare" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 354AB7322F7AFCE5008C9760 /* TheDumpShare */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		354AB7342F7AFCE5008C9760 /* TheDumpShare */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				354AB7412F7AFCE6008C9760 /* Exceptions for "TheDumpShare" folder in "TheDumpShare" target */,
+			);
+			path = TheDumpShare;
+			sourceTree = "<group>";
+		};
+		354AB7482F7AFD80008C9760 /* TheDumpShareTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = TheDumpShareTests;
+			sourceTree = "<group>";
+		};
 		35ABFA772EE0C05400721476 /* The_Dump */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = The_Dump;
@@ -26,6 +83,20 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		354AB7302F7AFCE5008C9760 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		354AB7442F7AFD80008C9760 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		35ABFA722EE0C05400721476 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -44,6 +115,8 @@
 			isa = PBXGroup;
 			children = (
 				35ABFA772EE0C05400721476 /* The_Dump */,
+				354AB7342F7AFCE5008C9760 /* TheDumpShare */,
+				354AB7482F7AFD80008C9760 /* TheDumpShareTests */,
 				35C312B02EE0CB6E0066EBEC /* Frameworks */,
 				35ABFA762EE0C05400721476 /* Products */,
 			);
@@ -53,6 +126,8 @@
 			isa = PBXGroup;
 			children = (
 				35ABFA752EE0C05400721476 /* The_Dump.app */,
+				354AB7332F7AFCE5008C9760 /* TheDumpShare.appex */,
+				354AB7472F7AFD80008C9760 /* TheDumpShareTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -67,6 +142,51 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		354AB7322F7AFCE5008C9760 /* TheDumpShare */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 354AB7422F7AFCE6008C9760 /* Build configuration list for PBXNativeTarget "TheDumpShare" */;
+			buildPhases = (
+				354AB72F2F7AFCE5008C9760 /* Sources */,
+				354AB7302F7AFCE5008C9760 /* Frameworks */,
+				354AB7312F7AFCE5008C9760 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				354AB7342F7AFCE5008C9760 /* TheDumpShare */,
+			);
+			name = TheDumpShare;
+			packageProductDependencies = (
+			);
+			productName = TheDumpShare;
+			productReference = 354AB7332F7AFCE5008C9760 /* TheDumpShare.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		354AB7462F7AFD80008C9760 /* TheDumpShareTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 354AB74D2F7AFD80008C9760 /* Build configuration list for PBXNativeTarget "TheDumpShareTests" */;
+			buildPhases = (
+				354AB7432F7AFD80008C9760 /* Sources */,
+				354AB7442F7AFD80008C9760 /* Frameworks */,
+				354AB7452F7AFD80008C9760 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				354AB74C2F7AFD80008C9760 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				354AB7482F7AFD80008C9760 /* TheDumpShareTests */,
+			);
+			name = TheDumpShareTests;
+			packageProductDependencies = (
+			);
+			productName = TheDumpShareTests;
+			productReference = 354AB7472F7AFD80008C9760 /* TheDumpShareTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		35ABFA742EE0C05400721476 /* The_Dump */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 35ABFA802EE0C05700721476 /* Build configuration list for PBXNativeTarget "The_Dump" */;
@@ -75,10 +195,12 @@
 				35ABFA722EE0C05400721476 /* Frameworks */,
 				35ABFA732EE0C05400721476 /* Resources */,
 				35C312B52EE351660066EBEC /* ShellScript */,
+				354AB73E2F7AFCE6008C9760 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				354AB73C2F7AFCE6008C9760 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				35ABFA772EE0C05400721476 /* The_Dump */,
@@ -101,9 +223,16 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2610;
+				LastSwiftUpdateCheck = 2620;
 				LastUpgradeCheck = 2610;
 				TargetAttributes = {
+					354AB7322F7AFCE5008C9760 = {
+						CreatedOnToolsVersion = 26.2;
+					};
+					354AB7462F7AFD80008C9760 = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = 35ABFA742EE0C05400721476;
+					};
 					35ABFA742EE0C05400721476 = {
 						CreatedOnToolsVersion = 26.1.1;
 					};
@@ -127,11 +256,27 @@
 			projectRoot = "";
 			targets = (
 				35ABFA742EE0C05400721476 /* The_Dump */,
+				354AB7322F7AFCE5008C9760 /* TheDumpShare */,
+				354AB7462F7AFD80008C9760 /* TheDumpShareTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		354AB7312F7AFCE5008C9760 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		354AB7452F7AFD80008C9760 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		35ABFA732EE0C05400721476 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -165,6 +310,20 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		354AB72F2F7AFCE5008C9760 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		354AB7432F7AFD80008C9760 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		35ABFA712EE0C05400721476 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -174,7 +333,122 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		354AB73C2F7AFCE6008C9760 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 354AB7322F7AFCE5008C9760 /* TheDumpShare */;
+			targetProxy = 354AB73B2F7AFCE6008C9760 /* PBXContainerItemProxy */;
+		};
+		354AB74C2F7AFD80008C9760 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 35ABFA742EE0C05400721476 /* The_Dump */;
+			targetProxy = 354AB74B2F7AFD80008C9760 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		354AB73F2F7AFCE6008C9760 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = N5395SMN6D;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TheDumpShare/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = TheDumpShare;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "George-Labs.The-Dump-App-Two.TheDumpShare";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		354AB7402F7AFCE6008C9760 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = N5395SMN6D;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TheDumpShare/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = TheDumpShare;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "George-Labs.The-Dump-App-Two.TheDumpShare";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		354AB74E2F7AFD80008C9760 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = N5395SMN6D;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "George-Labs.The-Dump-App-Two.TheDumpShareTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/The_Dump.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/The_Dump";
+			};
+			name = Debug;
+		};
+		354AB74F2F7AFD80008C9760 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = N5395SMN6D;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "George-Labs.The-Dump-App-Two.TheDumpShareTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/The_Dump.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/The_Dump";
+			};
+			name = Release;
+		};
 		35ABFA7E2EE0C05700721476 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -383,6 +657,24 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		354AB7422F7AFCE6008C9760 /* Build configuration list for PBXNativeTarget "TheDumpShare" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				354AB73F2F7AFCE6008C9760 /* Debug */,
+				354AB7402F7AFCE6008C9760 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		354AB74D2F7AFD80008C9760 /* Build configuration list for PBXNativeTarget "TheDumpShareTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				354AB74E2F7AFD80008C9760 /* Debug */,
+				354AB74F2F7AFD80008C9760 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		35ABFA702EE0C05400721476 /* Build configuration list for PBXProject "The_Dump" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
