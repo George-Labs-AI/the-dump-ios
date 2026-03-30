@@ -1,5 +1,6 @@
 import SwiftUI
 import FirebaseCore
+import FirebaseAuth
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
@@ -36,6 +37,7 @@ struct TheDumpApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var appState = AppState()
     @AppStorage("appearance") private var appearance: AppAppearance = .system
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -46,6 +48,14 @@ struct TheDumpApp: App {
                     // Start listening for StoreKit transaction updates (renewals, revocations)
                     StoreKitService.shared.listenForTransactions { transaction, jwsRepresentation in
                         await appState.subscriptionViewModel.handleTransactionUpdate(transaction, jwsRepresentation: jwsRepresentation)
+                    }
+                }
+                .onChange(of: scenePhase) { _, newPhase in
+                    if newPhase == .background {
+                        // Refresh the shared token so the share extension has a fresh one
+                        Task {
+                            await appState.syncTokenToSharedStorage(user: Auth.auth().currentUser)
+                        }
                     }
                 }
         }
