@@ -16,8 +16,8 @@ final class MockURLProtocol: URLProtocol {
         capturedRequests = []
     }
 
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override static func canInit(with request: URLRequest) -> Bool { true }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
         Self.capturedRequests.append(request)
@@ -51,14 +51,16 @@ private func makeTestSession() -> URLSession {
 }
 
 private func makeSuccessResponse(for url: URL) -> HTTPURLResponse {
+    // swiftlint:disable:next force_unwrapping
     HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
 }
 
 private func makeErrorResponse(for url: URL, statusCode: Int) -> HTTPURLResponse {
+    // swiftlint:disable:next force_unwrapping
     HTTPURLResponse(url: url, statusCode: statusCode, httpVersion: nil, headerFields: nil)!
 }
 
-private let successJSON = """
+private let successJSON = Data("""
 {
     "message": "Conversation ingested successfully.",
     "uuid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
@@ -66,7 +68,7 @@ private let successJSON = """
     "source": "claude",
     "command": "share_conversation"
 }
-""".data(using: .utf8)!
+""".utf8)
 
 // MARK: - IngestAPIClient Tests
 
@@ -101,7 +103,7 @@ final class IngestAPIClientTests: XCTestCase {
 
     func test_ingestText_requestFormat() async throws {
         MockURLProtocol.requestHandler = { request in
-            let url = request.url!
+            let url = try XCTUnwrap(request.url)
             return (makeSuccessResponse(for: url), successJSON)
         }
 
@@ -115,9 +117,11 @@ final class IngestAPIClientTests: XCTestCase {
 
         let request = try XCTUnwrap(MockURLProtocol.capturedRequests.first)
         XCTAssertEqual(request.httpMethod, "POST")
-        XCTAssertTrue(request.url!.absoluteString.hasSuffix("/api/ingest"))
+        let requestURL = try XCTUnwrap(request.url)
+        XCTAssertTrue(requestURL.absoluteString.hasSuffix("/api/ingest"))
 
-        let body = try JSONSerialization.jsonObject(with: request.httpBody!) as! [String: Any]
+        let bodyData = try XCTUnwrap(request.httpBody)
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
         XCTAssertEqual(body["source"] as? String, "claude")
         XCTAssertEqual(body["command"] as? String, "share_conversation")
 
@@ -129,11 +133,11 @@ final class IngestAPIClientTests: XCTestCase {
 
     func test_ingestURL_requestFormat() async throws {
         MockURLProtocol.requestHandler = { request in
-            let url = request.url!
+            let url = try XCTUnwrap(request.url)
             return (makeSuccessResponse(for: url), successJSON)
         }
 
-        let content = SharedContent.url(URL(string: "https://claude.ai/chat/abc123")!)
+        let content = SharedContent.url(try XCTUnwrap(URL(string: "https://claude.ai/chat/abc123")))
         _ = try await sut.ingest(
             content: content,
             source: "claude",
@@ -142,7 +146,8 @@ final class IngestAPIClientTests: XCTestCase {
         )
 
         let request = try XCTUnwrap(MockURLProtocol.capturedRequests.first)
-        let body = try JSONSerialization.jsonObject(with: request.httpBody!) as! [String: Any]
+        let bodyData = try XCTUnwrap(request.httpBody)
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
         XCTAssertEqual(body["command"] as? String, "conversation_link_and_title")
         XCTAssertEqual(body["url"] as? String, "https://claude.ai/chat/abc123")
         XCTAssertEqual(body["title"] as? String, "My Chat")
@@ -152,7 +157,7 @@ final class IngestAPIClientTests: XCTestCase {
 
     func test_authorizationHeader_includesBearer() async throws {
         MockURLProtocol.requestHandler = { request in
-            let url = request.url!
+            let url = try XCTUnwrap(request.url)
             return (makeSuccessResponse(for: url), successJSON)
         }
 
@@ -168,7 +173,7 @@ final class IngestAPIClientTests: XCTestCase {
 
     func test_titleIncludedWhenProvided() async throws {
         MockURLProtocol.requestHandler = { request in
-            let url = request.url!
+            let url = try XCTUnwrap(request.url)
             return (makeSuccessResponse(for: url), successJSON)
         }
 
@@ -176,13 +181,14 @@ final class IngestAPIClientTests: XCTestCase {
         _ = try await sut.ingest(content: content, source: "chatgpt", command: "share_conversation", title: "My Chat Title")
 
         let request = try XCTUnwrap(MockURLProtocol.capturedRequests.first)
-        let body = try JSONSerialization.jsonObject(with: request.httpBody!) as! [String: Any]
+        let bodyData = try XCTUnwrap(request.httpBody)
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
         XCTAssertEqual(body["title"] as? String, "My Chat Title")
     }
 
     func test_titleOmittedWhenNil() async throws {
         MockURLProtocol.requestHandler = { request in
-            let url = request.url!
+            let url = try XCTUnwrap(request.url)
             return (makeSuccessResponse(for: url), successJSON)
         }
 
@@ -190,7 +196,8 @@ final class IngestAPIClientTests: XCTestCase {
         _ = try await sut.ingest(content: content, source: "claude", command: "share_conversation", title: nil)
 
         let request = try XCTUnwrap(MockURLProtocol.capturedRequests.first)
-        let body = try JSONSerialization.jsonObject(with: request.httpBody!) as! [String: Any]
+        let bodyData = try XCTUnwrap(request.httpBody)
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
         XCTAssertNil(body["title"], "Title should not be present in payload when nil")
     }
 
@@ -215,7 +222,7 @@ final class IngestAPIClientTests: XCTestCase {
 
     func test_200Response_returnsSuccess() async throws {
         MockURLProtocol.requestHandler = { request in
-            let url = request.url!
+            let url = try XCTUnwrap(request.url)
             return (makeSuccessResponse(for: url), successJSON)
         }
 
@@ -226,10 +233,10 @@ final class IngestAPIClientTests: XCTestCase {
         XCTAssertEqual(response.message, "Conversation ingested successfully.")
     }
 
-    func test_401Response_throwsUnauthorized() async {
+    func test_401Response_throwsUnauthorized() async throws {
         MockURLProtocol.requestHandler = { request in
-            let url = request.url!
-            let errorData = #"{"error": "Invalid token"}"#.data(using: .utf8)!
+            let url = try XCTUnwrap(request.url)
+            let errorData = Data(#"{"error": "Invalid token"}"#.utf8)
             return (makeErrorResponse(for: url, statusCode: 401), errorData)
         }
 
@@ -244,10 +251,10 @@ final class IngestAPIClientTests: XCTestCase {
         }
     }
 
-    func test_400Response_throwsBadRequest() async {
+    func test_400Response_throwsBadRequest() async throws {
         MockURLProtocol.requestHandler = { request in
-            let url = request.url!
-            let errorData = #"{"error": "Missing required field: source"}"#.data(using: .utf8)!
+            let url = try XCTUnwrap(request.url)
+            let errorData = Data(#"{"error": "Missing required field: source"}"#.utf8)
             return (makeErrorResponse(for: url, statusCode: 400), errorData)
         }
 
@@ -266,10 +273,10 @@ final class IngestAPIClientTests: XCTestCase {
         }
     }
 
-    func test_429Response_throwsRateLimited() async {
+    func test_429Response_throwsRateLimited() async throws {
         MockURLProtocol.requestHandler = { request in
-            let url = request.url!
-            let errorData = #"{"error": "Monthly usage limit exceeded"}"#.data(using: .utf8)!
+            let url = try XCTUnwrap(request.url)
+            let errorData = Data(#"{"error": "Monthly usage limit exceeded"}"#.utf8)
             return (makeErrorResponse(for: url, statusCode: 429), errorData)
         }
 
@@ -284,10 +291,10 @@ final class IngestAPIClientTests: XCTestCase {
         }
     }
 
-    func test_500Response_throwsServerError() async {
+    func test_500Response_throwsServerError() async throws {
         MockURLProtocol.requestHandler = { request in
-            let url = request.url!
-            let errorData = #"{"error": "Internal server error"}"#.data(using: .utf8)!
+            let url = try XCTUnwrap(request.url)
+            let errorData = Data(#"{"error": "Internal server error"}"#.utf8)
             return (makeErrorResponse(for: url, statusCode: 500), errorData)
         }
 

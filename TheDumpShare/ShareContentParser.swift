@@ -17,20 +17,16 @@ struct ShareContentParser {
             guard let attachments = item.attachments else { continue }
 
             // First pass: look for URLs (higher priority)
-            for provider in attachments {
-                if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
-                    if let content = await extractURL(from: provider) {
-                        return content
-                    }
+            for provider in attachments where provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
+                if let content = await extractURL(from: provider) {
+                    return content
                 }
             }
 
             // Second pass: look for plain text
-            for provider in attachments {
-                if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
-                    if let content = await extractText(from: provider) {
-                        return content
-                    }
+            for provider in attachments where provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
+                if let content = await extractText(from: provider) {
+                    return content
                 }
             }
         }

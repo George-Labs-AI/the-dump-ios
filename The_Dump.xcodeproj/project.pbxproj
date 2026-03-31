@@ -80,6 +80,11 @@
 			path = The_Dump;
 			sourceTree = "<group>";
 		};
+		354AB7502F7B0000008C9760 /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -117,6 +122,7 @@
 				35ABFA772EE0C05400721476 /* The_Dump */,
 				354AB7342F7AFCE5008C9760 /* TheDumpShare */,
 				354AB7482F7AFD80008C9760 /* TheDumpShareTests */,
+				354AB7502F7B0000008C9760 /* Shared */,
 				35C312B02EE0CB6E0066EBEC /* Frameworks */,
 				35ABFA762EE0C05400721476 /* Products */,
 			);
@@ -156,6 +162,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				354AB7342F7AFCE5008C9760 /* TheDumpShare */,
+				354AB7502F7B0000008C9760 /* Shared */,
 			);
 			name = TheDumpShare;
 			packageProductDependencies = (
@@ -204,6 +211,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				35ABFA772EE0C05400721476 /* The_Dump */,
+				354AB7502F7B0000008C9760 /* Shared */,
 			);
 			name = The_Dump;
 			packageProductDependencies = (

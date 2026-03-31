@@ -23,6 +23,6 @@ enum SharedConstants {
         "claude.ai": "claude",
         "chatgpt.com": "chatgpt",
         "chat.openai.com": "chatgpt",
-        "gemini.google.com": "gemini",
+        "gemini.google.com": "gemini"
     ]
 }

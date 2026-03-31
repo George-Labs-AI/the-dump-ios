@@ -58,8 +58,8 @@ final class ShareContentParserTests: XCTestCase {
 
     // MARK: - URL Extraction
 
-    func test_parseURL_detectsConversationLink() async {
-        let url = URL(string: "https://claude.ai/chat/abc123")!
+    func test_parseURL_detectsConversationLink() async throws {
+        let url = try XCTUnwrap(URL(string: "https://claude.ai/chat/abc123"))
         let provider = MockItemProvider(
             typeIdentifier: UTType.url.identifier,
             item: url as NSURL
@@ -108,10 +108,10 @@ final class ShareContentParserTests: XCTestCase {
 
     // MARK: - Priority (URL over Text)
 
-    func test_urlTakesPriorityOverText() async {
+    func test_urlTakesPriorityOverText() async throws {
         let urlProvider = MockItemProvider(
             typeIdentifier: UTType.url.identifier,
-            item: URL(string: "https://chat.openai.com/c/123")! as NSURL
+            item: try XCTUnwrap(URL(string: "https://chat.openai.com/c/123")) as NSURL
         )
         let textProvider = MockItemProvider(
             typeIdentifier: UTType.plainText.identifier,
@@ -141,28 +141,28 @@ final class ShareContentParserTests: XCTestCase {
 
 final class SourceDetectionTests: XCTestCase {
 
-    func test_detectSource_claudeURL() {
-        let content = SharedContent.url(URL(string: "https://claude.ai/chat/abc123")!)
+    func test_detectSource_claudeURL() throws {
+        let content = SharedContent.url(try XCTUnwrap(URL(string: "https://claude.ai/chat/abc123")))
         XCTAssertEqual(ShareContentParser.detectSource(from: content), "claude")
     }
 
-    func test_detectSource_chatgptURL() {
-        let content = SharedContent.url(URL(string: "https://chatgpt.com/c/abc123")!)
+    func test_detectSource_chatgptURL() throws {
+        let content = SharedContent.url(try XCTUnwrap(URL(string: "https://chatgpt.com/c/abc123")))
         XCTAssertEqual(ShareContentParser.detectSource(from: content), "chatgpt")
     }
 
-    func test_detectSource_chatOpenAIURL() {
-        let content = SharedContent.url(URL(string: "https://chat.openai.com/c/abc123")!)
+    func test_detectSource_chatOpenAIURL() throws {
+        let content = SharedContent.url(try XCTUnwrap(URL(string: "https://chat.openai.com/c/abc123")))
         XCTAssertEqual(ShareContentParser.detectSource(from: content), "chatgpt")
     }
 
-    func test_detectSource_geminiURL() {
-        let content = SharedContent.url(URL(string: "https://gemini.google.com/app/abc123")!)
+    func test_detectSource_geminiURL() throws {
+        let content = SharedContent.url(try XCTUnwrap(URL(string: "https://gemini.google.com/app/abc123")))
         XCTAssertEqual(ShareContentParser.detectSource(from: content), "gemini")
     }
 
-    func test_detectSource_unknownURL() {
-        let content = SharedContent.url(URL(string: "https://example.com/page")!)
+    func test_detectSource_unknownURL() throws {
+        let content = SharedContent.url(try XCTUnwrap(URL(string: "https://example.com/page")))
         XCTAssertEqual(ShareContentParser.detectSource(from: content), "unknown")
     }
 
@@ -180,8 +180,8 @@ final class SourceDetectionTests: XCTestCase {
 
 final class CommandInferenceTests: XCTestCase {
 
-    func test_inferCommand_urlOnly() {
-        let content = SharedContent.url(URL(string: "https://claude.ai/chat/abc")!)
+    func test_inferCommand_urlOnly() throws {
+        let content = SharedContent.url(try XCTUnwrap(URL(string: "https://claude.ai/chat/abc")))
         let command = ShareContentParser.inferCommand(for: content)
         XCTAssertEqual(command, "conversation_link_and_title")
     }
