@@ -39,10 +39,22 @@ struct ShareContentParser {
 
     // MARK: - Source Detection
 
-    /// Maps a sharing app's bundle identifier to a source name for the ingest API.
-    static func detectSource(from bundleID: String?) -> String {
-        guard let bundleID else { return "unknown" }
-        return SharedConstants.knownSources[bundleID] ?? "unknown"
+    /// Infers the source LLM service from the shared content's URL host.
+    /// Apple does not expose the source app's bundle ID to share extensions,
+    /// so we match against known URL domains instead.
+    /// Returns "unknown" for plain text or unrecognized URLs.
+    static func detectSource(from content: SharedContent?) -> String {
+        guard case .url(let url) = content,
+              let host = url.host?.lowercased() else {
+            return "unknown"
+        }
+        if let exact = SharedConstants.knownSourceHosts[host] {
+            return exact
+        }
+        for (knownHost, source) in SharedConstants.knownSourceHosts where host.hasSuffix(".\(knownHost)") {
+            return source
+        }
+        return "unknown"
     }
 
     // MARK: - Command Inference

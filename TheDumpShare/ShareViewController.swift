@@ -8,15 +8,8 @@ class ShareViewController: UIViewController {
 
         let items = (extensionContext?.inputItems as? [NSExtensionItem]) ?? []
 
-        // Attempt to get the source app's bundle ID from the extension context
-        let sourceBundleID = extensionContext?
-            .inputItems
-            .compactMap { ($0 as? NSExtensionItem)?.userInfo?["NSExtensionItemSourceApplicationIdentifierKey"] as? String }
-            .first
-
         let shareView = ShareView(
             extensionItems: items,
-            sourceBundleID: sourceBundleID,
             onDismiss: { [weak self] in
                 self?.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
             }

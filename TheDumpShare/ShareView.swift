@@ -15,11 +15,12 @@ enum ShareViewState {
 
 struct ShareView: View {
     let extensionItems: [NSExtensionItem]
-    let sourceBundleID: String?
     let onDismiss: () -> Void
 
     @State private var state: ShareViewState = .extracting
     @State private var title: String = ""
+    @State private var parsedContent: SharedContent?
+    @State private var detectedSource: String = "unknown"
 
     private let parser = ShareContentParser()
     private let apiClient = IngestAPIClient()
@@ -205,12 +206,15 @@ struct ShareView: View {
             return
         }
 
-        let source = ShareContentParser.detectSource(from: sourceBundleID)
+        let source = ShareContentParser.detectSource(from: content)
+        parsedContent = content
+        detectedSource = source
         state = .ready(content, source)
     }
 
     private func submitContent() {
-        guard case .ready(let content, let source) = state else { return }
+        guard let content = parsedContent else { return }
+        let source = detectedSource
 
         state = .sending
         let command = ShareContentParser.inferCommand(for: content)

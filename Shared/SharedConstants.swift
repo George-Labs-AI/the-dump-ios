@@ -16,10 +16,13 @@ enum SharedConstants {
     /// UserDefaults key for the token expiry date.
     static let tokenExpiryKey = "shared_firebase_token_expiry"
 
-    /// Known LLM app bundle ID → source name mappings.
-    static let knownSources: [String: String] = [
-        "com.anthropic.claude": "claude",
-        "com.openai.chatgpt": "chatgpt",
-        "com.google.gemini": "gemini",
+    /// Known LLM URL host → source name mappings for content-based source detection.
+    /// Apple does not expose the source app's bundle ID to share extensions,
+    /// so we infer the source from the URL domain when a link is shared.
+    static let knownSourceHosts: [String: String] = [
+        "claude.ai": "claude",
+        "chatgpt.com": "chatgpt",
+        "chat.openai.com": "chatgpt",
+        "gemini.google.com": "gemini",
     ]
 }

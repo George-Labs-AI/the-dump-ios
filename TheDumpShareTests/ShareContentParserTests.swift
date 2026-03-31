@@ -141,29 +141,38 @@ final class ShareContentParserTests: XCTestCase {
 
 final class SourceDetectionTests: XCTestCase {
 
-    func test_detectSource_claude() {
-        let source = ShareContentParser.detectSource(from: "com.anthropic.claude")
-        XCTAssertEqual(source, "claude")
+    func test_detectSource_claudeURL() {
+        let content = SharedContent.url(URL(string: "https://claude.ai/chat/abc123")!)
+        XCTAssertEqual(ShareContentParser.detectSource(from: content), "claude")
     }
 
-    func test_detectSource_chatgpt() {
-        let source = ShareContentParser.detectSource(from: "com.openai.chatgpt")
-        XCTAssertEqual(source, "chatgpt")
+    func test_detectSource_chatgptURL() {
+        let content = SharedContent.url(URL(string: "https://chatgpt.com/c/abc123")!)
+        XCTAssertEqual(ShareContentParser.detectSource(from: content), "chatgpt")
     }
 
-    func test_detectSource_gemini() {
-        let source = ShareContentParser.detectSource(from: "com.google.gemini")
-        XCTAssertEqual(source, "gemini")
+    func test_detectSource_chatOpenAIURL() {
+        let content = SharedContent.url(URL(string: "https://chat.openai.com/c/abc123")!)
+        XCTAssertEqual(ShareContentParser.detectSource(from: content), "chatgpt")
     }
 
-    func test_detectSource_unknown() {
-        let source = ShareContentParser.detectSource(from: "com.example.randomapp")
-        XCTAssertEqual(source, "unknown")
+    func test_detectSource_geminiURL() {
+        let content = SharedContent.url(URL(string: "https://gemini.google.com/app/abc123")!)
+        XCTAssertEqual(ShareContentParser.detectSource(from: content), "gemini")
     }
 
-    func test_detectSource_nilBundleID() {
-        let source = ShareContentParser.detectSource(from: nil)
-        XCTAssertEqual(source, "unknown")
+    func test_detectSource_unknownURL() {
+        let content = SharedContent.url(URL(string: "https://example.com/page")!)
+        XCTAssertEqual(ShareContentParser.detectSource(from: content), "unknown")
+    }
+
+    func test_detectSource_textContent() {
+        let content = SharedContent.text("Some conversation text")
+        XCTAssertEqual(ShareContentParser.detectSource(from: content), "unknown")
+    }
+
+    func test_detectSource_nilContent() {
+        XCTAssertEqual(ShareContentParser.detectSource(from: nil), "unknown")
     }
 }
 
