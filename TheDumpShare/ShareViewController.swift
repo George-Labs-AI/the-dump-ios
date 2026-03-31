@@ -1,30 +1,30 @@
-//
-//  ShareViewController.swift
-//  TheDumpShare
-//
-//  Created by Emily Smith on 3/30/26.
-//
-
 import UIKit
-import Social
+import SwiftUI
 
-class ShareViewController: SLComposeServiceViewController {
+class ShareViewController: UIViewController {
 
-    override func isContentValid() -> Bool {
-        // Do validation of contentText and/or NSExtensionContext attachments here
-        return true
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        let items = (extensionContext?.inputItems as? [NSExtensionItem]) ?? []
+
+        let shareView = ShareView(
+            extensionItems: items,
+            onDismiss: { [weak self] in
+                self?.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
+            }
+        )
+
+        let hostingController = UIHostingController(rootView: shareView)
+        addChild(hostingController)
+        view.addSubview(hostingController.view)
+        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            hostingController.view.topAnchor.constraint(equalTo: view.topAnchor),
+            hostingController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            hostingController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            hostingController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+        ])
+        hostingController.didMove(toParent: self)
     }
-
-    override func didSelectPost() {
-        // This is called after the user selects Post. Do the upload of contentText and/or NSExtensionContext attachments.
-    
-        // Inform the host that we're done, so it un-blocks its UI. Note: Alternatively you could call super's -didSelectPost, which will similarly complete the extension context.
-        self.extensionContext!.completeRequest(returningItems: [], completionHandler: nil)
-    }
-
-    override func configurationItems() -> [Any]! {
-        // To add configuration options via table cells at the bottom of the sheet, return an array of SLComposeSheetConfigurationItem here.
-        return []
-    }
-
 }

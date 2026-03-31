@@ -40,10 +40,30 @@ class AppState: ObservableObject {
                 if user != nil {
                     await self?.subscriptionViewModel.loadStatus()
                 }
+                // Share token with extension via App Groups
+                await self?.syncTokenToSharedStorage(user: user)
             }
         }
     }
     
+    /// Writes the current Firebase ID token to shared storage so the share extension can read it.
+    /// Called on auth state change and when the app goes to background.
+    func syncTokenToSharedStorage(user: User?) async {
+        let tokenManager = TokenManager()
+        if let user {
+            do {
+                let token = try await user.getIDToken()
+                tokenManager.saveToken(token)
+            } catch {
+                #if DEBUG
+                print("[AppState] Failed to save token to shared storage: \(error)")
+                #endif
+            }
+        } else {
+            tokenManager.clearToken()
+        }
+    }
+
     func signOut() throws {
         try Auth.auth().signOut()
     }
@@ -115,6 +135,7 @@ class AppState: ObservableObject {
         if let userId = currentUser?.uid {
             UserDefaults.standard.removeObject(forKey: "onboarding_completed_\(userId)")
         }
+        TokenManager().clearToken()
         isAuthenticated = false
         userEmail = nil
         currentUser = nil
