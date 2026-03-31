@@ -92,7 +92,7 @@ struct IngestAPIClient {
         // 4. Build JSON body
         var body: [String: Any] = [
             "source": source,
-            "command": command,
+            "command": command
         ]
 
         if let title {
