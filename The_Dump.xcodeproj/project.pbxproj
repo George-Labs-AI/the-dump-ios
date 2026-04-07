@@ -75,14 +75,14 @@
 			path = TheDumpShareTests;
 			sourceTree = "<group>";
 		};
-		35ABFA772EE0C05400721476 /* The_Dump */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = The_Dump;
-			sourceTree = "<group>";
-		};
 		354AB7502F7B0000008C9760 /* Shared */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Shared;
+			sourceTree = "<group>";
+		};
+		35ABFA772EE0C05400721476 /* The_Dump */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = The_Dump;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -210,8 +210,8 @@
 				354AB73C2F7AFCE6008C9760 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				35ABFA772EE0C05400721476 /* The_Dump */,
 				354AB7502F7B0000008C9760 /* Shared */,
+				35ABFA772EE0C05400721476 /* The_Dump */,
 			);
 			name = The_Dump;
 			packageProductDependencies = (
@@ -358,6 +358,7 @@
 		354AB73F2F7AFCE6008C9760 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = TheDumpShare/TheDumpShare.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = N5395SMN6D;
@@ -387,6 +388,7 @@
 		354AB7402F7AFCE6008C9760 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = TheDumpShare/TheDumpShare.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = N5395SMN6D;
@@ -581,6 +583,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = The_Dump/The_Dump.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 454554454;
 				DEVELOPMENT_TEAM = N5395SMN6D;
@@ -624,6 +627,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = The_Dump/The_Dump.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 454554454;
 				DEVELOPMENT_TEAM = N5395SMN6D;

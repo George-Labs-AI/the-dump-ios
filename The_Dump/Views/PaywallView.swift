@@ -190,13 +190,7 @@ struct PaywallView: View {
             .disabled(viewModel.isPurchasing)
 
             // Legal links (Apple review requirement)
-            HStack(spacing: Theme.spacingMD) {
-                Link("Terms of Use", destination: URL(string: "https://thedumpapp.com/terms")!)
-                Text("·").foregroundColor(Theme.textQuaternary)
-                Link("Privacy Policy", destination: URL(string: "https://thedumpapp.com/privacy")!)
-            }
-            .font(.system(size: Theme.fontSizeXS))
-            .foregroundColor(Theme.textTertiary)
+            LegalLinksView()
         }
     }
 }

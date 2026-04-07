@@ -108,27 +108,27 @@ struct SettingsView: View {
                         }
                         .listRowBackground(Theme.surface)
 
-                        Link(destination: URL(string: "https://thedumpapp.com/privacy")!) {
-                            HStack {
-                                Text("Privacy Policy")
-                                    .foregroundColor(Theme.textPrimary)
-                                Spacer()
-                                Image(systemName: "arrow.up.right")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(Theme.textSecondary)
-                            }
+                        NavigationLink {
+                            LegalView.privacyPolicy
+                        } label: {
+                            Text("Privacy Policy")
+                                .foregroundColor(Theme.textPrimary)
                         }
                         .listRowBackground(Theme.surface)
 
-                        Link(destination: URL(string: "https://thedumpapp.com/terms")!) {
-                            HStack {
-                                Text("Terms of Use")
-                                    .foregroundColor(Theme.textPrimary)
-                                Spacer()
-                                Image(systemName: "arrow.up.right")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(Theme.textSecondary)
-                            }
+                        NavigationLink {
+                            LegalView.termsOfUse
+                        } label: {
+                            Text("Terms of Use")
+                                .foregroundColor(Theme.textPrimary)
+                        }
+                        .listRowBackground(Theme.surface)
+
+                        NavigationLink {
+                            LegalView.serviceRules
+                        } label: {
+                            Text("Service Rules")
+                                .foregroundColor(Theme.textPrimary)
                         }
                         .listRowBackground(Theme.surface)
                     } header: {

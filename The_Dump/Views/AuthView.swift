@@ -182,7 +182,10 @@ struct AuthView: View {
                 }
                 .padding(.top, Theme.spacingSM)
 
-                Spacer()
+                // Legal links
+                LegalLinksView()
+                    .padding(.top, Theme.spacingSM)
+
                 Spacer()
             }
         }

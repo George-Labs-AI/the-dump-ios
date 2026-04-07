@@ -10,9 +10,11 @@
 - [ ] Review notes explaining: free tier allows 150 notes/mo, Pro unlocks 2,500 notes + 500K words
 
 ## Privacy & Legal
-- [ ] Privacy Policy live at https://thedumpapp.com/privacy
-- [ ] Terms of Use live at https://thedumpapp.com/terms
-- [ ] Privacy Policy URL entered in App Store Connect
+- [ ] In-app Privacy Policy and Terms of Use copy finalized in `LegalView.swift`
+- [ ] Public Privacy Policy URL available and entered in App Store Connect
+- [ ] Apple standard EULA selected in App Store Connect
+- [ ] In-app Service Rules copy finalized in `LegalView.swift`
+- [ ] App Store description includes a link to Apple's standard Terms of Use
 - [ ] App Privacy "nutrition labels" declared:
   - Contact Info: email address (account creation)
   - User Content: photos, audio, files, text notes
@@ -49,5 +51,5 @@
 - Don't reference "free trial" in UI unless it's configured as an introductory offer in App Store Connect
 - Subscribe button must show the actual price from StoreKit (already doing this with displayPrice)
 - App must not become completely unusable at the limit (already handled — read access is preserved)
-- All external links (Terms, Privacy) must load successfully at review time
+- The Privacy Policy URL entered in App Store Connect must load successfully at review time
 - If using "Sign in with Apple" is offered alongside other auth, Apple requires it — verify if this applies
