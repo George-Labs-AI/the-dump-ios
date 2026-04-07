@@ -41,7 +41,7 @@ struct LegalView: View {
     static let privacyPolicy = LegalView(
         title: "Privacy Policy",
         sections: [
-            ("Last Updated", "June 2025"),
+            ("Last Updated", "April 2026"),
             ("Introduction", "George Labs, LLC (operating as \"The Dump\") commits to protecting user privacy through this policy describing data collection, usage, and user rights."),
             ("Information We Collect", """
                 Personal Information: First name, last name, email address.
