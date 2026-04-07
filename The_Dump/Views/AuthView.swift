@@ -12,7 +12,6 @@ struct AuthView: View {
     @State private var showForgotPassword = false
     @State private var showPassword = false
     @State private var showConfirmPassword = false
-    @State private var showingLegalPage: LegalPage?
 
     @FocusState private var focusedField: Field?
 
@@ -184,14 +183,8 @@ struct AuthView: View {
                 .padding(.top, Theme.spacingSM)
 
                 // Legal links
-                HStack(spacing: Theme.spacingMD) {
-                    Button("Terms of Use") { showingLegalPage = .terms }
-                    Text("·").foregroundColor(Theme.textQuaternary)
-                    Button("Privacy Policy") { showingLegalPage = .privacy }
-                }
-                .font(.system(size: Theme.fontSizeXS))
-                .foregroundColor(Theme.textTertiary)
-                .padding(.top, Theme.spacingSM)
+                LegalLinksView()
+                    .padding(.top, Theme.spacingSM)
 
                 Spacer()
             }
@@ -202,26 +195,6 @@ struct AuthView: View {
         .sheet(isPresented: $showForgotPassword) {
             ForgotPasswordView()
         }
-        .sheet(item: $showingLegalPage) { page in
-            NavigationStack {
-                Group {
-                    if page == .terms { LegalView.termsOfUse } else { LegalView.privacyPolicy }
-                }
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Done") { showingLegalPage = nil }
-                            .foregroundColor(Theme.textSecondary)
-                    }
-                }
-                .toolbarBackground(Theme.background, for: .navigationBar)
-                .toolbarBackground(.visible, for: .navigationBar)
-            }
-        }
-    }
-
-    private enum LegalPage: Identifiable {
-        case terms, privacy
-        var id: Self { self }
     }
 
     private var submitButtonText: String {
