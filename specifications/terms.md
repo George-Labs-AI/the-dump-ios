@@ -1,5 +1,7 @@
 # Terms of Use
 
+> Note: This file is a legacy draft for a custom Terms of Use document. The iOS app now uses Apple's standard EULA in App Store Connect, and service-specific operational rules are shown separately in-app as "Service Rules."
+
 **Effective Date:** February 24, 2026
 
 **The Dump** ("the App") is operated by George Labs ("we," "us," "our"). By using the App, you agree to these Terms of Use. If you don't agree, don't use the App.
@@ -42,7 +44,7 @@ You create an account using your email address via Firebase Authentication. You'
 ### Stripe (Web)
 
 - If you subscribe through our website, billing is handled via Stripe.
-- You can cancel your web subscription through your account settings at thedumpapp.com.
+- You can cancel your web subscription through your account settings at thedump.ai.
 - Refund requests for web subscriptions should be directed to us at support@georgelabs.ai.
 
 ## 5. Your Content
@@ -72,7 +74,7 @@ We aim to keep The Dump available and reliable, but we don't guarantee uninterru
 
 ## 9. Account Deletion
 
-You can delete your account and all associated data at any time through the App's settings. Deletion is permanent — we cannot recover your content after deletion. See our [Privacy Policy](https://thedumpapp.com/privacy) for details on data deletion.
+You can delete your account and all associated data at any time through the App's settings. Deletion is permanent — we cannot recover your content after deletion. See our Privacy Policy for details on data deletion.
 
 ## 10. Disclaimers
 

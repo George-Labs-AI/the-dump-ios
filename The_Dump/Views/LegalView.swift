@@ -3,6 +3,7 @@ import SwiftUI
 struct LegalView: View {
     let title: String
     let sections: [(heading: String, body: String)]
+    let footerLinks: [(title: String, destination: URL)]
 
     var body: some View {
         ScrollView {
@@ -17,6 +18,17 @@ struct LegalView: View {
                             .font(.system(size: Theme.fontSizeSM))
                             .foregroundColor(Theme.textSecondary)
                     }
+                }
+
+                if !footerLinks.isEmpty {
+                    VStack(alignment: .leading, spacing: Theme.spacingSM) {
+                        ForEach(footerLinks.indices, id: \.self) { index in
+                            Link(footerLinks[index].title, destination: footerLinks[index].destination)
+                                .font(.system(size: Theme.fontSizeSM, weight: .medium))
+                                .foregroundColor(Theme.accent)
+                        }
+                    }
+                    .padding(.top, Theme.spacingSM)
                 }
             }
             .padding(Theme.spacingLG)
@@ -46,41 +58,46 @@ struct LegalView: View {
             ("Children's Privacy", "The Dump does not knowingly collect data from users under 13. Please notify us immediately if you believe a child's data has been inadvertently collected."),
             ("Policy Changes", "Updates occur periodically with email notification. Continued use implies acceptance."),
             ("Contact", "Questions? Reach us at support@georgelabs.ai.")
-        ]
+        ],
+        footerLinks: []
     )
 
     static let termsOfUse = LegalView(
         title: "Terms of Use",
         sections: [
-            ("Last Updated", "June 2025"),
-            ("Acceptance of Terms", "By accessing or using The Dump (\"the App\"), provided by George Labs, LLC (\"we,\" \"us\"), you agree to comply with and be bound by these Terms of Service. If you disagree with these Terms, you should not use the App."),
-            ("Use of the App", """
-                You agree to use the App responsibly and lawfully. You must:
-
-                • Provide accurate information during registration and keep it updated
-                • Maintain confidentiality and security of your login credentials
-                • Not share your account with others or allow unauthorized access
-
-                You may upload files up to a maximum size of 100MB at a time.
-                """),
-            ("Prohibited Activities", """
-                You may not use the App to:
-
-                • Engage in unlawful or harmful activities
-                • Upload or distribute offensive, illegal, or infringing content
-                • Attempt to disrupt, damage, or compromise the security or integrity of the App
-                • Deliberately overload the App, repeatedly upload identical content, or otherwise maliciously attempt to test or undermine the App's functionality
-                """),
-            ("Intellectual Property", "The Dump and all related materials, including software, features, and content (excluding your personal data and uploaded content), are owned by George Labs, LLC and protected by intellectual property laws."),
-            ("User Content", "You retain ownership of content you upload. By using the App, you grant us the rights necessary to store, process, and display your content solely to provide the App's services.\n\nIf you delete your notes, they are permanently deleted, and we are not responsible for recovering them."),
-            ("Beta Service Disclaimer", "The App is currently in beta. We reserve the right to make changes to functionality, payment tiers, and upload limits."),
-            ("Termination", "We reserve the right to terminate or suspend your access without notice if you violate these Terms or for reasons deemed necessary to protect the App or its users."),
-            ("Disclaimers and Liability", "The App is provided \"as-is\" without warranties of any kind. We are not liable for damages from use or inability to use the App, including data loss or unauthorized access, beyond what applicable law requires."),
-            ("Changes to Terms", "We may update these Terms periodically. Significant changes will be communicated via email. Continued use of the App after notification constitutes acceptance of the revised Terms."),
-            ("Governing Law", "These Terms are governed by the laws of the United States and the state where George Labs, LLC is registered."),
-            ("Contact Us", "For questions regarding these Terms, contact support@georgelabs.ai.")
+            ("Last Updated", "April 2026"),
+            ("Apple Standard Terms", "The Dump for iOS uses Apple's Standard Licensed Application End User License Agreement for the app license provided through the App Store."),
+            ("What This Means", "Apple's standard Terms of Use govern the license to download and use the iOS app on Apple devices. The full agreement is published by Apple and can be opened from the link below."),
+            ("Separate Service Rules", "Subscriptions, usage limits, account safety rules, and service operations for The Dump are described separately in the in-app Service Rules page.")
+        ],
+        footerLinks: [
+            ("Open Apple's Standard Terms of Use", appleStandardTermsURL)
         ]
     )
+
+    static let serviceRules = LegalView(
+        title: "Service Rules",
+        sections: [
+            ("Last Updated", "April 2026"),
+            ("Accounts", "Use accurate account information, keep your login credentials secure, and do not share your account or allow unauthorized access."),
+            ("Subscriptions & Limits", "Free and paid plans may have different feature access, note limits, upload limits, and monthly usage caps. We may update plan details, pricing, or limits as the service evolves."),
+            ("Acceptable Use", """
+                Do not use The Dump to:
+
+                • Upload illegal, abusive, or infringing content
+                • Attempt to disrupt, probe, or compromise the security of the app or backend
+                • Circumvent plan limits, automate abusive usage, or interfere with other users
+                """),
+            ("Content & Processing", "You keep ownership of the content you upload. By using The Dump, you allow us to store, process, and analyze that content as needed to provide features like syncing, transcription, AI-powered organization, and search."),
+            ("Restrictions & Suspension", "We may limit features, restrict access, or suspend accounts when required for subscription enforcement, abuse prevention, security, legal compliance, or protection of the service and its users."),
+            ("Deletion", "You can delete your account through the app's settings. Content deleted by you or removed with account deletion may persist temporarily in backups or operational systems before being fully purged, as described in the Privacy Policy."),
+            ("Changes", "We may update these service rules as the app changes. Continued use of The Dump after changes take effect means the updated rules apply."),
+            ("Contact", "Questions about these service rules can be sent to support@georgelabs.ai.")
+        ],
+        footerLinks: []
+    )
+
+    private static let appleStandardTermsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
 }
 
 #Preview("Privacy Policy") {
@@ -92,5 +109,11 @@ struct LegalView: View {
 #Preview("Terms of Use") {
     NavigationStack {
         LegalView.termsOfUse
+    }
+}
+
+#Preview("Service Rules") {
+    NavigationStack {
+        LegalView.serviceRules
     }
 }

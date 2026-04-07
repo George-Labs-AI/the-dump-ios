@@ -123,6 +123,14 @@ struct SettingsView: View {
                                 .foregroundColor(Theme.textPrimary)
                         }
                         .listRowBackground(Theme.surface)
+
+                        NavigationLink {
+                            LegalView.serviceRules
+                        } label: {
+                            Text("Service Rules")
+                                .foregroundColor(Theme.textPrimary)
+                        }
+                        .listRowBackground(Theme.surface)
                     } header: {
                         Text("About")
                             .foregroundColor(Theme.textSecondary)
