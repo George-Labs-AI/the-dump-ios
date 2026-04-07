@@ -3,11 +3,22 @@ import SwiftUI
 struct LegalView: View {
     let title: String
     let sections: [(heading: String, body: String)]
+    let topLinks: [(title: String, destination: URL)]
     let footerLinks: [(title: String, destination: URL)]
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.spacingLG) {
+                if !topLinks.isEmpty {
+                    VStack(alignment: .leading, spacing: Theme.spacingSM) {
+                        ForEach(topLinks.indices, id: \.self) { index in
+                            Link(topLinks[index].title, destination: topLinks[index].destination)
+                                .font(.system(size: Theme.fontSizeSM, weight: .medium))
+                                .foregroundColor(Theme.accent)
+                        }
+                    }
+                }
+
                 ForEach(sections.indices, id: \.self) { index in
                     VStack(alignment: .leading, spacing: Theme.spacingSM) {
                         Text(sections[index].heading)
@@ -59,6 +70,9 @@ struct LegalView: View {
             ("Policy Changes", "Updates occur periodically with email notification. Continued use implies acceptance."),
             ("Contact", "Questions? Reach us at support@georgelabs.ai.")
         ],
+        topLinks: [
+            ("Open Online Privacy Policy", privacyPolicyURL)
+        ],
         footerLinks: []
     )
 
@@ -70,6 +84,7 @@ struct LegalView: View {
             ("What This Means", "Apple's standard Terms of Use govern the license to download and use the iOS app on Apple devices. The full agreement is published by Apple and can be opened from the link below."),
             ("Separate Service Rules", "Subscriptions, usage limits, account safety rules, and service operations for The Dump are described separately in the in-app Service Rules page.")
         ],
+        topLinks: [],
         footerLinks: [
             ("Open Apple's Standard Terms of Use", appleStandardTermsURL)
         ]
@@ -94,9 +109,11 @@ struct LegalView: View {
             ("Changes", "We may update these service rules as the app changes. Continued use of The Dump after changes take effect means the updated rules apply."),
             ("Contact", "Questions about these service rules can be sent to support@georgelabs.ai.")
         ],
+        topLinks: [],
         footerLinks: []
     )
 
+    private static let privacyPolicyURL = URL(string: "https://thedump.ai/privacy")!
     private static let appleStandardTermsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
 }
 
