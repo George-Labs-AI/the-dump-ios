@@ -7,6 +7,12 @@ struct PaywallView: View {
     /// Only auto-dismiss after the user's own purchase succeeds, not from
     /// background tier changes (e.g. sandbox transaction listener updating tier).
     @State private var purchasedInSession = false
+    @State private var showingLegalPage: LegalPage?
+
+    private enum LegalPage: Identifiable {
+        case terms, privacy
+        var id: Self { self }
+    }
 
     var body: some View {
         NavigationStack {
@@ -48,6 +54,28 @@ struct PaywallView: View {
                     dismiss()
                 }
             }
+            .sheet(item: $showingLegalPage) { page in
+                NavigationStack {
+                    legalView(for: page)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button("Done") { showingLegalPage = nil }
+                                    .foregroundColor(Theme.textSecondary)
+                            }
+                        }
+                        .toolbarBackground(Theme.background, for: .navigationBar)
+                        .toolbarBackground(.visible, for: .navigationBar)
+                }
+            }
+        }
+    }
+
+    private func legalView(for page: LegalPage) -> LegalView {
+        switch page {
+        case .terms:
+            LegalView.termsOfUse
+        case .privacy:
+            LegalView.privacyPolicy
         }
     }
 
@@ -191,9 +219,9 @@ struct PaywallView: View {
 
             // Legal links (Apple review requirement)
             HStack(spacing: Theme.spacingMD) {
-                Link("Terms of Use", destination: URL(string: "https://thedumpapp.com/terms")!)
+                Button("Terms of Use") { showingLegalPage = .terms }
                 Text("·").foregroundColor(Theme.textQuaternary)
-                Link("Privacy Policy", destination: URL(string: "https://thedumpapp.com/privacy")!)
+                Button("Privacy Policy") { showingLegalPage = .privacy }
             }
             .font(.system(size: Theme.fontSizeXS))
             .foregroundColor(Theme.textTertiary)
