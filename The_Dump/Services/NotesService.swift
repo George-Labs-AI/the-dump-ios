@@ -216,7 +216,13 @@ class NotesService {
                 throw APIError.from(statusCode: httpResponse.statusCode, errorResponse: errorResponse)
             }
             
-            return try JSONDecoder().decode(NoteListResponse.self, from: data)
+            let decoded = try JSONDecoder().decode(NoteListResponse.self, from: data)
+#if DEBUG
+            if let mode = decoded.mode {
+                print("[NotesService][pull_notes] mode=\(mode)")
+            }
+#endif
+            return decoded
         } catch let error as APIError {
             throw error
         } catch let error as DecodingError {
