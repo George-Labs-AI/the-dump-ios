@@ -154,7 +154,8 @@ class NotesService {
         endTime: String? = nil,
         tz: String? = nil,
         q: String? = nil,
-        noteType: String? = nil
+        noteType: String? = nil,
+        offset: Int? = nil
     ) async throws -> NoteListResponse {
         // Build query parameters
         guard var components = URLComponents(string: "\(baseURL)/api/pull_notes") else {
@@ -180,6 +181,9 @@ class NotesService {
         addQueryItem("tz", tz)
         addQueryItem("q", q)
         addQueryItem("note_type", noteType)
+        if let offset {
+            queryItems.append(URLQueryItem(name: "offset", value: "\(offset)"))
+        }
 
         components.queryItems = queryItems
         

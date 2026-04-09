@@ -23,6 +23,7 @@ final class NotesListViewModel: ObservableObject {
     private let filter: Filter
     private var nextCursorTime: String?
     private var nextCursorId: String?
+    private var nextOffset: Int = 0
 
     /// Returns the category name if this filter is a category filter
     var categoryName: String? {
@@ -76,12 +77,14 @@ final class NotesListViewModel: ObservableObject {
         errorMessage = nil
         nextCursorTime = nil
         nextCursorId = nil
-        
+        nextOffset = 0
+
         do {
-            let response = try await fetch(limit: 30, cursorTime: nil, cursorId: nil)
+            let response = try await fetch(limit: 30, cursorTime: nil, cursorId: nil, offset: 0)
             notes = response.notes
             nextCursorTime = response.next_cursor_time
             nextCursorId = response.next_cursor_id
+            nextOffset = response.next_offset ?? 0
             hasMore = response.has_more
             await loadSubCategories()
         } catch {
@@ -110,10 +113,18 @@ final class NotesListViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            let response = try await fetch(limit: 30, cursorTime: nextCursorTime, cursorId: nextCursorId)
+            let response = try await fetch(
+                limit: 30,
+                cursorTime: nextCursorTime,
+                cursorId: nextCursorId,
+                offset: nextOffset
+            )
             notes.append(contentsOf: response.notes)
             nextCursorTime = response.next_cursor_time
             nextCursorId = response.next_cursor_id
+            if let nextOffsetValue = response.next_offset {
+                nextOffset = nextOffsetValue
+            }
             hasMore = response.has_more
             await loadSubCategories()
         } catch {
@@ -136,34 +147,42 @@ final class NotesListViewModel: ObservableObject {
         }
     }
 
-    private func fetch(limit: Int, cursorTime: String?, cursorId: String?) async throws -> NoteListResponse {
+    private func fetch(limit: Int, cursorTime: String?, cursorId: String?, offset: Int) async throws -> NoteListResponse {
         let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         let q: String? = query.isEmpty ? nil : query
+
+        // Enforce: search mode uses offset only; browse mode uses cursor only.
+        let ct: String? = q == nil ? cursorTime : nil
+        let ci: String? = q == nil ? cursorId   : nil
+        let off: Int?   = q == nil ? nil        : offset
 
         switch filter {
         case .all:
             return try await NotesService.shared.fetchNotes(
                 limit: limit,
-                cursorTime: cursorTime,
-                cursorId: cursorId,
-                q: q
+                cursorTime: ct,
+                cursorId: ci,
+                q: q,
+                offset: off
             )
         case .category(let name):
             return try await NotesService.shared.fetchNotes(
                 limit: limit,
-                cursorTime: cursorTime,
-                cursorId: cursorId,
+                cursorTime: ct,
+                cursorId: ci,
                 categoryName: name,
                 subCatName: selectedSubCategory,
-                q: q
+                q: q,
+                offset: off
             )
         case .mimeType(let mime):
             return try await NotesService.shared.fetchNotes(
                 limit: limit,
-                cursorTime: cursorTime,
-                cursorId: cursorId,
+                cursorTime: ct,
+                cursorId: ci,
                 mimeGroup: mime,
-                q: q
+                q: q,
+                offset: off
             )
         case .dateGroup(_, let startTime, let endTime):
             let start = startTime.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -173,20 +192,22 @@ final class NotesListViewModel: ObservableObject {
             guard !start.isEmpty, !end.isEmpty else {
                 return try await NotesService.shared.fetchNotes(
                     limit: limit,
-                    cursorTime: cursorTime,
-                    cursorId: cursorId,
-                    q: q
+                    cursorTime: ct,
+                    cursorId: ci,
+                    q: q,
+                    offset: off
                 )
             }
 
             return try await NotesService.shared.fetchNotes(
                 limit: limit,
-                cursorTime: cursorTime,
-                cursorId: cursorId,
+                cursorTime: ct,
+                cursorId: ci,
                 startTime: start,
                 endTime: end,
                 tz: TimeZone.current.identifier,
-                q: q
+                q: q,
+                offset: off
             )
         case .recent(let recentLimit):
             // For recent, we only fetch the specified limit (pagination disabled in loadMoreIfNeeded)
@@ -194,7 +215,8 @@ final class NotesListViewModel: ObservableObject {
                 limit: recentLimit,
                 cursorTime: nil,
                 cursorId: nil,
-                q: q
+                q: q,
+                offset: off
             )
         }
     }
