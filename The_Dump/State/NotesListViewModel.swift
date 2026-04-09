@@ -84,7 +84,9 @@ final class NotesListViewModel: ObservableObject {
             notes = response.notes
             nextCursorTime = response.next_cursor_time
             nextCursorId = response.next_cursor_id
-            nextOffset = response.next_offset ?? 0
+            // Fall back to the count we received so we always advance, even if the
+            // server claims has_more without returning next_offset.
+            nextOffset = response.next_offset ?? response.notes.count
             hasMore = response.has_more
             await loadSubCategories()
         } catch {
@@ -122,9 +124,10 @@ final class NotesListViewModel: ObservableObject {
             notes.append(contentsOf: response.notes)
             nextCursorTime = response.next_cursor_time
             nextCursorId = response.next_cursor_id
-            if let nextOffsetValue = response.next_offset {
-                nextOffset = nextOffsetValue
-            }
+            // Always advance nextOffset. If the server returns has_more without
+            // a next_offset, fall back to the count we received so we never
+            // re-request the same page and loop forever.
+            nextOffset = response.next_offset ?? (nextOffset + response.notes.count)
             hasMore = response.has_more
             await loadSubCategories()
         } catch {
