@@ -17,6 +17,8 @@ struct NoteListResponse: Codable {
     let next_cursor_time: String?
     let next_cursor_id: String?
     let has_more: Bool
+    let next_offset: Int?
+    let mode: String?
 }
 
 // Matches the response from POST /api/pull_full_notes
