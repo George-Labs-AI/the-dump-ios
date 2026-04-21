@@ -14,13 +14,15 @@ struct OnboardingStartingPointView: View {
         VStack(spacing: 0) {
             // Header
             VStack(spacing: Theme.spacingSM) {
-                Text("Pick a starting point")
+                Text("Choose your categories")
                     .font(.system(size: Theme.fontSizeXXL, weight: .bold))
                     .foregroundColor(Theme.textPrimary)
 
-                Text("We'll personalize as you dump.")
+                Text("Pick a starter pack or build your own. Categories are folders your notes get sorted into.")
                     .font(.system(size: Theme.fontSizeMD))
                     .foregroundColor(Theme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, Theme.spacingMD)
             }
             .padding(.top, Theme.spacingXL)
             .padding(.bottom, Theme.spacingLG)
