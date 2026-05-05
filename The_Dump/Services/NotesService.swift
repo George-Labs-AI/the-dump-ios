@@ -429,7 +429,7 @@ class NotesService {
     func updateCategory(
         id categoryId: Int,
         update: CategoryUpdateRequest
-    ) async throws -> UpdatedCategoryResponse.UpdatedCategory {
+    ) async throws -> UpdatedCategory {
         if let name = update.categoryName,
            name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             throw APIError.badRequest(message: "Category name cannot be empty")

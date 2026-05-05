@@ -178,25 +178,25 @@ struct CategoryUpdateRequest: Encodable {
     }
 }
 
+struct UpdatedCategory: Codable {
+    let categoryId: Int
+    let categoryName: String
+    let categoryDescription: String
+    let keywords: [String]
+    let embeddingRefreshed: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case categoryId = "category_id"
+        case categoryName = "category_name"
+        case categoryDescription = "category_description"
+        case keywords
+        case embeddingRefreshed = "embedding_refreshed"
+    }
+}
+
 struct UpdatedCategoryResponse: Codable {
     let status: String
     let category: UpdatedCategory
-
-    struct UpdatedCategory: Codable {
-        let categoryId: Int
-        let categoryName: String
-        let categoryDescription: String
-        let keywords: [String]
-        let embeddingRefreshed: Bool
-
-        enum CodingKeys: String, CodingKey {
-            case categoryId = "category_id"
-            case categoryName = "category_name"
-            case categoryDescription = "category_description"
-            case keywords
-            case embeddingRefreshed = "embedding_refreshed"
-        }
-    }
 }
 
 struct FetchCategoriesResponse: Codable {
