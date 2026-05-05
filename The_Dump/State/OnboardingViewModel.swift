@@ -168,7 +168,7 @@ final class OnboardingViewModel: ObservableObject {
         let apiCategories = onboardingCategories.map { $0.toAPICategory() }
 
         do {
-            let response = try await NotesService.shared.updateCategories(apiCategories)
+            let response = try await NotesService.shared.addCategories(apiCategories)
 #if DEBUG
             print("[OnboardingViewModel] Categories saved: \(response.updatedCount) categories")
             for cat in response.categories {

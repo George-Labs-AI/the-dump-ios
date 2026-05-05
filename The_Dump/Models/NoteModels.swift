@@ -130,7 +130,7 @@ struct Category: Codable {
     }
 }
 
-struct UpdateCategoriesRequest: Codable {
+struct AddCategoriesRequest: Codable {
     let categories: [Category]
 }
 
@@ -152,7 +152,7 @@ struct CategoryResponse: Codable {
     }
 }
 
-struct UpdateCategoriesResponse: Codable {
+struct AddCategoriesResponse: Codable {
     let status: String
     let updatedCount: Int
     let categories: [CategoryResponse]
@@ -161,6 +161,41 @@ struct UpdateCategoriesResponse: Codable {
         case status
         case updatedCount = "updated_count"
         case categories
+    }
+}
+
+// MARK: - Category Update (PATCH /api/categories/{id})
+
+struct CategoryUpdateRequest: Encodable {
+    let categoryName: String?
+    let categoryDescription: String?
+    let keywords: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case categoryName = "category_name"
+        case categoryDescription = "category_description"
+        case keywords
+    }
+}
+
+struct UpdatedCategoryResponse: Codable {
+    let status: String
+    let category: UpdatedCategory
+
+    struct UpdatedCategory: Codable {
+        let categoryId: Int
+        let categoryName: String
+        let categoryDescription: String
+        let keywords: [String]
+        let embeddingRefreshed: Bool
+
+        enum CodingKeys: String, CodingKey {
+            case categoryId = "category_id"
+            case categoryName = "category_name"
+            case categoryDescription = "category_description"
+            case keywords
+            case embeddingRefreshed = "embedding_refreshed"
+        }
     }
 }
 
