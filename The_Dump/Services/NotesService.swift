@@ -353,8 +353,8 @@ class NotesService {
         }
     }
 
-    // Update user categories
-    func updateCategories(_ categories: [Category]) async throws -> UpdateCategoriesResponse {
+    // Add user categories (used during onboarding to seed the user's category list)
+    func addCategories(_ categories: [Category]) async throws -> AddCategoriesResponse {
         guard !categories.isEmpty else {
             throw APIError.badRequest(message: "At least one category is required")
         }
@@ -368,7 +368,7 @@ class NotesService {
         }
 
         var request = try await createRequest(endpoint: "/api/categories/update", method: "POST")
-        let body = UpdateCategoriesRequest(categories: categories)
+        let body = AddCategoriesRequest(categories: categories)
 
         do {
             request.httpBody = try JSONEncoder().encode(body)
@@ -378,20 +378,20 @@ class NotesService {
 
         do {
 #if DEBUG
-            debugLogRequest(request, label: "categories_update")
+            debugLogRequest(request, label: "add_categories")
             if let bodyData = request.httpBody,
                let bodyString = String(data: bodyData, encoding: .utf8) {
-                print("[NotesService][categories_update] Request body: \(bodyString)")
+                print("[NotesService][add_categories] Request body: \(bodyString)")
             }
 #endif
             let (data, response) = try await URLSession.shared.data(for: request)
 #if DEBUG
-            debugLogResponse(data: data, response: response, label: "categories_update")
+            debugLogResponse(data: data, response: response, label: "add_categories")
             // Log the full response body for debugging
             if let httpResponse = response as? HTTPURLResponse,
                (200...299).contains(httpResponse.statusCode),
                let bodyString = String(data: data, encoding: .utf8) {
-                print("[NotesService][categories_update] Success body: \(bodyString)")
+                print("[NotesService][add_categories] Success body: \(bodyString)")
             }
 #endif
 
@@ -404,11 +404,11 @@ class NotesService {
                 throw APIError.from(statusCode: httpResponse.statusCode, errorResponse: errorResponse)
             }
 
-            let decoded = try JSONDecoder().decode(UpdateCategoriesResponse.self, from: data)
+            let decoded = try JSONDecoder().decode(AddCategoriesResponse.self, from: data)
 #if DEBUG
-            print("[NotesService][categories_update] Decoded: status=\(decoded.status) count=\(decoded.updatedCount) categories=\(decoded.categories.count)")
+            print("[NotesService][add_categories] Decoded: status=\(decoded.status) count=\(decoded.updatedCount) categories=\(decoded.categories.count)")
             for cat in decoded.categories {
-                print("[NotesService][categories_update]   - \(cat.name) (id=\(cat.categoryId), added=\(cat.dateAdded))")
+                print("[NotesService][add_categories]   - \(cat.name) (id=\(cat.categoryId), added=\(cat.dateAdded))")
             }
 #endif
             return decoded
@@ -416,7 +416,72 @@ class NotesService {
             throw error
         } catch let error as DecodingError {
 #if DEBUG
-            print("[NotesService][categories_update] Decoding error: \(error)")
+            print("[NotesService][add_categories] Decoding error: \(error)")
+#endif
+            throw APIError.decodingFailed(underlying: error)
+        } catch {
+            throw APIError.networkError(underlying: error)
+        }
+    }
+
+    // Edit a single existing category. Pass only the fields you want to change;
+    // omitted fields are left unchanged on the server.
+    func updateCategory(
+        id categoryId: Int,
+        update: CategoryUpdateRequest
+    ) async throws -> UpdatedCategory {
+        if let name = update.categoryName,
+           name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            throw APIError.badRequest(message: "Category name cannot be empty")
+        }
+
+        var request = try await createRequest(
+            endpoint: "/api/categories/\(categoryId)",
+            method: "PATCH"
+        )
+
+        do {
+            // Default JSONEncoder omits nil optionals — required so missing keys
+            // mean "leave unchanged" on the server. Don't swap in an encoder that emits null.
+            request.httpBody = try JSONEncoder().encode(update)
+        } catch {
+            throw APIError.encodingFailed
+        }
+
+        do {
+#if DEBUG
+            debugLogRequest(request, label: "update_category")
+            if let bodyData = request.httpBody,
+               let bodyString = String(data: bodyData, encoding: .utf8) {
+                print("[NotesService][update_category] Request body: \(bodyString)")
+            }
+#endif
+            let (data, response) = try await URLSession.shared.data(for: request)
+#if DEBUG
+            debugLogResponse(data: data, response: response, label: "update_category")
+            if let httpResponse = response as? HTTPURLResponse,
+               (200...299).contains(httpResponse.statusCode),
+               let bodyString = String(data: data, encoding: .utf8) {
+                print("[NotesService][update_category] Success body: \(bodyString)")
+            }
+#endif
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.networkError(underlying: URLError(.badServerResponse))
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+                throw APIError.from(statusCode: httpResponse.statusCode, errorResponse: errorResponse)
+            }
+
+            let decoded = try JSONDecoder().decode(UpdatedCategoryResponse.self, from: data)
+            return decoded.category
+        } catch let error as APIError {
+            throw error
+        } catch let error as DecodingError {
+#if DEBUG
+            print("[NotesService][update_category] Decoding error: \(error)")
 #endif
             throw APIError.decodingFailed(underlying: error)
         } catch {

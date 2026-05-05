@@ -12,6 +12,8 @@ enum APIError: LocalizedError {
     case serverError(message: String)
     case gcsUploadFailed(statusCode: Int)
     case conflict(message: String)
+    case notFound(message: String)
+    case upstreamFailed(message: String)
     case noAuthToken
     case unknownError
     
@@ -37,6 +39,10 @@ enum APIError: LocalizedError {
             return "Upload failed (HTTP \(code))"
         case .conflict(let message):
             return message
+        case .notFound(let message):
+            return message
+        case .upstreamFailed(let message):
+            return message
         case .noAuthToken:
             return "Not authenticated"
         case .unknownError:
@@ -51,8 +57,12 @@ enum APIError: LocalizedError {
             return .badRequest(message: message)
         case 401:
             return .unauthorized(message: message)
+        case 404:
+            return .notFound(message: message)
         case 409:
             return .conflict(message: message)
+        case 502:
+            return .upstreamFailed(message: message)
         case 500...599:
             return .serverError(message: message)
         default:
