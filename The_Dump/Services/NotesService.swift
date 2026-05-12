@@ -489,6 +489,28 @@ class NotesService {
         }
     }
 
+    // Re-run categorization on all of a category's existing notes.
+    // Stubbed: endpoint contract isn't finalized. Surface the affordance in UI
+    // and swap the body for the real request when ready.
+    func recategorizePastNotes(categoryId: Int) async throws -> RecategorizePastNotesResponse {
+        throw APIError.httpError(statusCode: 501, message: "Re-categorize endpoint not implemented yet")
+    }
+
+    // Archive / restore a category. Stubbed — backend support pending.
+    func archiveCategory(categoryId: Int) async throws {
+        throw APIError.httpError(statusCode: 501, message: "Archive endpoint not implemented yet")
+    }
+
+    func restoreCategory(categoryId: Int) async throws {
+        throw APIError.httpError(statusCode: 501, message: "Restore endpoint not implemented yet")
+    }
+
+    // Delete a category with a chosen disposition for its existing notes.
+    // Stubbed — backend support pending.
+    func deleteCategory(categoryId: Int, disposition: DeleteCategoryDisposition) async throws {
+        throw APIError.httpError(statusCode: 501, message: "Delete category endpoint not implemented yet")
+    }
+
     // Create a new sub-category
     func createSubCategory(
         categoryName: String,

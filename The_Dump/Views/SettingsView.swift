@@ -51,7 +51,7 @@ struct SettingsView: View {
 
                     // Categories section
                     Section {
-                        NavigationLink("Manage Categories", destination: CategoryManagementView())
+                        NavigationLink("Manage Categories", destination: ManageCategoriesView())
                             .foregroundColor(Theme.accent)
                             .listRowBackground(Theme.surface)
                     } header: {

@@ -31,6 +31,18 @@ struct BrowseView: View {
                                 .listRowBackground(Theme.surface)
                             }
 
+                            if let status = ReCategorizingStatus.current {
+                                Section {
+                                    ReCategorizingBanner(
+                                        categoryName: status.categoryName,
+                                        affectedCount: status.affectedCount,
+                                        onDismiss: nil
+                                    )
+                                    .listRowBackground(Color.clear)
+                                    .listRowInsets(EdgeInsets(top: Theme.spacingSM, leading: Theme.spacingMD, bottom: Theme.spacingSM, trailing: Theme.spacingMD))
+                                }
+                            }
+
                             Section {
                                 NavigationLink {
                                     NotesListView(title: "Recent", filter: .recent(limit: 10))
