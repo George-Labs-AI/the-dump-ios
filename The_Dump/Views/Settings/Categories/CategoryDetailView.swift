@@ -14,6 +14,7 @@ struct CategoryDetailView: View {
     @State private var original: CategoryListItem?
     @State private var otherCategoryNames: [String] = []
     @State private var emoji: String = "📁"
+    @State private var loadedEmoji: String = "📁"
     @State private var name: String = ""
     @State private var definition: String = ""
     @State private var keywordsText: String = ""
@@ -347,7 +348,7 @@ struct CategoryDetailView: View {
         return trimmedName != original.name
             || trimmedDefinition != original.definition
             || keywords != original.keywords
-            || CategoryEmojiStore.emoji(for: categoryId) != emoji
+            || emoji != loadedEmoji
     }
 
     // MARK: - Actions
@@ -374,7 +375,9 @@ struct CategoryDetailView: View {
                 .filter { $0.categoryId != categoryId && ($0.archived ?? false) == false }
                 .map { $0.name }
                 .sorted { $0.lowercased() < $1.lowercased() }
-            emoji = match.emoji ?? CategoryEmojiStore.emoji(for: categoryId)
+            let resolvedEmoji = match.emoji ?? CategoryEmojiStore.emoji(for: categoryId)
+            loadedEmoji = resolvedEmoji
+            emoji = resolvedEmoji
             name = item.name
             definition = item.definition
             keywordsText = item.keywords.joined(separator: ", ")
