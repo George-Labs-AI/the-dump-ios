@@ -483,12 +483,11 @@ struct EmojiInputField: View {
             TextField("📁", text: Binding(
                 get: { emoji },
                 set: { newValue in
-                    // Keep at most one extended grapheme cluster (one emoji).
-                    if let first = newValue.first {
-                        emoji = String(first)
-                    } else {
-                        emoji = "📁"
-                    }
+                    // Keep at most one extended grapheme cluster. Take the
+                    // *last* character so appending a new emoji replaces the
+                    // old one rather than being silently dropped. Allow empty
+                    // so the field can be cleared; read sites fall back to 📁.
+                    emoji = newValue.isEmpty ? "" : String(newValue.suffix(1))
                 }
             ))
             .font(.system(size: 28))
