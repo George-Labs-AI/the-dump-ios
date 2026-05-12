@@ -241,12 +241,14 @@ private struct OptionCard: View {
                 Spacer()
             }
             .padding(Theme.spacingMD)
-            .background(Theme.surface)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.cornerRadiusSM)
+                    .fill(Theme.surface)
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.cornerRadiusSM)
                     .stroke(selected ? Theme.accent : Color.clear, lineWidth: 1.5)
             )
-            .cornerRadius(Theme.cornerRadiusSM)
         }
         .buttonStyle(.plain)
     }

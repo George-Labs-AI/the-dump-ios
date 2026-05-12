@@ -41,12 +41,14 @@ struct ReCategorizingBanner: View {
             }
         }
         .padding(Theme.spacingMD)
-        .background(Theme.warning.opacity(0.15))
+        .background(
+            RoundedRectangle(cornerRadius: Theme.cornerRadiusSM)
+                .fill(Theme.warning.opacity(0.15))
+        )
         .overlay(
             RoundedRectangle(cornerRadius: Theme.cornerRadiusSM)
                 .stroke(Theme.warning.opacity(0.4), lineWidth: 1)
         )
-        .cornerRadius(Theme.cornerRadiusSM)
     }
 
     private var detailText: String {
