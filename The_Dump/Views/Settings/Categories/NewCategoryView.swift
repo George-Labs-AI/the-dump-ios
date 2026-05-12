@@ -111,10 +111,12 @@ struct NewCategoryView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Theme.background, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
+            .interactiveDismissDisabled(isSubmitting)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { dismiss() }
                         .foregroundColor(Theme.textSecondary)
+                        .disabled(isSubmitting)
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()

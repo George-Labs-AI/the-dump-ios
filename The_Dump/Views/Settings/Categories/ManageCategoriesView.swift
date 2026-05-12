@@ -119,7 +119,7 @@ struct ManageCategoriesView: View {
                             Text(item.name)
                                 .foregroundColor(Theme.textSecondary)
                             Spacer()
-                            Text("\(item.noteCount) notes")
+                            Text("\(item.noteCount) \(item.noteCount == 1 ? "note" : "notes")")
                                 .font(.system(size: Theme.fontSizeSM))
                                 .foregroundColor(Theme.textTertiary)
                         }

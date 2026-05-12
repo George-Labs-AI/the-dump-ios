@@ -82,6 +82,7 @@ struct DeleteCategoryFlowView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Theme.background, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
+            .interactiveDismissDisabled(isSubmitting)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") {
@@ -89,6 +90,7 @@ struct DeleteCategoryFlowView: View {
                         dismiss()
                     }
                     .foregroundColor(Theme.textSecondary)
+                    .disabled(isSubmitting)
                 }
             }
         }
