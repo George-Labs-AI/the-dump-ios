@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ManageCategoriesView: View {
     @StateObject private var viewModel = CategoryManagementViewModel()
+    @AppStorage("manageCategoriesHelperDismissed") private var helperDismissed: Bool = false
     @State private var showNewCategory = false
     @State private var selectedCategory: CategoryListItem?
 
@@ -65,10 +66,10 @@ struct ManageCategoriesView: View {
             }
 
             // Helper row
-            if !viewModel.helperDismissed {
+            if !helperDismissed {
                 Section {
                     HelperRow {
-                        withAnimation { viewModel.helperDismissed = true }
+                        withAnimation { helperDismissed = true }
                     }
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 0, leading: Theme.spacingMD, bottom: Theme.spacingSM, trailing: Theme.spacingMD))

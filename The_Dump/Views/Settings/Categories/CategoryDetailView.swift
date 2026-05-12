@@ -90,7 +90,7 @@ struct CategoryDetailView: View {
         .sheet(isPresented: $showAddSubCategory, onDismiss: {
             Task { await load() }
         }) {
-            AddSubCategoryView(categoryName: name) { _ in
+            AddSubCategoryView(categoryName: original?.name ?? name) { _ in
                 didChange = true
             }
         }

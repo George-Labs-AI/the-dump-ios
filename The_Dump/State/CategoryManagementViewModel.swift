@@ -10,8 +10,6 @@ final class CategoryManagementViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var toast: String?
 
-    @AppStorage("manageCategoriesHelperDismissed") var helperDismissed: Bool = false
-
     var atCap: Bool { active.count >= CategoryLimits.maxActiveCategories }
 
     func load() async {
