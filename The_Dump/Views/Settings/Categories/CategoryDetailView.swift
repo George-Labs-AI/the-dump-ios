@@ -342,9 +342,10 @@ struct CategoryDetailView: View {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedName.isEmpty { return false }
         if original.isLocked || original.archived { return false }
+        let trimmedDefinition = definition.trimmingCharacters(in: .whitespacesAndNewlines)
         let keywords = parseKeywords(keywordsText)
         return trimmedName != original.name
-            || definition != original.definition
+            || trimmedDefinition != original.definition
             || keywords != original.keywords
             || CategoryEmojiStore.emoji(for: categoryId) != emoji
     }

@@ -1,17 +1,8 @@
 import Foundation
 
 // MARK: - Re-categorize past notes
-// Stubbed until the backend endpoint spec is finalized. Shape will likely
-// change; update RecategorizeResponse + NotesService.recategorizePastNotes
-// when the real contract is known.
-
-struct RecategorizePastNotesRequest: Encodable {
-    let categoryId: Int
-
-    enum CodingKeys: String, CodingKey {
-        case categoryId = "category_id"
-    }
-}
+// Response shape is provisional and may change when the backend endpoint
+// ships; the request type is intentionally omitted until that point.
 
 struct RecategorizePastNotesResponse: Decodable {
     let status: String?
@@ -29,14 +20,6 @@ enum DeleteCategoryDisposition: Equatable {
     case recategorize           // re-run AI on this category's notes
     case moveAll(targetName: String)
     case archiveInstead
-
-    var serverValue: String {
-        switch self {
-        case .recategorize: return "recategorize"
-        case .moveAll: return "move_all"
-        case .archiveInstead: return "archive"
-        }
-    }
 }
 
 // MARK: - Local presentation models
