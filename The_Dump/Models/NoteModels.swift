@@ -144,11 +144,24 @@ struct CategoryResponse: Codable {
     let dateAdded: String
     let lastModifiedDate: String
 
+    // Optional forward-compatible fields. Server doesn't return these yet;
+    // when it does, decoders pick them up automatically.
+    let emoji: String?
+    let archived: Bool?
+    let archivedAt: String?
+    let inProcessCount: Int?
+    let subCatCount: Int?
+
     enum CodingKeys: String, CodingKey {
         case categoryId = "category_id"
         case name, definition, keywords, source
         case dateAdded = "date_added"
         case lastModifiedDate = "last_modified_date"
+        case emoji
+        case archived
+        case archivedAt = "archived_at"
+        case inProcessCount = "in_process_count"
+        case subCatCount = "sub_cat_count"
     }
 }
 
