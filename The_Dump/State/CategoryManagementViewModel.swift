@@ -8,9 +8,14 @@ final class CategoryManagementViewModel: ObservableObject {
     @Published var recentlyDeleted: [CategoryListItem] = []
     @Published var isLoading: Bool = true
     @Published var errorMessage: String?
-    @Published var toast: String?
 
     var atCap: Bool { active.count >= CategoryLimits.maxActiveCategories }
+
+    /// Names that should block re-use when creating a new category — includes
+    /// archived categories because the server still owns the name.
+    var reservedNames: [String] {
+        (active + archived).map { $0.name }
+    }
 
     func load() async {
         isLoading = true
@@ -43,14 +48,6 @@ final class CategoryManagementViewModel: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
             isLoading = false
-        }
-    }
-
-    func showToast(_ message: String) {
-        toast = message
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 4_000_000_000)
-            if toast == message { toast = nil }
         }
     }
 }

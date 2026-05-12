@@ -23,7 +23,7 @@ struct CategoryDetailView: View {
     @State private var didChange: Bool = false
 
     @State private var showAddSubCategory: Bool = false
-    @State private var showDeleteFlow: Bool = false
+    @State private var deleteFlowCategory: CategoryListItem?
     @State private var showArchiveConfirm: Bool = false
     @State private var isPerformingDangerAction: Bool = false
     @State private var dangerError: String?
@@ -94,12 +94,12 @@ struct CategoryDetailView: View {
                 didChange = true
             }
         }
-        .sheet(isPresented: $showDeleteFlow) {
+        .sheet(item: $deleteFlowCategory) { item in
             DeleteCategoryFlowView(
-                category: original ?? placeholderItem(),
+                category: item,
                 otherCategoryNames: otherCategoryNames,
                 onComplete: { result in
-                    showDeleteFlow = false
+                    deleteFlowCategory = nil
                     if result != nil {
                         didChange = true
                         dismiss()
@@ -304,9 +304,9 @@ struct CategoryDetailView: View {
                 .disabled(locked || isPerformingDangerAction)
             }
 
-            if !archived {
+            if !archived, let item = original {
                 Button(role: .destructive) {
-                    showDeleteFlow = true
+                    deleteFlowCategory = item
                 } label: {
                     dangerLabel(systemImage: "trash", title: "Delete category", tint: .red)
                 }
@@ -348,16 +348,6 @@ struct CategoryDetailView: View {
             || trimmedDefinition != original.definition
             || keywords != original.keywords
             || CategoryEmojiStore.emoji(for: categoryId) != emoji
-    }
-
-    private func placeholderItem() -> CategoryListItem {
-        CategoryListItem(
-            id: categoryId, name: name, definition: definition,
-            keywords: parseKeywords(keywordsText), source: "user",
-            noteCount: original?.noteCount ?? 0,
-            subCatCount: original?.subCatCount ?? 0,
-            inProcessCount: 0, archived: false, archivedAt: nil
-        )
     }
 
     // MARK: - Actions

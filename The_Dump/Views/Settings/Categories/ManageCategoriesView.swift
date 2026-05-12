@@ -20,21 +20,6 @@ struct ManageCategoriesView: View {
             } else {
                 content
             }
-
-            if let toast = viewModel.toast {
-                VStack {
-                    Spacer()
-                    Text(toast)
-                        .font(.system(size: Theme.fontSizeSM))
-                        .foregroundColor(Theme.background)
-                        .padding(.horizontal, Theme.spacingMD)
-                        .padding(.vertical, Theme.spacingSM)
-                        .background(Theme.textPrimary)
-                        .cornerRadius(Theme.cornerRadiusSM)
-                        .padding(.bottom, Theme.spacingXL)
-                }
-                .transition(.opacity)
-            }
         }
         .navigationTitle("Categories")
         .navigationBarTitleDisplayMode(.inline)
@@ -44,7 +29,7 @@ struct ManageCategoriesView: View {
         .sheet(isPresented: $showNewCategory, onDismiss: {
             Task { await viewModel.load() }
         }) {
-            NewCategoryView(existingNames: viewModel.active.map { $0.name })
+            NewCategoryView(existingNames: viewModel.reservedNames)
         }
         .navigationDestination(item: $selectedCategory) { item in
             CategoryDetailView(categoryId: item.id) { didChange in
