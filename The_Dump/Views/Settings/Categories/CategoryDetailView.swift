@@ -41,10 +41,10 @@ struct CategoryDetailView: View {
         ZStack {
             Theme.background.ignoresSafeArea()
 
-            if isLoading {
+            if isLoading && original == nil {
                 ProgressView()
                     .progressViewStyle(CircularProgressViewStyle(tint: Theme.textPrimary))
-            } else if let error = loadError {
+            } else if let error = loadError, original == nil {
                 VStack(spacing: Theme.spacingMD) {
                     Text("Couldn't load this category")
                         .font(.system(size: Theme.fontSizeMD, weight: .semibold))
