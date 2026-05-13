@@ -14,6 +14,77 @@ struct RecategorizePastNotesResponse: Decodable {
     }
 }
 
+// MARK: - Recategorize job API (POST /api/recategorize + GET /api/recategorize/status/{id})
+
+enum RecategorizeScope: String, Codable, CaseIterable, Identifiable {
+    case all
+    case category
+    case uncategorized
+
+    var id: String { rawValue }
+}
+
+struct StartRecategorizeRequest: Encodable {
+    let scope: RecategorizeScope
+    let categoryId: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case scope
+        case categoryId = "category_id"
+    }
+}
+
+struct StartRecategorizeResponse: Decodable {
+    let jobId: String
+    let status: String
+
+    enum CodingKeys: String, CodingKey {
+        case jobId = "job_id"
+        case status
+    }
+}
+
+enum RecategorizeStatusValue: String, Decodable {
+    case pending
+    case running
+    case done
+    case failed
+
+    var isTerminal: Bool { self == .done || self == .failed }
+}
+
+struct RecategorizeJobStatus: Decodable {
+    let jobId: String
+    let scope: RecategorizeScope
+    let scopeCategoryId: Int?
+    let status: RecategorizeStatusValue
+    let total: Int
+    let processed: Int
+    let moved: Int
+    let skippedNoEmbeddings: Int
+    let errors: Int
+    let errorMessage: String?
+    let createdAt: String
+    let startedAt: String?
+    let completedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case jobId = "job_id"
+        case scope
+        case scopeCategoryId = "scope_category_id"
+        case status
+        case total
+        case processed
+        case moved
+        case skippedNoEmbeddings = "skipped_no_embeddings"
+        case errors
+        case errorMessage = "error_message"
+        case createdAt = "created_at"
+        case startedAt = "started_at"
+        case completedAt = "completed_at"
+    }
+}
+
 // MARK: - Delete / archive (not implemented server-side yet)
 
 enum DeleteCategoryDisposition: Equatable {

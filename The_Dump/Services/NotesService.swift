@@ -496,6 +496,85 @@ class NotesService {
         throw APIError.httpError(statusCode: 501, message: "Re-categorize endpoint not implemented yet")
     }
 
+    // Start a recategorize job. Returns the job_id to poll.
+    func startRecategorize(scope: RecategorizeScope, categoryId: Int? = nil) async throws -> StartRecategorizeResponse {
+        if scope == .category, categoryId == nil {
+            throw APIError.badRequest(message: "category_id is required when scope is \"category\"")
+        }
+
+        var request = try await createRequest(endpoint: "/api/recategorize", method: "POST")
+        let body = StartRecategorizeRequest(scope: scope, categoryId: scope == .category ? categoryId : nil)
+
+        do {
+            request.httpBody = try JSONEncoder().encode(body)
+        } catch {
+            throw APIError.encodingFailed
+        }
+
+        do {
+#if DEBUG
+            debugLogRequest(request, label: "recategorize_start")
+            if let bodyData = request.httpBody,
+               let bodyString = String(data: bodyData, encoding: .utf8) {
+                print("[NotesService][recategorize_start] Request body: \(bodyString)")
+            }
+#endif
+            let (data, response) = try await URLSession.shared.data(for: request)
+#if DEBUG
+            debugLogResponse(data: data, response: response, label: "recategorize_start")
+#endif
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.networkError(underlying: URLError(.badServerResponse))
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+                throw APIError.from(statusCode: httpResponse.statusCode, errorResponse: errorResponse)
+            }
+
+            return try JSONDecoder().decode(StartRecategorizeResponse.self, from: data)
+        } catch let error as APIError {
+            throw error
+        } catch let error as DecodingError {
+            throw APIError.decodingFailed(underlying: error)
+        } catch {
+            throw APIError.networkError(underlying: error)
+        }
+    }
+
+    // Poll the status of a recategorize job.
+    func fetchRecategorizeStatus(jobId: String) async throws -> RecategorizeJobStatus {
+        let request = try await createRequest(endpoint: "/api/recategorize/status/\(jobId)")
+
+        do {
+#if DEBUG
+            debugLogRequest(request, label: "recategorize_status")
+#endif
+            let (data, response) = try await URLSession.shared.data(for: request)
+#if DEBUG
+            debugLogResponse(data: data, response: response, label: "recategorize_status")
+#endif
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.networkError(underlying: URLError(.badServerResponse))
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+                throw APIError.from(statusCode: httpResponse.statusCode, errorResponse: errorResponse)
+            }
+
+            return try JSONDecoder().decode(RecategorizeJobStatus.self, from: data)
+        } catch let error as APIError {
+            throw error
+        } catch let error as DecodingError {
+            throw APIError.decodingFailed(underlying: error)
+        } catch {
+            throw APIError.networkError(underlying: error)
+        }
+    }
+
     // Archive / restore a category. Stubbed — backend support pending.
     func archiveCategory(categoryId: Int) async throws {
         throw APIError.httpError(statusCode: 501, message: "Archive endpoint not implemented yet")

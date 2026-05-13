@@ -97,6 +97,19 @@ struct SettingsView: View {
                         .listRowBackground(Theme.surface)
                     }
                     
+                    // Developer / API testing
+                    Section {
+                        NavigationLink("Recategorize Test", destination: RecategorizeTestView())
+                            .foregroundColor(Theme.accent)
+                            .listRowBackground(Theme.surface)
+                    } header: {
+                        Text("Developer")
+                            .foregroundColor(Theme.textSecondary)
+                    } footer: {
+                        Text("Smoke-tests the /api/recategorize endpoints. Pick a small category to keep the run cheap.")
+                            .foregroundColor(Theme.textTertiary)
+                    }
+
                     // App info
                     Section {
                         HStack {
