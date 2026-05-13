@@ -5,6 +5,18 @@ disabled_rules:
   - file_length
   - function_body_length
   - identifier_name
+  # Rules newly enabled-by-default by recent SwiftLint releases. They fire on
+  # patterns that already appear throughout the codebase (e.g. `var x: T?`
+  # without an explicit `= nil`); leaving them on breaks CI on every PR. Opt
+  # any of these back in deliberately if we want to clean the codebase to
+  # match.
+  - implicit_optional_initialization
+  - static_over_final_class
+  - unneeded_synthesized_initializer
+  - prefer_type_checking
+  - redundant_sendable
+  - non_optional_string_data_conversion
+  - optional_data_string_conversion
 
 opt_in_rules:
   - empty_count
