@@ -44,6 +44,17 @@ struct RecategorizeTestView: View {
                                     .padding(.leading, Theme.spacingSM)
                             }
                             .listRowBackground(Theme.surface)
+                        } else if let loadError = viewModel.loadError {
+                            VStack(alignment: .leading, spacing: Theme.spacingXS) {
+                                Text("Failed to load categories")
+                                    .font(.system(size: Theme.fontSizeSM, weight: .semibold))
+                                    .foregroundColor(.red)
+                                Text(loadError)
+                                    .font(.system(size: Theme.fontSizeSM))
+                                    .foregroundColor(Theme.textPrimary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .listRowBackground(Theme.surface)
                         } else if viewModel.categories.isEmpty {
                             Text("No categories found.")
                                 .foregroundColor(Theme.textSecondary)
@@ -235,6 +246,7 @@ private struct StatusRows: View {
 final class RecategorizeTestViewModel: ObservableObject {
     @Published private(set) var categories: [CategoryListItem] = []
     @Published private(set) var isLoadingCategories = false
+    @Published private(set) var loadError: String?
     @Published private(set) var isRunning = false
     @Published private(set) var jobId: String?
     @Published private(set) var status: RecategorizeJobStatus?
@@ -254,6 +266,7 @@ final class RecategorizeTestViewModel: ObservableObject {
 
     func loadCategories() async {
         isLoadingCategories = true
+        loadError = nil
         defer { isLoadingCategories = false }
 
         do {
@@ -267,7 +280,7 @@ final class RecategorizeTestViewModel: ObservableObject {
                 .filter { !$0.archived }
                 .sorted { $0.noteCount < $1.noteCount }
         } catch {
-            lastError = "Failed to load categories: \(error.localizedDescription)"
+            loadError = error.localizedDescription
         }
     }
 
