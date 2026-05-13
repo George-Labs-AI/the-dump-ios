@@ -7,8 +7,12 @@ class NotesService {
     static let shared = NotesService()
     
     // ⚠️ Update this URL to match your deployment or local dev environment
-    private let baseURL = "https://thedump.ai" 
-    
+    private let baseURL = "https://thedump.ai"
+
+    // The recategorize job pipeline currently lives on a separate Cloud Run
+    // service. Routed via createRequest's baseURLOverride parameter.
+    private let recategorizeBaseURL = "https://mindmerge-backend-55o5dgq4ya-uc.a.run.app"
+
     private init() {}
 
 #if DEBUG
@@ -60,12 +64,13 @@ class NotesService {
 #endif
     
     // Helper to create an authorized request with the Firebase ID Token
-    private func createRequest(endpoint: String, method: String = "GET") async throws -> URLRequest {
+    private func createRequest(endpoint: String, method: String = "GET", baseURLOverride: String? = nil) async throws -> URLRequest {
         // 1. Get the fresh Firebase token from existing AuthService
         let token = try await AuthService.shared.getIDToken()
-        
+
         // 2. Construct the URL
-        guard let url = URL(string: "\(baseURL)\(endpoint)") else {
+        let host = baseURLOverride ?? baseURL
+        guard let url = URL(string: "\(host)\(endpoint)") else {
             throw APIError.invalidURL
         }
         
@@ -502,7 +507,7 @@ class NotesService {
             throw APIError.badRequest(message: "category_id is required when scope is \"category\"")
         }
 
-        var request = try await createRequest(endpoint: "/api/recategorize", method: "POST")
+        var request = try await createRequest(endpoint: "/api/recategorize", method: "POST", baseURLOverride: recategorizeBaseURL)
         let body = StartRecategorizeRequest(scope: scope, categoryId: scope == .category ? categoryId : nil)
 
         do {
@@ -545,7 +550,7 @@ class NotesService {
 
     // Poll the status of a recategorize job.
     func fetchRecategorizeStatus(jobId: String) async throws -> RecategorizeJobStatus {
-        let request = try await createRequest(endpoint: "/api/recategorize/status/\(jobId)")
+        let request = try await createRequest(endpoint: "/api/recategorize/status/\(jobId)", baseURLOverride: recategorizeBaseURL)
 
         do {
 #if DEBUG
