@@ -3,7 +3,7 @@ import SwiftUI
 struct CategoryDetailView: View {
     let categoryId: Int
     /// Called on dismissal; `didChange == true` means the parent list should
-    /// refetch (rename, archive, delete, restore all flip this).
+    /// refetch (edit-save, archive, restore, recategorize all flip this).
     let onClose: (Bool) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -12,7 +12,6 @@ struct CategoryDetailView: View {
     @State private var loadError: String?
 
     @State private var original: CategoryListItem?
-    @State private var otherCategoryNames: [String] = []
     /// Every other category name (active + archived). Archived names are still
     /// owned by the server, so renaming onto one collides.
     @State private var reservedNames: [String] = []
@@ -27,14 +26,10 @@ struct CategoryDetailView: View {
     @State private var didChange: Bool = false
 
     @State private var showAddSubCategory: Bool = false
-    @State private var deleteFlowCategory: CategoryListItem?
-    @State private var showArchiveConfirm: Bool = false
     @State private var isPerformingDangerAction: Bool = false
     @State private var dangerError: String?
 
-    @State private var isRecategorizing: Bool = false
-    @State private var recategorizeMessage: String?
-    @State private var recategorizeError: String?
+    @State private var choiceTrigger: RecategorizeChoiceView.Trigger?
 
     @FocusState private var focusedField: Field?
 
@@ -99,26 +94,21 @@ struct CategoryDetailView: View {
                 didChange = true
             }
         }
-        .sheet(item: $deleteFlowCategory) { item in
-            DeleteCategoryFlowView(
-                category: item,
-                otherCategoryNames: otherCategoryNames,
-                onComplete: { result in
-                    deleteFlowCategory = nil
-                    if result != nil {
+        .sheet(item: $choiceTrigger) { trigger in
+            RecategorizeChoiceView(
+                categoryId: categoryId,
+                categoryName: original?.name ?? name,
+                categoryEmoji: loadedEmoji,
+                noteCount: original?.noteCount ?? 0,
+                trigger: trigger,
+                onComplete: { outcome in
+                    choiceTrigger = nil
+                    if outcome != nil {
                         didChange = true
                         dismiss()
                     }
                 }
             )
-        }
-        .alert("Archive category?", isPresented: $showArchiveConfirm) {
-            Button("Cancel", role: .cancel) {}
-            Button("Archive") {
-                Task { await archive() }
-            }
-        } message: {
-            Text("Archived categories stop receiving new notes. You can restore later from this screen.")
         }
         .alert("Action failed", isPresented: Binding(
             get: { dangerError != nil },
@@ -247,45 +237,6 @@ struct CategoryDetailView: View {
                     .disabled(readonly)
                 }
 
-                // Re-categorize past notes (stubbed)
-                VStack(alignment: .leading, spacing: Theme.spacingSM) {
-                    Button {
-                        Task { await recategorize() }
-                    } label: {
-                        HStack {
-                            if isRecategorizing {
-                                ProgressView().progressViewStyle(.circular)
-                            } else {
-                                Image(systemName: "arrow.triangle.2.circlepath")
-                            }
-                            Text("Re-categorize past notes")
-                            Spacer()
-                        }
-                        .padding(Theme.spacingMD)
-                        .background(Theme.surface)
-                        .cornerRadius(Theme.cornerRadiusSM)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundColor(readonly ? Theme.textTertiary : Theme.textPrimary)
-                    .disabled(readonly || isRecategorizing)
-
-                    Text("Re-runs the AI against notes already in this category. Uses tokens. Runs in the background for up to 24 hours.")
-                        .font(.system(size: Theme.fontSizeXS))
-                        .foregroundColor(Theme.textTertiary)
-
-                    if let message = recategorizeMessage {
-                        Text(message)
-                            .font(.system(size: Theme.fontSizeXS))
-                            .foregroundColor(Theme.textSecondary)
-                    }
-
-                    if let error = recategorizeError {
-                        Text(error)
-                            .font(.system(size: Theme.fontSizeXS))
-                            .foregroundColor(.red)
-                    }
-                }
-
                 // Danger zone
                 dangerZone(archived: archived, locked: locked)
 
@@ -314,18 +265,9 @@ struct CategoryDetailView: View {
                 .disabled(isPerformingDangerAction)
             } else {
                 Button {
-                    showArchiveConfirm = true
+                    choiceTrigger = .archiveTapped
                 } label: {
                     dangerLabel(systemImage: "archivebox", title: "Archive category", tint: Theme.textPrimary)
-                }
-                .disabled(locked || isPerformingDangerAction)
-            }
-
-            if !archived, let item = original {
-                Button(role: .destructive) {
-                    deleteFlowCategory = item
-                } label: {
-                    dangerLabel(systemImage: "trash", title: "Delete category", tint: .red)
                 }
                 .disabled(locked || isPerformingDangerAction)
             }
@@ -394,10 +336,6 @@ struct CategoryDetailView: View {
                 noteCount: counts.categories[match.name] ?? 0
             )
             original = item
-            otherCategoryNames = categories.categories
-                .filter { $0.categoryId != categoryId && ($0.archived ?? false) == false }
-                .map { $0.name }
-                .sorted { $0.lowercased() < $1.lowercased() }
             reservedNames = categories.categories
                 .filter { $0.categoryId != categoryId }
                 .map { $0.name }
@@ -429,7 +367,8 @@ struct CategoryDetailView: View {
         // Local-only: persist emoji.
         CategoryEmojiStore.setEmoji(emoji, for: categoryId)
 
-        // If only the emoji changed, skip the network round-trip.
+        // If only the emoji changed, skip the network round-trip and the
+        // recategorize/archive prompt — the meaning of the category is unchanged.
         if update.categoryName == nil
             && update.categoryDescription == nil
             && update.keywords == nil {
@@ -444,39 +383,15 @@ struct CategoryDetailView: View {
             _ = try await NotesService.shared.updateCategory(id: categoryId, update: update)
             didChange = true
             await load()
+            isSaving = false
+            // Definition changed — force the user to choose between
+            // re-running AI on past notes or archiving the category.
+            choiceTrigger = .edited
+            return
         } catch {
             saveError = error.localizedDescription
         }
         isSaving = false
-    }
-
-    private func recategorize() async {
-        isRecategorizing = true
-        recategorizeMessage = nil
-        recategorizeError = nil
-        defer { isRecategorizing = false }
-        do {
-            let response = try await NotesService.shared.recategorizePastNotes(categoryId: categoryId)
-            if let affected = response.affectedCount {
-                recategorizeMessage = "Queued \(affected) note\(affected == 1 ? "" : "s"). This can take up to 24h."
-            } else {
-                recategorizeMessage = "Re-categorization queued. This can take up to 24h."
-            }
-        } catch {
-            recategorizeError = error.localizedDescription
-        }
-    }
-
-    private func archive() async {
-        isPerformingDangerAction = true
-        defer { isPerformingDangerAction = false }
-        do {
-            try await NotesService.shared.archiveCategory(categoryId: categoryId)
-            didChange = true
-            dismiss()
-        } catch {
-            dangerError = error.localizedDescription
-        }
     }
 
     private func restore() async {
