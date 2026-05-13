@@ -1,5 +1,6 @@
 import Combine
 import SwiftUI
+import Combine
 
 /// Lightweight harness for `/api/recategorize` + `/api/recategorize/status/<id>`.
 /// Lives under Settings so we can smoke-test the job pipeline against a known
