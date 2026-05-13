@@ -84,7 +84,7 @@ struct RecategorizeTestView: View {
                 // Run button
                 Section {
                     Button {
-                        Task { await runTest() }
+                        runTest()
                     } label: {
                         HStack {
                             if viewModel.isRunning {
@@ -152,8 +152,8 @@ struct RecategorizeTestView: View {
         }
     }
 
-    private func runTest() async {
-        await viewModel.run(scope: selectedScope, categoryId: selectedCategoryId)
+    private func runTest() {
+        viewModel.run(scope: selectedScope, categoryId: selectedCategoryId)
     }
 }
 
@@ -240,7 +240,10 @@ final class RecategorizeTestViewModel: ObservableObject {
     @Published private(set) var status: RecategorizeJobStatus?
     @Published private(set) var lastError: String?
 
-    private var pollTask: Task<Void, Never>?
+    // Tracks the whole run — start + poll — so cancellation reaches the
+    // request even if it lands during the start-phase await (before the poll
+    // loop begins).
+    private var runTask: Task<Void, Never>?
 
     var smallestNonEmptyCategoryId: Int? {
         categories
@@ -268,40 +271,41 @@ final class RecategorizeTestViewModel: ObservableObject {
         }
     }
 
-    func run(scope: RecategorizeScope, categoryId: Int?) async {
+    func run(scope: RecategorizeScope, categoryId: Int?) {
         guard !isRunning else { return }
-        pollTask?.cancel()
+        runTask?.cancel()
         isRunning = true
         lastError = nil
         jobId = nil
         status = nil
 
-        do {
-            let response = try await NotesService.shared.startRecategorize(scope: scope, categoryId: categoryId)
-            jobId = response.jobId
-            // Seed status so the UI has something to render before the first poll lands.
-            startPolling(jobId: response.jobId)
-        } catch {
-            lastError = error.localizedDescription
-            isRunning = false
+        runTask = Task { [weak self] in
+            await self?.runLoop(scope: scope, categoryId: categoryId)
         }
     }
 
     func cancelPolling() {
-        pollTask?.cancel()
-        pollTask = nil
+        runTask?.cancel()
+        runTask = nil
         isRunning = false
     }
 
-    private func startPolling(jobId: String) {
-        pollTask = Task { [weak self] in
-            await self?.pollLoop(jobId: jobId)
+    private func runLoop(scope: RecategorizeScope, categoryId: Int?) async {
+        defer { isRunning = false }
+
+        do {
+            let response = try await NotesService.shared.startRecategorize(scope: scope, categoryId: categoryId)
+            guard !Task.isCancelled else { return }
+            jobId = response.jobId
+            await pollLoop(jobId: response.jobId)
+        } catch {
+            if !Task.isCancelled {
+                lastError = error.localizedDescription
+            }
         }
     }
 
     private func pollLoop(jobId: String) async {
-        defer { isRunning = false }
-
         while !Task.isCancelled {
             do {
                 let snapshot = try await NotesService.shared.fetchRecategorizeStatus(jobId: jobId)
@@ -310,7 +314,9 @@ final class RecategorizeTestViewModel: ObservableObject {
                     return
                 }
             } catch {
-                lastError = error.localizedDescription
+                if !Task.isCancelled {
+                    lastError = error.localizedDescription
+                }
                 return
             }
 
