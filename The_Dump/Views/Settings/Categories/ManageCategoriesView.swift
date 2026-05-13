@@ -43,6 +43,19 @@ struct ManageCategoriesView: View {
     @ViewBuilder
     private var content: some View {
         List {
+            // Refresh error banner: shown when a reload fails but stale data is
+            // still on screen. The full-screen ErrorState above only renders
+            // when the list is empty, so without this the user gets no signal.
+            if let error = viewModel.errorMessage {
+                Section {
+                    RefreshErrorBanner(message: error) {
+                        Task { await viewModel.load() }
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 0, leading: Theme.spacingMD, bottom: Theme.spacingSM, trailing: Theme.spacingMD))
+                }
+            }
+
             // Cap meter
             Section {
                 CapMeterRow(used: viewModel.active.count, cap: CategoryLimits.maxActiveCategories)
@@ -260,6 +273,40 @@ private struct HelperRow: View {
         }
         .padding(Theme.spacingMD)
         .background(Theme.accentSubtle)
+        .cornerRadius(Theme.cornerRadius)
+    }
+}
+
+// MARK: - Refresh error banner
+
+private struct RefreshErrorBanner: View {
+    let message: String
+    let onRetry: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Theme.spacingSM) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(.red)
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Couldn't refresh categories")
+                    .font(.system(size: Theme.fontSizeSM, weight: .medium))
+                    .foregroundColor(Theme.textPrimary)
+                Text(message)
+                    .font(.system(size: Theme.fontSizeXS))
+                    .foregroundColor(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: Theme.spacingSM)
+
+            Button("Retry", action: onRetry)
+                .font(.system(size: Theme.fontSizeSM, weight: .medium))
+                .foregroundColor(Theme.accent)
+        }
+        .padding(Theme.spacingMD)
+        .background(Color.red.opacity(0.08))
         .cornerRadius(Theme.cornerRadius)
     }
 }

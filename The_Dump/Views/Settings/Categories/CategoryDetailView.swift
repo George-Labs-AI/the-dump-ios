@@ -13,6 +13,9 @@ struct CategoryDetailView: View {
 
     @State private var original: CategoryListItem?
     @State private var otherCategoryNames: [String] = []
+    /// Every other category name (active + archived). Archived names are still
+    /// owned by the server, so renaming onto one collides.
+    @State private var reservedNames: [String] = []
     @State private var emoji: String = "📁"
     @State private var loadedEmoji: String = "📁"
     @State private var name: String = ""
@@ -31,6 +34,7 @@ struct CategoryDetailView: View {
 
     @State private var isRecategorizing: Bool = false
     @State private var recategorizeMessage: String?
+    @State private var recategorizeError: String?
 
     @FocusState private var focusedField: Field?
 
@@ -162,6 +166,12 @@ struct CategoryDetailView: View {
                             .cornerRadius(Theme.cornerRadiusSM)
                             .focused($focusedField, equals: .name)
                             .disabled(readonly)
+
+                        if nameCollides {
+                            Text("A category named \"\(name.trimmingCharacters(in: .whitespacesAndNewlines))\" already exists.")
+                                .font(.system(size: Theme.fontSizeXS))
+                                .foregroundColor(.red)
+                        }
                     }
                 }
 
@@ -268,6 +278,12 @@ struct CategoryDetailView: View {
                             .font(.system(size: Theme.fontSizeXS))
                             .foregroundColor(Theme.textSecondary)
                     }
+
+                    if let error = recategorizeError {
+                        Text(error)
+                            .font(.system(size: Theme.fontSizeXS))
+                            .foregroundColor(.red)
+                    }
                 }
 
                 // Danger zone
@@ -342,6 +358,7 @@ struct CategoryDetailView: View {
         if isSaving { return false }
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedName.isEmpty { return false }
+        if nameCollides { return false }
         if original.isLocked || original.archived { return false }
         let trimmedDefinition = definition.trimmingCharacters(in: .whitespacesAndNewlines)
         let keywords = parseKeywords(keywordsText)
@@ -349,6 +366,12 @@ struct CategoryDetailView: View {
             || trimmedDefinition != original.definition
             || keywords != original.keywords
             || emoji != loadedEmoji
+    }
+
+    private var nameCollides: Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        return reservedNames.contains { $0.caseInsensitiveCompare(trimmed) == .orderedSame }
     }
 
     // MARK: - Actions
@@ -375,6 +398,9 @@ struct CategoryDetailView: View {
                 .filter { $0.categoryId != categoryId && ($0.archived ?? false) == false }
                 .map { $0.name }
                 .sorted { $0.lowercased() < $1.lowercased() }
+            reservedNames = categories.categories
+                .filter { $0.categoryId != categoryId }
+                .map { $0.name }
             let resolvedEmoji = match.emoji ?? CategoryEmojiStore.emoji(for: categoryId)
             loadedEmoji = resolvedEmoji
             emoji = resolvedEmoji
@@ -427,6 +453,7 @@ struct CategoryDetailView: View {
     private func recategorize() async {
         isRecategorizing = true
         recategorizeMessage = nil
+        recategorizeError = nil
         defer { isRecategorizing = false }
         do {
             let response = try await NotesService.shared.recategorizePastNotes(categoryId: categoryId)
@@ -436,7 +463,7 @@ struct CategoryDetailView: View {
                 recategorizeMessage = "Re-categorization queued. This can take up to 24h."
             }
         } catch {
-            recategorizeMessage = error.localizedDescription
+            recategorizeError = error.localizedDescription
         }
     }
 
