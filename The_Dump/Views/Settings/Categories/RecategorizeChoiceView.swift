@@ -1,13 +1,21 @@
 import SwiftUI
 
 /// Presented after the user changes a category's name/description/keywords
-/// or taps "Archive category" on `CategoryDetailView`. Forces a choice
-/// between recategorizing past notes against the (possibly updated)
-/// definition and archiving the category so no new notes are sorted into it.
+/// or taps "Archive category" on `CategoryDetailView`.
+///
+/// - `.edited`: choose between re-running AI on past notes against the new
+///   definition, or leaving past notes alone. The category stays active either
+///   way — new notes can still be sorted into it.
+/// - `.archiveTapped`: choose between redistributing past notes with AI or
+///   keeping them here and archiving the category so no new notes land in it.
 struct RecategorizeChoiceView: View {
     enum Outcome {
         case recategorized
         case archived
+        /// `.edited` trigger only: user accepted the edits but opted not to
+        /// re-run AI on past notes. No backend action is taken here — the
+        /// edit itself was already saved before this sheet appeared.
+        case keptAsIs
     }
 
     enum Trigger: String, Identifiable {
@@ -27,12 +35,45 @@ struct RecategorizeChoiceView: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    @State private var selected: Choice = .recategorize
+    @State private var selected: Choice
     @State private var isSubmitting: Bool = false
     @State private var errorMessage: String?
 
+    init(
+        categoryId: Int,
+        categoryName: String,
+        categoryEmoji: String,
+        noteCount: Int,
+        trigger: Trigger,
+        onComplete: @escaping (Outcome?) -> Void
+    ) {
+        self.categoryId = categoryId
+        self.categoryName = categoryName
+        self.categoryEmoji = categoryEmoji
+        self.noteCount = noteCount
+        self.trigger = trigger
+        self.onComplete = onComplete
+        // Default to the no-cost option for edits (keep past notes alone) so
+        // the user has to opt in to spending tokens. Archive flow keeps the
+        // existing default of re-categorize.
+        _selected = State(initialValue: trigger == .edited ? .keep : .recategorize)
+    }
+
     private enum Choice: Hashable {
-        case recategorize, archive
+        /// Re-run AI on past notes. Valid for both triggers.
+        case recategorize
+        /// Archive the category. Valid only for `.archiveTapped`.
+        case archive
+        /// Leave past notes where they are. Valid only for `.edited`.
+        case keep
+    }
+
+    /// The non-recategorize option, which differs by trigger.
+    private var secondaryChoice: Choice {
+        switch trigger {
+        case .edited: return .keep
+        case .archiveTapped: return .archive
+        }
     }
 
     var body: some View {
@@ -53,14 +94,14 @@ struct RecategorizeChoiceView: View {
                             OptionCard(
                                 selected: selected == .recategorize,
                                 title: "Re-categorize past notes with AI",
-                                subtitle: "Let the AI re-sort the \(noteCount) note\(noteCount == 1 ? "" : "s") that were in this category. Past notes may move to other categories. Runs in the background for up to 24 hours and uses tokens."
+                                subtitle: recategorizeSubtitle
                             ) { selected = .recategorize }
 
                             OptionCard(
-                                selected: selected == .archive,
-                                title: "Keep past notes, archive category",
-                                subtitle: "Past notes stay in this category. The category is archived — no new notes will be sorted here. You can restore it later."
-                            ) { selected = .archive }
+                                selected: selected == secondaryChoice,
+                                title: secondaryTitle,
+                                subtitle: secondarySubtitle
+                            ) { selected = secondaryChoice }
                         }
 
                         if let error = errorMessage {
@@ -136,9 +177,35 @@ struct RecategorizeChoiceView: View {
     private var introCopy: String {
         switch trigger {
         case .edited:
-            return "You changed this category. Do you want to re-categorize all notes that were previously in this category using AI, or keep them in this category and archive it so no new notes can be added?"
+            return "You changed this category. Want AI to re-sort the notes that were already in it so they reflect the new definition, or leave them where they are? This category stays active either way."
         case .archiveTapped:
             return "Do you want to re-categorize all notes that were previously in this category using AI, or keep them in this category and archive it so no new notes can be added?"
+        }
+    }
+
+    private var recategorizeSubtitle: String {
+        let noteWord = noteCount == 1 ? "note" : "notes"
+        switch trigger {
+        case .edited:
+            return "AI will re-sort the \(noteCount) \(noteWord) that were in this category against the new definition. Some may move to other categories. Runs in the background for up to 24 hours and uses tokens. New notes can still be sorted into this category."
+        case .archiveTapped:
+            return "Let the AI re-sort the \(noteCount) \(noteWord) that were in this category. Past notes may move to other categories. Runs in the background for up to 24 hours and uses tokens."
+        }
+    }
+
+    private var secondaryTitle: String {
+        switch trigger {
+        case .edited: return "Keep past notes where they are"
+        case .archiveTapped: return "Keep past notes, archive category"
+        }
+    }
+
+    private var secondarySubtitle: String {
+        switch trigger {
+        case .edited:
+            return "Past notes stay in this category as-is. New notes can still be sorted into it — only future categorization uses the updated definition."
+        case .archiveTapped:
+            return "Past notes stay in this category. The category is archived — no new notes will be sorted here. You can restore it later."
         }
     }
 
@@ -146,13 +213,23 @@ struct RecategorizeChoiceView: View {
         switch selected {
         case .recategorize: return "Re-categorize past notes"
         case .archive: return "Archive category"
+        case .keep: return "Keep past notes"
         }
     }
 
     private func confirm() {
         guard !isSubmitting else { return }
-        isSubmitting = true
         errorMessage = nil
+
+        // `.keep` is a pure dismissal — the edit was already saved before this
+        // sheet appeared, so there's no network call to make or spinner to show.
+        if selected == .keep {
+            onComplete(.keptAsIs)
+            dismiss()
+            return
+        }
+
+        isSubmitting = true
         Task {
             do {
                 switch selected {
@@ -173,6 +250,8 @@ struct RecategorizeChoiceView: View {
                         onComplete(.archived)
                         dismiss()
                     }
+                case .keep:
+                    break // handled above
                 }
             } catch {
                 await MainActor.run {
