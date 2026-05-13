@@ -35,13 +35,32 @@ struct RecategorizeChoiceView: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    @State private var selected: Choice = .recategorize
+    @State private var selected: Choice
     @State private var isSubmitting: Bool = false
     @State private var errorMessage: String?
-    /// Tracks whether we've applied the trigger-dependent default selection.
-    /// Without this, `.onAppear` would clobber a user-picked option on every
-    /// re-appearance of the sheet.
-    @State private var didApplyInitialSelection: Bool = false
+
+    init(
+        categoryId: Int,
+        categoryName: String,
+        categoryEmoji: String,
+        noteCount: Int,
+        trigger: Trigger,
+        onComplete: @escaping (Outcome?) -> Void
+    ) {
+        self.categoryId = categoryId
+        self.categoryName = categoryName
+        self.categoryEmoji = categoryEmoji
+        self.noteCount = noteCount
+        self.trigger = trigger
+        self.onComplete = onComplete
+        // Default to the no-cost option for edits (keep past notes alone) so
+        // the user has to opt in to spending tokens. Archive flow keeps the
+        // existing default of re-categorize. Done in init rather than
+        // `.onAppear` so the first body evaluation already shows the right
+        // selection — otherwise the wrong card flashes during the sheet
+        // presentation animation.
+        _selected = State(initialValue: trigger == .edited ? .keep : .recategorize)
+    }
 
     private enum Choice: Hashable {
         /// Re-run AI on past notes. Valid for both triggers.
@@ -116,15 +135,6 @@ struct RecategorizeChoiceView: View {
             .toolbarBackground(Theme.background, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .interactiveDismissDisabled(isSubmitting)
-            .onAppear {
-                guard !didApplyInitialSelection else { return }
-                didApplyInitialSelection = true
-                // Edits default to the no-cost option so the user has to opt
-                // in to spending tokens; archive flow keeps re-categorize.
-                if trigger == .edited {
-                    selected = .keep
-                }
-            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") {
