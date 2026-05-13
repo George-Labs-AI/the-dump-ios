@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 /// Lightweight harness for `/api/recategorize` + `/api/recategorize/status/<id>`.

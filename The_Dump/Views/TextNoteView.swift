@@ -93,8 +93,6 @@ struct TextNoteView: View {
             isUploading = true
             uploadError = nil
 
-            // Create preview from first 50 chars
-            let preview = String(noteContent.prefix(50))
             let item = SessionItem(
                 kind: .text,
                 originalFilename: "note_\(UUID().uuidString.prefix(8)).txt",

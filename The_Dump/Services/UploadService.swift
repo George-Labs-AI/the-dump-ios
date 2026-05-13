@@ -82,7 +82,6 @@ class UploadService {
             throw APIError.badRequest(message: "File exceeds 100MB limit")
         }
 
-        let originalFilename = fileURL.lastPathComponent
         let ext = fileURL.pathExtension.lowercased()
         let contentType = mimeType(for: fileURL)
 
