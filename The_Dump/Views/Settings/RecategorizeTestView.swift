@@ -128,6 +128,9 @@ struct RecategorizeTestView: View {
                 selectedCategoryId = viewModel.smallestNonEmptyCategoryId
             }
         }
+        .onDisappear {
+            viewModel.cancelPolling()
+        }
     }
 
     private var canRun: Bool {
@@ -282,6 +285,12 @@ final class RecategorizeTestViewModel: ObservableObject {
             lastError = error.localizedDescription
             isRunning = false
         }
+    }
+
+    func cancelPolling() {
+        pollTask?.cancel()
+        pollTask = nil
+        isRunning = false
     }
 
     private func startPolling(jobId: String) {
