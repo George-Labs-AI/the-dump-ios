@@ -4,6 +4,7 @@ import SwiftUI
 
 struct BrowseView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject private var recategorizationTracker: CategoryRecategorizationTracker
     @StateObject private var viewModel = BrowseViewModel()
     @StateObject private var sessionStore = SessionStore()
     @State private var searchText: String = ""
@@ -17,90 +18,11 @@ struct BrowseView: View {
                 Theme.background.ignoresSafeArea()
                 
                 Group {
-                    if viewModel.isLoading && viewModel.categoryRows.isEmpty && viewModel.dateGroupRows.isEmpty && viewModel.mimeTypeRows.isEmpty {
+                    if isShowingInitialLoader {
                         ProgressView("Loading…")
                             .foregroundColor(Theme.textPrimary)
                     } else {
-                        List {
-                            if let error = viewModel.errorMessage {
-                                Section {
-                                    Text(error)
-                                        .font(.system(size: Theme.fontSizeSM))
-                                        .foregroundColor(Theme.accent)
-                                }
-                                .listRowBackground(Theme.surface)
-                            }
-
-                            if let status = ReCategorizingStatus.current {
-                                Section {
-                                    ReCategorizingBanner(
-                                        categoryName: status.categoryName,
-                                        affectedCount: status.affectedCount,
-                                        onDismiss: nil
-                                    )
-                                    .listRowBackground(Color.clear)
-                                    .listRowInsets(EdgeInsets(top: Theme.spacingSM, leading: Theme.spacingMD, bottom: Theme.spacingSM, trailing: Theme.spacingMD))
-                                }
-                            }
-
-                            Section {
-                                NavigationLink {
-                                    NotesListView(title: "Recent", filter: .recent(limit: 10))
-                                } label: {
-                                    BrowseFolderRowView(icon: "🕐", title: "Recent", count: viewModel.recentCount)
-                                }
-                                .listRowBackground(Theme.surface)
-                            } header: {
-                                Text("Recent")
-                                    .sectionLabel()
-                                    .foregroundColor(Theme.textSecondary)
-                            }
-
-                            Section {
-                                ForEach(viewModel.categoryRows) { row in
-                                    NavigationLink {
-                                        BrowseFolderDestinationView(kind: .category, name: row.name, count: row.count)
-                                    } label: {
-                                        BrowseFolderRowView(icon: "📁", title: row.name, count: row.count)
-                                    }
-                                    .listRowBackground(Theme.surface)
-                                }
-                            } header: {
-                                Text("Categories")
-                                    .sectionLabel()
-                                    .foregroundColor(Theme.textSecondary)
-                            }
-                            
-                            Section {
-                                ForEach(viewModel.dateGroupRows) { row in
-                                    NavigationLink {
-                                        BrowseFolderDestinationView(kind: .dateGroup, name: row.name, count: row.count)
-                                    } label: {
-                                        BrowseFolderRowView(icon: "📅", title: row.name, count: row.count)
-                                    }
-                                    .listRowBackground(Theme.surface)
-                                }
-                            } header: {
-                                Text("Date Groups")
-                                    .sectionLabel()
-                                    .foregroundColor(Theme.textSecondary)
-                            }
-                            
-                            Section {
-                                ForEach(viewModel.mimeTypeRows) { row in
-                                    NavigationLink {
-                                        BrowseFolderDestinationView(kind: .mimeType, name: row.name, count: row.count)
-                                    } label: {
-                                        BrowseFolderRowView(icon: emojiForMimeType(row.name), title: row.name, count: row.count)
-                                    }
-                                    .listRowBackground(Theme.surface)
-                                }
-                            } header: {
-                                Text("File Types")
-                                    .sectionLabel()
-                                    .foregroundColor(Theme.textSecondary)
-                            }
-                        }
+                        folderList
                         .scrollContentBackground(.hidden)
                         .listStyle(.insetGrouped)
                         .refreshable {
@@ -115,6 +37,9 @@ struct BrowseView: View {
             .toolbarBackground(.visible, for: .navigationBar)
             .task {
                 await viewModel.loadCounts()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .categoryRecategorizationDidFinish)) { _ in
+                Task { await viewModel.loadCounts() }
             }
             .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search all notes")
             .onSubmit(of: .search) {
@@ -142,6 +67,152 @@ struct BrowseView: View {
         }
     }
 
+    private var isShowingInitialLoader: Bool {
+        viewModel.isLoading
+            && viewModel.categoryRows.isEmpty
+            && viewModel.archivedCategoryRows.isEmpty
+            && viewModel.dateGroupRows.isEmpty
+            && viewModel.mimeTypeRows.isEmpty
+    }
+
+    private var folderList: some View {
+        List {
+            errorSection
+            recategorizingSection
+            recentSection
+            activeCategoriesSection
+            dateGroupSection
+            mimeTypeSection
+            archivedCategoriesSection
+        }
+    }
+
+    @ViewBuilder
+    private var errorSection: some View {
+        if let error = viewModel.errorMessage {
+            Section {
+                Text(error)
+                    .font(.system(size: Theme.fontSizeSM))
+                    .foregroundColor(Theme.accent)
+            }
+            .listRowBackground(Theme.surface)
+        }
+    }
+
+    @ViewBuilder
+    private var recategorizingSection: some View {
+        if let job = recategorizationTracker.currentActiveJob {
+            Section {
+                ReCategorizingBanner(
+                    categoryName: job.categoryName,
+                    affectedCount: job.total > 0 ? job.total : job.noteCount,
+                    onDismiss: nil
+                )
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: Theme.spacingSM, leading: Theme.spacingMD, bottom: Theme.spacingSM, trailing: Theme.spacingMD))
+            }
+        }
+    }
+
+    private var recentSection: some View {
+        Section {
+            NavigationLink {
+                NotesListView(title: "Recent", filter: .recent(limit: 10))
+            } label: {
+                BrowseFolderRowView(icon: "🕐", title: "Recent", count: viewModel.recentCount)
+            }
+            .listRowBackground(Theme.surface)
+        } header: {
+            Text("Recent")
+                .sectionLabel()
+                .foregroundColor(Theme.textSecondary)
+        }
+    }
+
+    @ViewBuilder
+    private var activeCategoriesSection: some View {
+        if !viewModel.categoryRows.isEmpty {
+            Section {
+                ForEach(viewModel.categoryRows) { row in
+                    categoryNavigationLink(row: row, icon: "📁", isArchived: false)
+                }
+            } header: {
+                Text("Active Categories")
+                    .sectionLabel()
+                    .foregroundColor(Theme.textSecondary)
+            }
+        }
+    }
+
+    private var dateGroupSection: some View {
+        Section {
+            ForEach(viewModel.dateGroupRows) { row in
+                NavigationLink {
+                    BrowseFolderDestinationView(kind: .dateGroup, name: row.name, count: row.count, categoryId: nil)
+                } label: {
+                    BrowseFolderRowView(icon: "📅", title: row.name, count: row.count)
+                }
+                .listRowBackground(Theme.surface)
+            }
+        } header: {
+            Text("Date Groups")
+                .sectionLabel()
+                .foregroundColor(Theme.textSecondary)
+        }
+    }
+
+    private var mimeTypeSection: some View {
+        Section {
+            ForEach(viewModel.mimeTypeRows) { row in
+                NavigationLink {
+                    BrowseFolderDestinationView(kind: .mimeType, name: row.name, count: row.count, categoryId: nil)
+                } label: {
+                    BrowseFolderRowView(icon: emojiForMimeType(row.name), title: row.name, count: row.count)
+                }
+                .listRowBackground(Theme.surface)
+            }
+        } header: {
+            Text("File Types")
+                .sectionLabel()
+                .foregroundColor(Theme.textSecondary)
+        }
+    }
+
+    @ViewBuilder
+    private var archivedCategoriesSection: some View {
+        if !viewModel.archivedCategoryRows.isEmpty {
+            Section {
+                ForEach(viewModel.archivedCategoryRows) { row in
+                    categoryNavigationLink(row: row, icon: "🗄️", isArchived: true)
+                }
+            } header: {
+                Text("Archived Categories")
+                    .sectionLabel()
+                    .foregroundColor(Theme.textSecondary)
+            }
+        }
+    }
+
+    private func categoryNavigationLink(row: BrowseViewModel.FolderRow, icon: String, isArchived: Bool) -> some View {
+        NavigationLink {
+            BrowseFolderDestinationView(
+                kind: .category,
+                name: row.name,
+                count: row.count,
+                categoryId: row.categoryId,
+                isArchivedCategory: isArchived
+            )
+        } label: {
+            BrowseFolderRowView(
+                icon: icon,
+                title: row.name,
+                count: row.count,
+                statusText: categoryStatusText(for: row)
+            )
+        }
+        .listRowBackground(Theme.surface)
+    }
+
     private func emojiForMimeType(_ name: String) -> String {
         let lower = name.lowercased()
         if lower.hasPrefix("image") { return "📷" }
@@ -149,6 +220,11 @@ struct BrowseView: View {
         if lower.hasPrefix("text") { return "✏️" }
         if lower.hasPrefix("document") || lower.hasPrefix("application") { return "📤" }
         return "📎"
+    }
+
+    private func categoryStatusText(for row: BrowseViewModel.FolderRow) -> String? {
+        guard let categoryId = row.categoryId else { return nil }
+        return recategorizationTracker.isRecategorizing(categoryId: categoryId) ? "Re-categorizing" : nil
     }
 }
 
@@ -295,6 +371,14 @@ private struct BrowseFolderRowView: View {
     let icon: String
     let title: String
     let count: Int
+    let statusText: String?
+
+    init(icon: String, title: String, count: Int, statusText: String? = nil) {
+        self.icon = icon
+        self.title = title
+        self.count = count
+        self.statusText = statusText
+    }
 
     var body: some View {
         HStack(spacing: Theme.spacingSMPlus) {
@@ -304,9 +388,22 @@ private struct BrowseFolderRowView: View {
                 .background(Theme.surface2)
                 .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadiusCatIcon))
 
-            Text(title)
-                .font(.system(size: Theme.fontSizeMD, weight: .medium))
-                .foregroundColor(Theme.textPrimary)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: Theme.spacingXS) {
+                    Text(title)
+                        .font(.system(size: Theme.fontSizeMD, weight: .medium))
+                        .foregroundColor(Theme.textPrimary)
+                    if let statusText {
+                        Text(statusText)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(Theme.warning)
+                            .padding(.horizontal, Theme.spacingSM)
+                            .padding(.vertical, 3)
+                            .background(Theme.warning.opacity(0.14))
+                            .clipShape(Capsule())
+                    }
+                }
+            }
 
             Spacer()
 
@@ -321,4 +418,5 @@ private struct BrowseFolderRowView: View {
 #Preview {
     BrowseView()
         .environmentObject(AppState())
+        .environmentObject(CategoryRecategorizationTracker.shared)
 }

@@ -7,6 +7,7 @@ struct CategoryDetailView: View {
     let onClose: (Bool) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var recategorizationTracker: CategoryRecategorizationTracker
 
     @State private var isLoading: Bool = true
     @State private var loadError: String?
@@ -87,6 +88,11 @@ struct CategoryDetailView: View {
         }
         .onDisappear { onClose(didChange) }
         .task { await load() }
+        .onReceive(NotificationCenter.default.publisher(for: .categoryRecategorizationDidFinish)) { notification in
+            guard let updatedCategoryId = notification.userInfo?["categoryId"] as? Int,
+                  updatedCategoryId == categoryId else { return }
+            Task { await load() }
+        }
         .sheet(isPresented: $showAddSubCategory, onDismiss: {
             Task { await load() }
         }) {
@@ -127,11 +133,16 @@ struct CategoryDetailView: View {
         let locked = original?.isLocked == true
         let archived = original?.archived == true
         let readonly = locked || archived
+        let recategorizationJob = recategorizationTracker.job(for: categoryId)
 
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.spacingLG) {
                 if locked {
                     LockNotice(count: original?.inProcessCount ?? 0)
+                }
+
+                if let recategorizationJob {
+                    CategoryRecategorizationNotice(job: recategorizationJob, isArchived: archived)
                 }
 
                 if archived {
@@ -325,7 +336,7 @@ struct CategoryDetailView: View {
             async let categoriesResp = NotesService.shared.fetchCategories()
             async let countsResp = NotesService.shared.fetchCounts()
             let (categories, counts) = try await (categoriesResp, countsResp)
-            let currentCategoryNames = Set(categories.categories.map(\.name))
+            let countsByCategoryID = CategoryCountStore.countsByCategoryID(from: counts)
 
             guard let match = categories.categories.first(where: { $0.categoryId == categoryId }) else {
                 loadError = "Category no longer exists."
@@ -334,10 +345,9 @@ struct CategoryDetailView: View {
             }
             let item = CategoryListItem.make(
                 from: match,
-                noteCount: CategoryCountStore.resolvedNoteCount(
-                    for: match,
-                    countsByName: counts.categories,
-                    currentCategoryNames: currentCategoryNames
+                noteCount: CategoryCountStore.noteCount(
+                    for: match.categoryId,
+                    countsByCategoryID: countsByCategoryID
                 )
             )
             original = item
@@ -386,9 +396,6 @@ struct CategoryDetailView: View {
         saveError = nil
         do {
             _ = try await NotesService.shared.updateCategory(id: categoryId, update: update)
-            if update.categoryName != nil {
-                CategoryCountStore.recordRename(from: original.name, for: categoryId)
-            }
             didChange = true
             await load()
             isSaving = false
@@ -485,5 +492,105 @@ private struct ArchivedNotice: View {
         .padding(Theme.spacingMD)
         .background(Theme.surface2)
         .cornerRadius(Theme.cornerRadiusSM)
+    }
+}
+
+private struct CategoryRecategorizationNotice: View {
+    let job: CategoryRecategorizationTracker.Job
+    let isArchived: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Theme.spacingSM) {
+            Image(systemName: iconName)
+                .foregroundColor(iconColor)
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: Theme.spacingXS) {
+                Text(title)
+                    .font(.system(size: Theme.fontSizeSM, weight: .semibold))
+                    .foregroundColor(Theme.textPrimary)
+
+                Text(message)
+                    .font(.system(size: Theme.fontSizeSM))
+                    .foregroundColor(Theme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+        }
+        .padding(Theme.spacingMD)
+        .background(backgroundColor)
+        .cornerRadius(Theme.cornerRadiusSM)
+    }
+
+    private var title: String {
+        switch job.status {
+        case .pending:
+            return "Re-categorization queued"
+        case .running:
+            return "Re-categorizing past notes"
+        case .failed:
+            return "Re-categorization failed"
+        case .done:
+            return "Re-categorization complete"
+        }
+    }
+
+    private var message: String {
+        switch job.status {
+        case .pending:
+            if isArchived {
+                return "This category is archived, and its past notes are queued to be re-sorted. They may still appear here until the job starts."
+            }
+            return "Past notes in this category are queued to be re-sorted against the updated definition. They may still appear here until the job starts."
+        case .running:
+            if job.total > 0 {
+                if isArchived {
+                    return "\(job.processed) of \(job.total) notes checked so far, with \(job.moved) moved. Notes may remain here until this finishes."
+                }
+                return "\(job.processed) of \(job.total) notes checked so far, with \(job.moved) moved. Notes may stay here or move elsewhere until this finishes."
+            }
+            return isArchived
+                ? "Past notes are being re-sorted now. Notes may remain here until this finishes."
+                : "Past notes are being re-sorted now. Notes may stay here or move elsewhere until this finishes."
+        case .failed:
+            if let errorMessage = job.errorMessage, !errorMessage.isEmpty {
+                return "The re-categorization job failed: \(errorMessage)"
+            }
+            return "The re-categorization job failed before the notes finished moving."
+        case .done:
+            return "Past notes have finished re-categorizing."
+        }
+    }
+
+    private var iconName: String {
+        switch job.status {
+        case .failed:
+            return "exclamationmark.triangle.fill"
+        case .pending, .running, .done:
+            return "arrow.triangle.2.circlepath"
+        }
+    }
+
+    private var iconColor: Color {
+        switch job.status {
+        case .failed:
+            return .red
+        case .pending, .running:
+            return Theme.warning
+        case .done:
+            return Theme.success
+        }
+    }
+
+    private var backgroundColor: Color {
+        switch job.status {
+        case .failed:
+            return Color.red.opacity(0.08)
+        case .pending, .running:
+            return Theme.warning.opacity(0.12)
+        case .done:
+            return Theme.success.opacity(0.12)
+        }
     }
 }

@@ -2,10 +2,6 @@ import SwiftUI
 
 /// Amber banner shown during the 24h re-categorize window after a user edits
 /// a category and asks the AI to re-run on past notes.
-///
-/// Driven by `ReCategorizingStatus`, which is currently a placeholder; the
-/// backend doesn't expose a "currently re-categorizing" signal yet, so the
-/// banner stays hidden in production until that lands.
 struct ReCategorizingBanner: View {
     let categoryName: String
     let affectedCount: Int?
@@ -57,17 +53,6 @@ struct ReCategorizingBanner: View {
         }
         return "Sorting past notes. Up to 24h. Notes affected show a badge until done."
     }
-}
-
-/// Placeholder status driver for the banner. Wire to a real source (poll the
-/// re-categorize endpoint, push notification, websocket, etc.) once available.
-struct ReCategorizingStatus {
-    let categoryName: String
-    let affectedCount: Int?
-
-    /// Returns nil today — the backend doesn't expose this signal yet. Until
-    /// it does, BrowseView reads this as "not re-categorizing".
-    static var current: ReCategorizingStatus? { nil }
 }
 
 #Preview {

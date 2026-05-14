@@ -3,22 +3,40 @@ import SwiftUI
 // The actual list of notes. Displays note previews in a scrollable list, handles pagination, handles search within the filtered set. Tapping a note navigates to NoteDetailView.
 
 struct NotesListView: View {
+    @EnvironmentObject private var recategorizationTracker: CategoryRecategorizationTracker
+
     private let title: String
+    private let categoryIsArchived: Bool
+    private let categoryNoteCount: Int?
     @StateObject private var viewModel: NotesListViewModel
     @State private var searchText: String = ""
     @State private var searchTask: Task<Void, Never>?
     @State private var showAddSubCategory: Bool = false
     @State private var noteToDelete: NotePreview?
     @State private var showDeleteConfirmation: Bool = false
+    @State private var actionErrorMessage: String?
+    @State private var isStartingRecategorize: Bool = false
 
-    init(title: String, filter: NotesListViewModel.Filter) {
+    init(
+        title: String,
+        filter: NotesListViewModel.Filter,
+        categoryIsArchived: Bool = false,
+        categoryNoteCount: Int? = nil
+    ) {
         self.title = title
+        self.categoryIsArchived = categoryIsArchived
+        self.categoryNoteCount = categoryNoteCount
         _viewModel = StateObject(wrappedValue: NotesListViewModel(filter: filter))
     }
 
     /// Whether this view is showing a category (and should display subcategory UI)
     private var isCategoryFilter: Bool {
         viewModel.categoryName != nil
+    }
+
+    private var isArchivedCategoryRecategorizing: Bool {
+        guard categoryIsArchived, let categoryId = viewModel.categoryId else { return false }
+        return isStartingRecategorize || recategorizationTracker.isRecategorizing(categoryId: categoryId)
     }
     
     var body: some View {
@@ -56,16 +74,29 @@ struct NotesListView: View {
                         // Sub-category filter section (only for category views)
                         if isCategoryFilter {
                             Section {
-                                SubCategoryFilterRow(
-                                    availableSubCategories: viewModel.availableSubCategories,
-                                    selectedSubCategory: $viewModel.selectedSubCategory,
-                                    onFilterChange: {
-                                        Task { await viewModel.refresh() }
-                                    },
-                                    onAddTapped: {
-                                        showAddSubCategory = true
+                                VStack(alignment: .leading, spacing: Theme.spacingSM) {
+                                    SubCategoryFilterRow(
+                                        availableSubCategories: viewModel.availableSubCategories,
+                                        selectedSubCategory: $viewModel.selectedSubCategory,
+                                        isArchivedCategory: categoryIsArchived,
+                                        isRecategorizingArchivedCategory: isArchivedCategoryRecategorizing,
+                                        onFilterChange: {
+                                            Task { await viewModel.refresh() }
+                                        },
+                                        onAddTapped: {
+                                            showAddSubCategory = true
+                                        },
+                                        onRecategorizeTapped: {
+                                            Task { await startRecategorizingArchivedCategory() }
+                                        }
+                                    )
+
+                                    if let actionErrorMessage {
+                                        Text(actionErrorMessage)
+                                            .font(.system(size: Theme.fontSizeSM))
+                                            .foregroundColor(.red)
                                     }
-                                )
+                                }
                             }
                             .listRowBackground(Theme.surface)
                             .listRowInsets(EdgeInsets(top: Theme.spacingSM, leading: Theme.spacingMD, bottom: Theme.spacingSM, trailing: Theme.spacingSM))
@@ -119,6 +150,11 @@ struct NotesListView: View {
                 await viewModel.refresh()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .categoryRecategorizationDidFinish)) { notification in
+            guard let updatedCategoryId = notification.userInfo?["categoryId"] as? Int,
+                  updatedCategoryId == viewModel.categoryId else { return }
+            Task { await viewModel.refresh() }
+        }
         .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search notes")
         .onChange(of: searchText) { _, newValue in
             // Cancel previous debounce task
@@ -154,6 +190,31 @@ struct NotesListView: View {
             }
         }
     }
+
+    private func startRecategorizingArchivedCategory() async {
+        guard categoryIsArchived else { return }
+        guard let categoryId = viewModel.categoryId, let categoryName = viewModel.categoryName else { return }
+        guard !isArchivedCategoryRecategorizing else { return }
+
+        actionErrorMessage = nil
+        isStartingRecategorize = true
+        defer { isStartingRecategorize = false }
+
+        do {
+            let response = try await NotesService.shared.startRecategorize(
+                scope: .category,
+                categoryId: categoryId
+            )
+            recategorizationTracker.startTracking(
+                jobId: response.jobId,
+                categoryId: categoryId,
+                categoryName: categoryName,
+                noteCount: categoryNoteCount
+            )
+        } catch {
+            actionErrorMessage = error.localizedDescription
+        }
+    }
 }
 
 // MARK: - Sub-Category Filter Row
@@ -161,12 +222,22 @@ struct NotesListView: View {
 private struct SubCategoryFilterRow: View {
     let availableSubCategories: [String]
     @Binding var selectedSubCategory: String?
+    let isArchivedCategory: Bool
+    let isRecategorizingArchivedCategory: Bool
     let onFilterChange: () -> Void
     let onAddTapped: () -> Void
+    let onRecategorizeTapped: () -> Void
 
     @State private var showInfoPopover: Bool = false
+    @State private var showRecategorizeConfirmation: Bool = false
 
-    private let infoText = "Add sub-categories within categories. Each note in the category will be checked to see if it matches the sub-category description, and added automatically to the sub-category if there's a strong match. Each note can be assigned to up to 3 sub-categories."
+    private var infoText: String {
+        if isArchivedCategory {
+            return "This category is archived, so you can't add new sub-categories here. You can still filter by the existing ones or re-categorize the archived notes into active categories."
+        }
+
+        return "Add sub-categories within categories. Each note in the category will be checked to see if it matches the sub-category description, and added automatically to the sub-category if there's a strong match. Each note can be assigned to up to 3 sub-categories."
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.spacingSM) {
@@ -194,21 +265,55 @@ private struct SubCategoryFilterRow: View {
                         )
                     }
 
-                    // Add sub-category pill
-                    Button(action: onAddTapped) {
-                        HStack(spacing: Theme.spacingXS) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 10, weight: .semibold))
-                            Text("Add")
-                                .font(.system(size: Theme.fontSizeXS))
+                    if isArchivedCategory {
+                        if isRecategorizingArchivedCategory {
+                            Text("Currently recategorizing past notes into new categories.")
+                                .font(.system(size: Theme.fontSizeXS, weight: .medium))
+                                .foregroundColor(Theme.textSecondary)
+                                .padding(.horizontal, Theme.spacingSMPlus)
+                                .padding(.vertical, Theme.spacingSM)
+                                .background(Theme.surface2)
+                                .clipShape(Capsule())
+                        } else {
+                            Button(action: { showRecategorizeConfirmation = true }) {
+                                HStack(spacing: Theme.spacingXS) {
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                        .font(.system(size: 10, weight: .semibold))
+                                    Text("Recategorize all notes in this category")
+                                        .font(.system(size: Theme.fontSizeXS))
+                                }
+                                .foregroundColor(Theme.accent)
+                                .padding(.horizontal, Theme.spacingSMPlus)
+                                .padding(.vertical, Theme.spacingSM)
+                                .background(Theme.accent.opacity(0.1))
+                                .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                            .alert("Re-categorize all notes in this category?", isPresented: $showRecategorizeConfirmation) {
+                                Button("Cancel", role: .cancel) {}
+                                Button("Re-categorize") {
+                                    onRecategorizeTapped()
+                                }
+                            } message: {
+                                Text("Are you sure? Past notes in this archived category may move into different active categories.")
+                            }
                         }
-                        .foregroundColor(Theme.accent)
-                        .padding(.horizontal, Theme.spacingSMPlus)
-                        .padding(.vertical, Theme.spacingSM)
-                        .background(Theme.accent.opacity(0.1))
-                        .clipShape(Capsule())
+                    } else {
+                        Button(action: onAddTapped) {
+                            HStack(spacing: Theme.spacingXS) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 10, weight: .semibold))
+                                Text("Add")
+                                    .font(.system(size: Theme.fontSizeXS))
+                            }
+                            .foregroundColor(Theme.accent)
+                            .padding(.horizontal, Theme.spacingSMPlus)
+                            .padding(.vertical, Theme.spacingSM)
+                            .background(Theme.accent.opacity(0.1))
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
 
                     // Info button
                     Button(action: { showInfoPopover = true }) {
@@ -346,6 +451,6 @@ private struct NoteListRowView: View {
 
 #Preview {
     NavigationStack {
-        NotesListView(title: "Work", filter: .category(name: "Work"))
+        NotesListView(title: "Work", filter: .category(id: 42, name: "Work"))
     }
 }

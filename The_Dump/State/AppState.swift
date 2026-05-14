@@ -39,6 +39,8 @@ class AppState: ObservableObject {
                 // Load subscription status when user signs in
                 if user != nil {
                     await self?.subscriptionViewModel.loadStatus()
+                } else {
+                    CategoryRecategorizationTracker.shared.clear()
                 }
                 // Share token with extension via App Groups
                 await self?.syncTokenToSharedStorage(user: user)
@@ -96,9 +98,9 @@ class AppState: ObservableObject {
             let counts = try await NotesService.shared.fetchCounts()
 
             // If user has any categories on server, they've completed onboarding
-            if !counts.categories.isEmpty {
+            if counts.hasAnyCategories {
 #if DEBUG
-                print("[AppState] Found \(counts.categories.count) categories on server - skipping onboarding")
+                print("[AppState] Found \(counts.categoryBucketCount) categories on server - skipping onboarding")
 #endif
                 UserDefaults.standard.set(true, forKey: "onboarding_completed_\(userId)")
                 hasCompletedOnboarding = true

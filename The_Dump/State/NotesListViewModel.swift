@@ -5,7 +5,7 @@ import Combine
 final class NotesListViewModel: ObservableObject {
     enum Filter: Equatable {
         case all
-        case category(name: String)
+        case category(id: Int, name: String)
         case mimeType(String)
         case dateGroup(name: String, startTime: String, endTime: String)
         case recent(limit: Int)
@@ -25,10 +25,17 @@ final class NotesListViewModel: ObservableObject {
     private var nextCursorId: String?
     private var nextOffset: Int = 0
 
-    /// Returns the category name if this filter is a category filter
+    /// Returns the category display name if this filter is a category filter.
     var categoryName: String? {
-        if case .category(let name) = filter {
+        if case .category(_, let name) = filter {
             return name
+        }
+        return nil
+    }
+
+    var categoryId: Int? {
+        if case .category(let id, _) = filter {
+            return id
         }
         return nil
     }
@@ -168,12 +175,12 @@ final class NotesListViewModel: ObservableObject {
                 q: q,
                 offset: off
             )
-        case .category(let name):
+        case .category(let id, _):
             return try await NotesService.shared.fetchNotes(
                 limit: limit,
                 cursorTime: ct,
                 cursorId: ci,
-                categoryName: name,
+                categoryId: id,
                 subCatName: selectedSubCategory,
                 q: q,
                 offset: off

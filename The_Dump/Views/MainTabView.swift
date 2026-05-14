@@ -20,4 +20,5 @@ struct MainTabView: View {
 #Preview {
     MainTabView()
         .environmentObject(AppState())
+        .environmentObject(CategoryRecategorizationTracker.shared)
 }

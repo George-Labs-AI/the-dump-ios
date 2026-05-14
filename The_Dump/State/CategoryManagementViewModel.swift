@@ -27,16 +27,14 @@ final class CategoryManagementViewModel: ObservableObject {
             async let noteCounts = NotesService.shared.fetchCounts()
 
             let (categoriesResponse, countsResponse) = try await (userCategories, noteCounts)
-            let countsByName = countsResponse.categories
-            let currentCategoryNames = Set(categoriesResponse.categories.map(\.name))
+            let countsByCategoryID = CategoryCountStore.countsByCategoryID(from: countsResponse)
 
             let allItems = categoriesResponse.categories.map { resp in
                 CategoryListItem.make(
                     from: resp,
-                    noteCount: CategoryCountStore.resolvedNoteCount(
-                        for: resp,
-                        countsByName: countsByName,
-                        currentCategoryNames: currentCategoryNames
+                    noteCount: CategoryCountStore.noteCount(
+                        for: resp.categoryId,
+                        countsByCategoryID: countsByCategoryID
                     )
                 )
             }

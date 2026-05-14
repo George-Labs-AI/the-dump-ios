@@ -36,6 +36,7 @@ enum AppAppearance: String, CaseIterable {
 struct TheDumpApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var appState = AppState()
+    @StateObject private var recategorizationTracker = CategoryRecategorizationTracker.shared
     @AppStorage("appearance") private var appearance: AppAppearance = .system
     @Environment(\.scenePhase) private var scenePhase
 
@@ -43,14 +44,18 @@ struct TheDumpApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(appState)
+                .environmentObject(recategorizationTracker)
                 .preferredColorScheme(appearance.colorScheme)
                 .task {
+                    recategorizationTracker.bootstrap()
+                    recategorizationTracker.setPollingEnabled(scenePhase == .active)
                     // Start listening for StoreKit transaction updates (renewals, revocations)
                     StoreKitService.shared.listenForTransactions { transaction, jwsRepresentation in
                         await appState.subscriptionViewModel.handleTransactionUpdate(transaction, jwsRepresentation: jwsRepresentation)
                     }
                 }
                 .onChange(of: scenePhase) { _, newPhase in
+                    recategorizationTracker.setPollingEnabled(newPhase == .active)
                     if newPhase == .background {
                         // Refresh the shared token so the share extension has a fresh one
                         Task {
