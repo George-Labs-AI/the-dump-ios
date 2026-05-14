@@ -325,6 +325,7 @@ struct CategoryDetailView: View {
             async let categoriesResp = NotesService.shared.fetchCategories()
             async let countsResp = NotesService.shared.fetchCounts()
             let (categories, counts) = try await (categoriesResp, countsResp)
+            let currentCategoryNames = Set(categories.categories.map(\.name))
 
             guard let match = categories.categories.first(where: { $0.categoryId == categoryId }) else {
                 loadError = "Category no longer exists."
@@ -333,7 +334,11 @@ struct CategoryDetailView: View {
             }
             let item = CategoryListItem.make(
                 from: match,
-                noteCount: counts.categories[match.name] ?? 0
+                noteCount: CategoryCountStore.resolvedNoteCount(
+                    for: match,
+                    countsByName: counts.categories,
+                    currentCategoryNames: currentCategoryNames
+                )
             )
             original = item
             reservedNames = categories.categories
@@ -381,6 +386,9 @@ struct CategoryDetailView: View {
         saveError = nil
         do {
             _ = try await NotesService.shared.updateCategory(id: categoryId, update: update)
+            if update.categoryName != nil {
+                CategoryCountStore.recordRename(from: original.name, for: categoryId)
+            }
             didChange = true
             await load()
             isSaving = false

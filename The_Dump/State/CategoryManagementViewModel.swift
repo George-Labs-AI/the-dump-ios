@@ -28,11 +28,16 @@ final class CategoryManagementViewModel: ObservableObject {
 
             let (categoriesResponse, countsResponse) = try await (userCategories, noteCounts)
             let countsByName = countsResponse.categories
+            let currentCategoryNames = Set(categoriesResponse.categories.map(\.name))
 
             let allItems = categoriesResponse.categories.map { resp in
                 CategoryListItem.make(
                     from: resp,
-                    noteCount: countsByName[resp.name] ?? 0
+                    noteCount: CategoryCountStore.resolvedNoteCount(
+                        for: resp,
+                        countsByName: countsByName,
+                        currentCategoryNames: currentCategoryNames
+                    )
                 )
             }
 
