@@ -127,6 +127,87 @@ struct CategoryListItem: Identifiable, Equatable, Hashable {
     }
 }
 
+/// Resolves category note counts across renames.
+///
+/// `/api/categories` is keyed by stable category IDs, while `/api/note_counts`
+/// is keyed by category names. After a rename, the counts payload can lag
+/// behind and still report the previous name. Keep a lightweight local alias
+/// list per category ID so the settings flows don't drop counts to zero.
+enum CategoryCountStore {
+    private static let aliasesKey = "categoryCountAliases.v1"
+    private static let cachedCountsKey = "categoryNoteCounts.v1"
+
+    static func resolvedNoteCount(
+        for response: CategoryResponse,
+        countsByName: [String: Int],
+        currentCategoryNames: Set<String>
+    ) -> Int {
+        let normalizedCurrentNames = Set(currentCategoryNames.map(normalize))
+        let normalizedCounts = countsByName.reduce(into: [String: Int]()) { partial, entry in
+            partial[normalize(entry.key), default: 0] += entry.value
+        }
+
+        var namesToCheck = [response.name]
+        namesToCheck.append(contentsOf: aliases(for: response.categoryId).filter { alias in
+            let normalizedAlias = normalize(alias)
+            return normalizedAlias != normalize(response.name)
+                && !normalizedCurrentNames.contains(normalizedAlias)
+        })
+
+        var seen = Set<String>()
+        let total = namesToCheck.reduce(into: 0) { partial, name in
+            let normalizedName = normalize(name)
+            guard !normalizedName.isEmpty else { return }
+            guard seen.insert(normalizedName).inserted else { return }
+            partial += normalizedCounts[normalizedName] ?? 0
+        }
+
+        if total > 0 {
+            setCachedCount(total, for: response.categoryId)
+            return total
+        }
+
+        return cachedCount(for: response.categoryId)
+    }
+
+    static func recordRename(from previousName: String, for categoryId: Int) {
+        let normalizedPreviousName = normalize(previousName)
+        guard !normalizedPreviousName.isEmpty else { return }
+
+        var dict = aliasesDictionary()
+        let key = String(categoryId)
+        var aliases = dict[key] ?? []
+        if !aliases.contains(where: { normalize($0) == normalizedPreviousName }) {
+            aliases.append(previousName.trimmingCharacters(in: .whitespacesAndNewlines))
+            dict[key] = aliases
+            UserDefaults.standard.set(dict, forKey: aliasesKey)
+        }
+    }
+
+    private static func aliases(for categoryId: Int) -> [String] {
+        aliasesDictionary()[String(categoryId)] ?? []
+    }
+
+    private static func aliasesDictionary() -> [String: [String]] {
+        UserDefaults.standard.dictionary(forKey: aliasesKey) as? [String: [String]] ?? [:]
+    }
+
+    private static func cachedCount(for categoryId: Int) -> Int {
+        let dict = UserDefaults.standard.dictionary(forKey: cachedCountsKey) as? [String: Int] ?? [:]
+        return dict[String(categoryId)] ?? 0
+    }
+
+    private static func setCachedCount(_ count: Int, for categoryId: Int) {
+        var dict = UserDefaults.standard.dictionary(forKey: cachedCountsKey) as? [String: Int] ?? [:]
+        dict[String(categoryId)] = count
+        UserDefaults.standard.set(dict, forKey: cachedCountsKey)
+    }
+
+    private static func normalize(_ name: String) -> String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+}
+
 // MARK: - Emoji storage (local-only until backend adds an `emoji` field)
 
 enum CategoryEmojiStore {
