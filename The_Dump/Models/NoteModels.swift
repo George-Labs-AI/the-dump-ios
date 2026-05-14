@@ -212,6 +212,23 @@ struct UpdatedCategoryResponse: Codable {
     let category: UpdatedCategory
 }
 
+// MARK: - Category Archive (POST /api/categories/{id}/archive)
+
+struct ArchiveCategoryResponse: Decodable {
+    let status: String
+    let categoryId: Int
+    let archivedSubcategoryCount: Int
+    /// Only present when archiving an already-archived category (idempotent no-op).
+    let alreadyArchived: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case categoryId = "category_id"
+        case archivedSubcategoryCount = "archived_subcategory_count"
+        case alreadyArchived = "already_archived"
+    }
+}
+
 struct FetchCategoriesResponse: Codable {
     let categories: [CategoryResponse]
 }

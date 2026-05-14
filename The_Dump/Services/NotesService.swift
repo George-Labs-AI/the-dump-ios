@@ -580,11 +580,48 @@ class NotesService {
         }
     }
 
-    // Archive / restore a category. Stubbed — backend support pending.
-    func archiveCategory(categoryId: Int) async throws {
-        throw APIError.httpError(statusCode: 501, message: "Archive endpoint not implemented yet")
+    // Soft-delete (archive) a category. Cascades to its active subcategories.
+    // Idempotent — archiving an already-archived category is a safe no-op that
+    // returns `alreadyArchived == true` rather than an error.
+    @discardableResult
+    func archiveCategory(categoryId: Int) async throws -> ArchiveCategoryResponse {
+        let request = try await createRequest(
+            endpoint: "/api/categories/\(categoryId)/archive",
+            method: "POST"
+        )
+
+        do {
+#if DEBUG
+            debugLogRequest(request, label: "archive_category")
+#endif
+            let (data, response) = try await URLSession.shared.data(for: request)
+#if DEBUG
+            debugLogResponse(data: data, response: response, label: "archive_category")
+#endif
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.networkError(underlying: URLError(.badServerResponse))
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+                throw APIError.from(statusCode: httpResponse.statusCode, errorResponse: errorResponse)
+            }
+
+            return try JSONDecoder().decode(ArchiveCategoryResponse.self, from: data)
+        } catch let error as APIError {
+            throw error
+        } catch let error as DecodingError {
+#if DEBUG
+            print("[NotesService][archive_category] Decoding error: \(error)")
+#endif
+            throw APIError.decodingFailed(underlying: error)
+        } catch {
+            throw APIError.networkError(underlying: error)
+        }
     }
 
+    // Restore an archived category. Stubbed — backend support pending.
     func restoreCategory(categoryId: Int) async throws {
         throw APIError.httpError(statusCode: 501, message: "Restore endpoint not implemented yet")
     }
