@@ -74,6 +74,7 @@ final class NoteDetailViewModel: ObservableObject {
                 title: updated.title ?? trimmedTitle,
                 note_content: updated.note_content ?? content,
                 note_content_modified: updated.note_content_modified ?? currentNote.note_content_modified,
+                category_id: updated.category_id ?? currentNote.category_id,
                 category_name: updated.category_name ?? currentNote.category_name,
                 sub_cat_names: updated.sub_cat_names ?? currentNote.sub_cat_names,
                 tags: currentNote.tags,

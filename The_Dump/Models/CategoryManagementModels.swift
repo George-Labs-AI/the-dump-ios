@@ -44,7 +44,7 @@ struct StartRecategorizeResponse: Decodable {
     }
 }
 
-enum RecategorizeStatusValue: String, Decodable {
+enum RecategorizeStatusValue: String, Codable {
     case pending
     case running
     case done
@@ -127,84 +127,24 @@ struct CategoryListItem: Identifiable, Equatable, Hashable {
     }
 }
 
-/// Resolves category note counts across renames.
+/// Resolves category note counts strictly by category ID.
 ///
-/// `/api/categories` is keyed by stable category IDs, while `/api/note_counts`
-/// is keyed by category names. After a rename, the counts payload can lag
-/// behind and still report the previous name. Keep a lightweight local alias
-/// list per category ID so the settings flows don't drop counts to zero.
+/// The iOS client should treat `category_id` from `/api/note_counts` as the
+/// sole source of truth for per-category counts. If the backend omits
+/// `category_details` or a row's `category_id`, the client intentionally does
+/// not fall back to category names.
 enum CategoryCountStore {
-    private static let aliasesKey = "categoryCountAliases.v1"
-    private static let cachedCountsKey = "categoryNoteCounts.v1"
+    static func countsByCategoryID(from response: NoteCountsResponse) -> [Int: Int] {
+        guard let details = response.categoryDetails else { return [:] }
 
-    static func resolvedNoteCount(
-        for response: CategoryResponse,
-        countsByName: [String: Int],
-        currentCategoryNames: Set<String>
-    ) -> Int {
-        let normalizedCurrentNames = Set(currentCategoryNames.map(normalize))
-        let normalizedCounts = countsByName.reduce(into: [String: Int]()) { partial, entry in
-            partial[normalize(entry.key), default: 0] += entry.value
-        }
-
-        var namesToCheck = [response.name]
-        namesToCheck.append(contentsOf: aliases(for: response.categoryId).filter { alias in
-            let normalizedAlias = normalize(alias)
-            return normalizedAlias != normalize(response.name)
-                && !normalizedCurrentNames.contains(normalizedAlias)
-        })
-
-        var seen = Set<String>()
-        let total = namesToCheck.reduce(into: 0) { partial, name in
-            let normalizedName = normalize(name)
-            guard !normalizedName.isEmpty else { return }
-            guard seen.insert(normalizedName).inserted else { return }
-            partial += normalizedCounts[normalizedName] ?? 0
-        }
-
-        if total > 0 {
-            setCachedCount(total, for: response.categoryId)
-            return total
-        }
-
-        return cachedCount(for: response.categoryId)
-    }
-
-    static func recordRename(from previousName: String, for categoryId: Int) {
-        let normalizedPreviousName = normalize(previousName)
-        guard !normalizedPreviousName.isEmpty else { return }
-
-        var dict = aliasesDictionary()
-        let key = String(categoryId)
-        var aliases = dict[key] ?? []
-        if !aliases.contains(where: { normalize($0) == normalizedPreviousName }) {
-            aliases.append(previousName.trimmingCharacters(in: .whitespacesAndNewlines))
-            dict[key] = aliases
-            UserDefaults.standard.set(dict, forKey: aliasesKey)
+        return details.reduce(into: [Int: Int]()) { partial, detail in
+            guard let categoryID = detail.categoryID else { return }
+            partial[categoryID, default: 0] += max(0, detail.count)
         }
     }
 
-    private static func aliases(for categoryId: Int) -> [String] {
-        aliasesDictionary()[String(categoryId)] ?? []
-    }
-
-    private static func aliasesDictionary() -> [String: [String]] {
-        UserDefaults.standard.dictionary(forKey: aliasesKey) as? [String: [String]] ?? [:]
-    }
-
-    private static func cachedCount(for categoryId: Int) -> Int {
-        let dict = UserDefaults.standard.dictionary(forKey: cachedCountsKey) as? [String: Int] ?? [:]
-        return dict[String(categoryId)] ?? 0
-    }
-
-    private static func setCachedCount(_ count: Int, for categoryId: Int) {
-        var dict = UserDefaults.standard.dictionary(forKey: cachedCountsKey) as? [String: Int] ?? [:]
-        dict[String(categoryId)] = count
-        UserDefaults.standard.set(dict, forKey: cachedCountsKey)
-    }
-
-    private static func normalize(_ name: String) -> String {
-        name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    static func noteCount(for categoryId: Int, countsByCategoryID: [Int: Int]) -> Int {
+        countsByCategoryID[categoryId] ?? 0
     }
 }
 

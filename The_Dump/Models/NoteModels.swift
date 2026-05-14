@@ -3,12 +3,60 @@ import Foundation
 // MARK: - API Responses
 
 // Matches the response from GET /api/note_counts
-struct NoteCountsResponse: Codable {
-    let categories: [String: Int]
-    let sub_categories: [String: Int]
-    let note_types: [String: Int]
-    let mime_types: [String: Int]
-    let date_groups: [String: Int]
+struct NoteCountsResponse: Decodable {
+    let categories: [String: Int]?
+    let categoryDetails: [CategoryDetail]?
+    let sub_categories: [String: Int]?
+    let note_types: [String: Int]?
+    let mime_types: [String: Int]?
+    let date_groups: [String: Int]?
+
+    enum CodingKeys: String, CodingKey {
+        case categories
+        case categoryDetails = "category_details"
+        case sub_categories
+        case note_types
+        case mime_types
+        case date_groups
+    }
+
+    var categoryCounts: [String: Int] { categories ?? [:] }
+    var subCategoryCounts: [String: Int] { sub_categories ?? [:] }
+    var noteTypeCounts: [String: Int] { note_types ?? [:] }
+    var mimeTypeCounts: [String: Int] { mime_types ?? [:] }
+    var dateGroupCounts: [String: Int] { date_groups ?? [:] }
+
+    var hasAnyCategories: Bool {
+        if let categoryDetails {
+            return !categoryDetails.isEmpty
+        }
+        return !categoryCounts.isEmpty
+    }
+
+    var categoryBucketCount: Int {
+        categoryDetails?.count ?? categoryCounts.count
+    }
+}
+
+struct CategoryDetail: Decodable, Identifiable {
+    let categoryID: Int?
+    let categoryName: String
+    let count: Int
+    let isRetired: Bool
+
+    var id: String {
+        if let categoryID {
+            return "category-\(categoryID)"
+        }
+        return categoryName
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case categoryID = "category_id"
+        case categoryName = "category_name"
+        case count
+        case isRetired = "is_retired"
+    }
 }
 
 // Matches the response from GET /pull_notes
@@ -34,6 +82,7 @@ struct NotePreview: Identifiable, Codable {
     let title: String?
     let preview: String
     let note_content_modified: String
+    let category_id: Int?
     let category_name: String?
     let note_type: String?
     let mime_type: String?
@@ -49,6 +98,7 @@ struct NoteDetail: Identifiable, Codable {
     let title: String?
     let note_content: String
     let note_content_modified: String
+    let category_id: Int?
     let category_name: String?
     let sub_cat_names: [String]?
     let tags: [String]?
@@ -64,7 +114,7 @@ struct EditNoteRequest: Codable {
     let noteId: String
     var entries: String?
     var title: String?
-    var category: String?
+    var categoryId: Int?
     var subCategories: [String]?
     var type: String?
     var tags: [String]?
@@ -73,7 +123,7 @@ struct EditNoteRequest: Codable {
         case noteId = "note_id"
         case entries
         case title
-        case category
+        case categoryId = "category_id"
         case subCategories = "sub_categories"
         case type
         case tags
@@ -91,6 +141,7 @@ struct EditNoteResponseNote: Codable, Identifiable {
     let title: String?
     let note_content: String?
     let note_content_modified: String?
+    let category_id: Int?
     let category_name: String?
     let sub_cat_names: [String]?
     let note_type: String?

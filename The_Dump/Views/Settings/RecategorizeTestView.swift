@@ -275,17 +275,15 @@ final class RecategorizeTestViewModel: ObservableObject {
             async let cats = NotesService.shared.fetchCategories()
             async let counts = NotesService.shared.fetchCounts()
             let (categoriesResponse, countsResponse) = try await (cats, counts)
-            let countsByName = countsResponse.categories
-            let currentCategoryNames = Set(categoriesResponse.categories.map(\.name))
+            let countsByCategoryID = CategoryCountStore.countsByCategoryID(from: countsResponse)
 
             categories = categoriesResponse.categories
                 .map {
                     CategoryListItem.make(
                         from: $0,
-                        noteCount: CategoryCountStore.resolvedNoteCount(
-                            for: $0,
-                            countsByName: countsByName,
-                            currentCategoryNames: currentCategoryNames
+                        noteCount: CategoryCountStore.noteCount(
+                            for: $0.categoryId,
+                            countsByCategoryID: countsByCategoryID
                         )
                     )
                 }

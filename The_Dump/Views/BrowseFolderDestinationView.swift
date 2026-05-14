@@ -20,27 +20,49 @@ struct BrowseFolderDestinationView: View {
     let kind: Kind
     let name: String
     let count: Int
-    
-    var body: some View {
-        NotesListView(title: name, filter: notesFilter)
+    let categoryId: Int?
+    let isArchivedCategory: Bool
+
+    init(
+        kind: Kind,
+        name: String,
+        count: Int,
+        categoryId: Int?,
+        isArchivedCategory: Bool = false
+    ) {
+        self.kind = kind
+        self.name = name
+        self.count = count
+        self.categoryId = categoryId
+        self.isArchivedCategory = isArchivedCategory
     }
     
-    private var notesFilter: NotesListViewModel.Filter {
+    @ViewBuilder
+    var body: some View {
         switch kind {
         case .category:
-            return .category(name: name)
+            if let categoryId {
+                NotesListView(
+                    title: name,
+                    filter: .category(id: categoryId, name: name),
+                    categoryIsArchived: isArchivedCategory,
+                    categoryNoteCount: count
+                )
+            } else {
+                Text("Category unavailable.")
+            }
         case .mimeType:
-            return .mimeType(name)
+            NotesListView(title: name, filter: .mimeType(name))
         case .dateGroup:
             let (start, end) = DateGroupRangeBuilder.range(for: name)
-            return .dateGroup(name: name, startTime: start, endTime: end)
+            NotesListView(title: name, filter: .dateGroup(name: name, startTime: start, endTime: end))
         }
     }
 }
 
 #Preview {
     NavigationStack {
-        BrowseFolderDestinationView(kind: .category, name: "Work", count: 12)
+        BrowseFolderDestinationView(kind: .category, name: "Work", count: 12, categoryId: 42)
     }
 }
 

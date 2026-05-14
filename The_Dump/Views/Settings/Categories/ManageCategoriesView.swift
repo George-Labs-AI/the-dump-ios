@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ManageCategoriesView: View {
+    @EnvironmentObject private var recategorizationTracker: CategoryRecategorizationTracker
     @StateObject private var viewModel = CategoryManagementViewModel()
     @AppStorage("manageCategoriesHelperDismissed") private var helperDismissed: Bool = false
     @State private var showNewCategory = false
@@ -26,6 +27,9 @@ struct ManageCategoriesView: View {
         .toolbarBackground(Theme.background, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .task { await viewModel.load() }
+        .onReceive(NotificationCenter.default.publisher(for: .categoryRecategorizationDidFinish)) { _ in
+            Task { await viewModel.load() }
+        }
         .sheet(isPresented: $showNewCategory, onDismiss: {
             Task { await viewModel.load() }
         }) {
@@ -160,6 +164,7 @@ struct ManageCategoriesView: View {
 // MARK: - Row
 
 private struct CategoryRow: View {
+    @EnvironmentObject private var recategorizationTracker: CategoryRecategorizationTracker
     let item: CategoryListItem
 
     var body: some View {
@@ -180,6 +185,9 @@ private struct CategoryRow: View {
                             .font(.system(size: 11))
                             .foregroundColor(Theme.textTertiary)
                     }
+                    if let recategorizeJob {
+                        CategoryRecategorizationPill(status: recategorizeJob.status)
+                    }
                 }
 
                 Text(subtitle)
@@ -197,6 +205,10 @@ private struct CategoryRow: View {
         .contentShape(Rectangle())
     }
 
+    private var recategorizeJob: CategoryRecategorizationTracker.Job? {
+        recategorizationTracker.job(for: item.id)
+    }
+
     private var subtitle: String {
         var parts: [String] = ["\(item.noteCount) \(item.noteCount == 1 ? "note" : "notes")"]
         if item.subCatCount > 0 {
@@ -205,7 +217,70 @@ private struct CategoryRow: View {
         if item.isLocked {
             parts.append("\(item.inProcessCount) processing")
         }
+        if let recategorizeJob {
+            switch recategorizeJob.status {
+            case .pending:
+                parts.append("queued for AI")
+            case .running:
+                if recategorizeJob.total > 0 {
+                    parts.append("\(recategorizeJob.processed)/\(recategorizeJob.total) checked")
+                } else {
+                    parts.append("AI re-sorting notes")
+                }
+            case .failed:
+                parts.append("AI re-sort failed")
+            case .done:
+                break
+            }
+        }
         return parts.joined(separator: " · ")
+    }
+}
+
+private struct CategoryRecategorizationPill: View {
+    let status: RecategorizeStatusValue
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundColor(foregroundColor)
+            .padding(.horizontal, Theme.spacingSM)
+            .padding(.vertical, 3)
+            .background(backgroundColor)
+            .clipShape(Capsule())
+    }
+
+    private var title: String {
+        switch status {
+        case .pending, .running:
+            return "Re-categorizing"
+        case .failed:
+            return "Failed"
+        case .done:
+            return "Done"
+        }
+    }
+
+    private var foregroundColor: Color {
+        switch status {
+        case .failed:
+            return .red
+        case .pending, .running:
+            return Theme.warning
+        case .done:
+            return Theme.success
+        }
+    }
+
+    private var backgroundColor: Color {
+        switch status {
+        case .failed:
+            return Color.red.opacity(0.12)
+        case .pending, .running:
+            return Theme.warning.opacity(0.14)
+        case .done:
+            return Theme.success.opacity(0.12)
+        }
     }
 }
 
@@ -337,4 +412,5 @@ private struct ErrorState: View {
     NavigationStack {
         ManageCategoriesView()
     }
+    .environmentObject(CategoryRecategorizationTracker.shared)
 }

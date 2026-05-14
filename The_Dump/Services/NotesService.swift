@@ -151,7 +151,7 @@ class NotesService {
         limit: Int = 30,
         cursorTime: String? = nil,
         cursorId: String? = nil,
-        categoryName: String? = nil,
+        categoryId: Int? = nil,
         mimeType: String? = nil,
         mimeGroup: String? = nil,
         subCatName: String? = nil,
@@ -177,7 +177,9 @@ class NotesService {
 
         addQueryItem("cursor_time", cursorTime)
         addQueryItem("cursor_id", cursorId)
-        addQueryItem("category_name", categoryName)
+        if let categoryId {
+            queryItems.append(URLQueryItem(name: "category_id", value: "\(categoryId)"))
+        }
         addQueryItem("mime_type", mimeType)
         addQueryItem("mime_group", mimeGroup)
         addQueryItem("sub_cat_name", subCatName)
@@ -277,13 +279,12 @@ class NotesService {
         noteId: String,
         entries: String? = nil,
         title: String? = nil,
-        category: String? = nil,
+        categoryId: Int? = nil,
         subCategories: [String]? = nil,
         type: String? = nil,
         tags: [String]? = nil
     ) async throws -> EditNoteResponseNote {
         let cleanedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cleanedCategory = category?.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanedType = type?.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanedSubCategories = subCategories?
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -299,7 +300,7 @@ class NotesService {
         let hasUpdate =
             entries != nil ||
             cleanedTitle != nil ||
-            cleanedCategory != nil ||
+            categoryId != nil ||
             cleanedSubCategories != nil ||
             cleanedType != nil ||
             cleanedTags != nil
@@ -316,7 +317,7 @@ class NotesService {
         var body = EditNoteRequest(noteId: noteId)
         body.entries = entries
         body.title = cleanedTitle
-        body.category = cleanedCategory
+        body.categoryId = categoryId
         body.subCategories = cleanedSubCategories
         body.type = cleanedType
         body.tags = cleanedTags
