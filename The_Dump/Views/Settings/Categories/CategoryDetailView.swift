@@ -33,7 +33,7 @@ struct CategoryDetailView: View {
 
     @FocusState private var focusedField: Field?
 
-    enum Field: Hashable {
+    private enum Field: Hashable {
         case emoji, name, definition, keywords
     }
 
@@ -150,7 +150,7 @@ struct CategoryDetailView: View {
 
                 // Emoji + name
                 HStack(alignment: .center, spacing: Theme.spacingMD) {
-                    EmojiInputField(emoji: $emoji, focus: $focusedField)
+                    emojiField
                         .disabled(readonly)
 
                     VStack(alignment: .leading, spacing: Theme.spacingXS) {
@@ -222,6 +222,30 @@ struct CategoryDetailView: View {
                 Spacer(minLength: Theme.spacingXL)
             }
             .padding(Theme.spacingLG)
+        }
+    }
+
+    private var emojiField: some View {
+        VStack(alignment: .leading, spacing: Theme.spacingXS) {
+            Text("Emoji")
+                .font(.system(size: Theme.fontSizeSM, weight: .medium))
+                .foregroundColor(Theme.textPrimary)
+            TextField("📁", text: Binding(
+                get: { emoji },
+                set: { newValue in
+                    // Keep at most one extended grapheme cluster. Take the
+                    // *last* character so appending a new emoji replaces the
+                    // old one rather than being silently dropped. Allow empty
+                    // so the field can be cleared; read sites fall back to 📁.
+                    emoji = newValue.isEmpty ? "" : String(newValue.suffix(1))
+                }
+            ))
+            .font(.system(size: 28))
+            .multilineTextAlignment(.center)
+            .frame(width: 60, height: 60)
+            .background(Theme.surface)
+            .cornerRadius(Theme.cornerRadiusCatIcon)
+            .focused($focusedField, equals: .emoji)
         }
     }
 
@@ -402,46 +426,27 @@ struct CategoryDetailView: View {
 
 struct EmojiInputField: View {
     @Binding var emoji: String
-    var focus: FocusState<CategoryDetailView.Field?>.Binding?
-
-    init(
-        emoji: Binding<String>,
-        focus: FocusState<CategoryDetailView.Field?>.Binding? = nil
-    ) {
-        self._emoji = emoji
-        self.focus = focus
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.spacingXS) {
             Text("Emoji")
                 .font(.system(size: Theme.fontSizeSM, weight: .medium))
                 .foregroundColor(Theme.textPrimary)
-            field
-                .font(.system(size: 28))
-                .multilineTextAlignment(.center)
-                .frame(width: 60, height: 60)
-                .background(Theme.surface)
-                .cornerRadius(Theme.cornerRadiusCatIcon)
-        }
-    }
-
-    @ViewBuilder
-    private var field: some View {
-        let textField = TextField("📁", text: Binding(
-            get: { emoji },
-            set: { newValue in
-                // Keep at most one extended grapheme cluster. Take the
-                // *last* character so appending a new emoji replaces the
-                // old one rather than being silently dropped. Allow empty
-                // so the field can be cleared; read sites fall back to 📁.
-                emoji = newValue.isEmpty ? "" : String(newValue.suffix(1))
-            }
-        ))
-        if let focus {
-            textField.focused(focus, equals: .emoji)
-        } else {
-            textField
+            TextField("📁", text: Binding(
+                get: { emoji },
+                set: { newValue in
+                    // Keep at most one extended grapheme cluster. Take the
+                    // *last* character so appending a new emoji replaces the
+                    // old one rather than being silently dropped. Allow empty
+                    // so the field can be cleared; read sites fall back to 📁.
+                    emoji = newValue.isEmpty ? "" : String(newValue.suffix(1))
+                }
+            ))
+            .font(.system(size: 28))
+            .multilineTextAlignment(.center)
+            .frame(width: 60, height: 60)
+            .background(Theme.surface)
+            .cornerRadius(Theme.cornerRadiusCatIcon)
         }
     }
 }
