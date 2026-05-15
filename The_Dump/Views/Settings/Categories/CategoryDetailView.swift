@@ -26,7 +26,6 @@ struct CategoryDetailView: View {
     @State private var saveError: String?
     @State private var didChange: Bool = false
 
-    @State private var showAddSubCategory: Bool = false
     @State private var isPerformingDangerAction: Bool = false
     @State private var dangerError: String?
 
@@ -34,8 +33,8 @@ struct CategoryDetailView: View {
 
     @FocusState private var focusedField: Field?
 
-    private enum Field: Hashable {
-        case name, definition, keywords
+    enum Field: Hashable {
+        case emoji, name, definition, keywords
     }
 
     var body: some View {
@@ -93,13 +92,6 @@ struct CategoryDetailView: View {
                   updatedCategoryId == categoryId else { return }
             Task { await load() }
         }
-        .sheet(isPresented: $showAddSubCategory, onDismiss: {
-            Task { await load() }
-        }) {
-            AddSubCategoryView(categoryName: original?.name ?? name) { _ in
-                didChange = true
-            }
-        }
         .sheet(item: $choiceTrigger) { trigger in
             RecategorizeChoiceView(
                 categoryId: categoryId,
@@ -149,9 +141,16 @@ struct CategoryDetailView: View {
                     ArchivedNotice()
                 }
 
+                if !readonly {
+                    Text("After saving, you'll be able to choose whether to re-categorize past notes with AI or keep them where they are.")
+                        .font(.system(size: Theme.fontSizeSM))
+                        .foregroundColor(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 // Emoji + name
                 HStack(alignment: .center, spacing: Theme.spacingMD) {
-                    EmojiInputField(emoji: $emoji)
+                    EmojiInputField(emoji: $emoji, focus: $focusedField)
                         .disabled(readonly)
 
                     VStack(alignment: .leading, spacing: Theme.spacingXS) {
@@ -215,37 +214,6 @@ struct CategoryDetailView: View {
                     Text(error)
                         .font(.system(size: Theme.fontSizeSM))
                         .foregroundColor(.red)
-                }
-
-                // Sub-categories
-                VStack(alignment: .leading, spacing: Theme.spacingSM) {
-                    HStack {
-                        Text("Sub-categories")
-                            .font(.system(size: Theme.fontSizeSM, weight: .medium))
-                            .foregroundColor(Theme.textPrimary)
-                        Spacer()
-                        if let subCount = original?.subCatCount, subCount > 0 {
-                            Text("\(subCount)")
-                                .font(.system(size: Theme.fontSizeXS))
-                                .foregroundColor(Theme.textTertiary)
-                        }
-                    }
-
-                    Button {
-                        showAddSubCategory = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "plus")
-                            Text("Add sub-category")
-                            Spacer()
-                        }
-                        .font(.system(size: Theme.fontSizeMD))
-                        .foregroundColor(readonly ? Theme.textTertiary : Theme.accent)
-                        .padding(Theme.spacingMD)
-                        .background(Theme.surface)
-                        .cornerRadius(Theme.cornerRadiusSM)
-                    }
-                    .disabled(readonly)
                 }
 
                 // Danger zone
@@ -434,27 +402,38 @@ struct CategoryDetailView: View {
 
 struct EmojiInputField: View {
     @Binding var emoji: String
+    var focus: FocusState<CategoryDetailView.Field?>.Binding? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.spacingXS) {
             Text("Emoji")
                 .font(.system(size: Theme.fontSizeSM, weight: .medium))
                 .foregroundColor(Theme.textPrimary)
-            TextField("📁", text: Binding(
-                get: { emoji },
-                set: { newValue in
-                    // Keep at most one extended grapheme cluster. Take the
-                    // *last* character so appending a new emoji replaces the
-                    // old one rather than being silently dropped. Allow empty
-                    // so the field can be cleared; read sites fall back to 📁.
-                    emoji = newValue.isEmpty ? "" : String(newValue.suffix(1))
-                }
-            ))
-            .font(.system(size: 28))
-            .multilineTextAlignment(.center)
-            .frame(width: 60, height: 60)
-            .background(Theme.surface)
-            .cornerRadius(Theme.cornerRadiusCatIcon)
+            field
+                .font(.system(size: 28))
+                .multilineTextAlignment(.center)
+                .frame(width: 60, height: 60)
+                .background(Theme.surface)
+                .cornerRadius(Theme.cornerRadiusCatIcon)
+        }
+    }
+
+    @ViewBuilder
+    private var field: some View {
+        let textField = TextField("📁", text: Binding(
+            get: { emoji },
+            set: { newValue in
+                // Keep at most one extended grapheme cluster. Take the
+                // *last* character so appending a new emoji replaces the
+                // old one rather than being silently dropped. Allow empty
+                // so the field can be cleared; read sites fall back to 📁.
+                emoji = newValue.isEmpty ? "" : String(newValue.suffix(1))
+            }
+        ))
+        if let focus {
+            textField.focused(focus, equals: .emoji)
+        } else {
+            textField
         }
     }
 }
