@@ -142,7 +142,7 @@ struct CategoryDetailView: View {
                 }
 
                 if !readonly {
-                    Text("After saving, you'll be able to choose whether to re-categorize past notes with AI or keep them where they are.")
+                    Text("After changing the name, description, or keywords, you'll be able to choose whether to re-categorize past notes with AI or keep them where they are.")
                         .font(.system(size: Theme.fontSizeSM))
                         .foregroundColor(Theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -230,22 +230,8 @@ struct CategoryDetailView: View {
             Text("Emoji")
                 .font(.system(size: Theme.fontSizeSM, weight: .medium))
                 .foregroundColor(Theme.textPrimary)
-            TextField("📁", text: Binding(
-                get: { emoji },
-                set: { newValue in
-                    // Keep at most one extended grapheme cluster. Take the
-                    // *last* character so appending a new emoji replaces the
-                    // old one rather than being silently dropped. Allow empty
-                    // so the field can be cleared; read sites fall back to 📁.
-                    emoji = newValue.isEmpty ? "" : String(newValue.suffix(1))
-                }
-            ))
-            .font(.system(size: 28))
-            .multilineTextAlignment(.center)
-            .frame(width: 60, height: 60)
-            .background(Theme.surface)
-            .cornerRadius(Theme.cornerRadiusCatIcon)
-            .focused($focusedField, equals: .emoji)
+            EmojiTextField(emoji: $emoji)
+                .focused($focusedField, equals: .emoji)
         }
     }
 
@@ -432,22 +418,33 @@ struct EmojiInputField: View {
             Text("Emoji")
                 .font(.system(size: Theme.fontSizeSM, weight: .medium))
                 .foregroundColor(Theme.textPrimary)
-            TextField("📁", text: Binding(
-                get: { emoji },
-                set: { newValue in
-                    // Keep at most one extended grapheme cluster. Take the
-                    // *last* character so appending a new emoji replaces the
-                    // old one rather than being silently dropped. Allow empty
-                    // so the field can be cleared; read sites fall back to 📁.
-                    emoji = newValue.isEmpty ? "" : String(newValue.suffix(1))
-                }
-            ))
-            .font(.system(size: 28))
-            .multilineTextAlignment(.center)
-            .frame(width: 60, height: 60)
-            .background(Theme.surface)
-            .cornerRadius(Theme.cornerRadiusCatIcon)
+            EmojiTextField(emoji: $emoji)
         }
+    }
+}
+
+/// One-character emoji TextField with the styling and truncation rules used by
+/// both `EmojiInputField` and the inline emoji field in `CategoryDetailView`.
+/// Callers can attach `.focused(...)` to participate in their own focus state.
+struct EmojiTextField: View {
+    @Binding var emoji: String
+
+    var body: some View {
+        TextField("📁", text: Binding(
+            get: { emoji },
+            set: { newValue in
+                // Keep at most one extended grapheme cluster. Take the
+                // *last* character so appending a new emoji replaces the
+                // old one rather than being silently dropped. Allow empty
+                // so the field can be cleared; read sites fall back to 📁.
+                emoji = newValue.isEmpty ? "" : String(newValue.suffix(1))
+            }
+        ))
+        .font(.system(size: 28))
+        .multilineTextAlignment(.center)
+        .frame(width: 60, height: 60)
+        .background(Theme.surface)
+        .cornerRadius(Theme.cornerRadiusCatIcon)
     }
 }
 
