@@ -402,7 +402,15 @@ struct CategoryDetailView: View {
 
 struct EmojiInputField: View {
     @Binding var emoji: String
-    var focus: FocusState<CategoryDetailView.Field?>.Binding? = nil
+    var focus: FocusState<CategoryDetailView.Field?>.Binding?
+
+    init(
+        emoji: Binding<String>,
+        focus: FocusState<CategoryDetailView.Field?>.Binding? = nil
+    ) {
+        self._emoji = emoji
+        self.focus = focus
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.spacingXS) {
