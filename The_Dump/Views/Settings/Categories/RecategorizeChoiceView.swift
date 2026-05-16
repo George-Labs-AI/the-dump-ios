@@ -111,6 +111,11 @@ struct RecategorizeChoiceView: View {
                             ) { selected = secondaryChoice }
                         }
 
+                        Text("You can also move any note by hand at any time — open the note and tap Edit.")
+                            .font(.system(size: Theme.fontSizeSM))
+                            .foregroundColor(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
                         if let error = errorMessage {
                             Text(error)
                                 .font(.system(size: Theme.fontSizeSM))
