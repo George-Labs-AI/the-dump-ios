@@ -259,7 +259,28 @@ struct CaptureButtonsSection: View {
                     action: onTextTap
                 )
             }
+
+            CaptureHintNote()
         }
+    }
+}
+
+struct CaptureHintNote: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: Theme.spacingSM) {
+            Image(systemName: "info.circle")
+                .font(.system(size: Theme.fontSizeSM))
+                .foregroundColor(Theme.textSecondary)
+
+            Text("Photos should be of text — we transcribe what we see. Anything you upload is transcribed to text. Videos and zip files aren't supported yet.")
+                .font(.system(size: Theme.fontSizeXS))
+                .foregroundColor(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Theme.spacingMD)
+        .background(Theme.surface)
+        .cornerRadius(Theme.cornerRadius)
     }
 }
 
