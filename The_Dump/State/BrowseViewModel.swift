@@ -63,6 +63,8 @@ final class BrowseViewModel: ObservableObject {
     private static func sortedRows(dict: [String: Int], kind: FolderRow.Kind) -> [FolderRow] {
         dict
             .map { FolderRow(stableID: nil, categoryId: nil, kind: kind, name: $0.key, count: $0.value) }
+            // FolderRow.count is an Int property, not a collection
+            // swiftlint:disable:next empty_count
             .filter { $0.count > 0 }
             .sorted(by: sortRowsByName)
     }
@@ -85,6 +87,8 @@ final class BrowseViewModel: ObservableObject {
         let namesByID = Dictionary(uniqueKeysWithValues: categories.map { ($0.categoryId, $0.name) })
 
         let resolvedRows = details.compactMap { detail -> (row: FolderRow, archived: Bool)? in
+            // CategoryDetail.count is an Int property, not a collection
+            // swiftlint:disable:next empty_count
             guard detail.count > 0 else { return nil }
             guard let categoryId = detail.categoryID else { return nil }
 
@@ -145,6 +149,8 @@ final class BrowseViewModel: ObservableObject {
 
         let byName = dict
             .map { FolderRow(stableID: nil, categoryId: nil, kind: .dateGroup, name: $0.key, count: $0.value) }
+            // FolderRow.count is an Int property, not a collection
+            // swiftlint:disable:next empty_count
             .filter { $0.count > 0 }
 
         let preferred = preferredOrder.compactMap { name in

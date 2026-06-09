@@ -113,8 +113,11 @@ struct LegalView: View {
         footerLinks: []
     )
 
+    // compile-time constant URLs
+    // swiftlint:disable force_unwrapping
     private static let privacyPolicyURL = URL(string: "https://thedump.ai/privacy")!
     private static let appleStandardTermsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
+    // swiftlint:enable force_unwrapping
 }
 
 #Preview("Privacy Policy") {

@@ -32,9 +32,9 @@ struct ManageCategoriesView: View {
         }
         .sheet(isPresented: $showNewCategory, onDismiss: {
             Task { await viewModel.load() }
-        }) {
+        }, content: {
             NewCategoryView(existingNames: viewModel.reservedNames)
-        }
+        })
         .navigationDestination(item: $selectedCategory) { item in
             CategoryDetailView(categoryId: item.id) { didChange in
                 if didChange {

@@ -52,7 +52,9 @@ struct BrowseView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showSettings = true }) {
+                    Button {
+                        showSettings = true
+                    } label: {
                         Image(systemName: "gearshape")
                             .font(.system(size: Theme.fontSizeLG))
                             .foregroundColor(Theme.textSecondary)

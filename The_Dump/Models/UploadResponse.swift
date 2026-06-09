@@ -31,4 +31,3 @@ struct UploadMetadata: Codable {
 struct APIErrorResponse: Codable {
     let error: String
 }
-
