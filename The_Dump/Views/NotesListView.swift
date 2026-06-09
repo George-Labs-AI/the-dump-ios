@@ -275,7 +275,9 @@ private struct SubCategoryFilterRow: View {
                                 .background(Theme.surface2)
                                 .clipShape(Capsule())
                         } else {
-                            Button(action: { showRecategorizeConfirmation = true }) {
+                            Button {
+                                showRecategorizeConfirmation = true
+                            } label: {
                                 HStack(spacing: Theme.spacingXS) {
                                     Image(systemName: "arrow.triangle.2.circlepath")
                                         .font(.system(size: 10, weight: .semibold))
@@ -316,7 +318,9 @@ private struct SubCategoryFilterRow: View {
                     }
 
                     // Info button
-                    Button(action: { showInfoPopover = true }) {
+                    Button {
+                        showInfoPopover = true
+                    } label: {
                         Image(systemName: "questionmark.circle")
                             .font(.system(size: 14))
                             .foregroundColor(Theme.textSecondary)

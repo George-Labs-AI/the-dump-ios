@@ -140,7 +140,9 @@ struct AddSubCategoryView: View {
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showInfo = true }) {
+                    Button {
+                        showInfo = true
+                    } label: {
                         Image(systemName: "questionmark.circle")
                             .foregroundColor(Theme.textSecondary)
                     }

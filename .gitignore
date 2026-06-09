@@ -1,3 +1,4 @@
 .env
 GoogleService-Info.plist
 .DS_Store
+.spm-cache/
