@@ -260,19 +260,30 @@ struct CaptureButtonsSection: View {
                 )
             }
 
-            CaptureHintNote()
+            CaptureHintNote(
+                icon: "info.circle",
+                message: "Videos and zip files aren't supported yet."
+            )
+
+            CaptureHintNote(
+                icon: "square.and.arrow.up",
+                message: "Saving an AI chat? Tap the share button in ChatGPT, Claude, or any other app and choose The Dump. Using Claude on your computer? Connect The Dump's MCP server to save conversations directly."
+            )
         }
     }
 }
 
 struct CaptureHintNote: View {
+    let icon: String
+    let message: String
+
     var body: some View {
         HStack(alignment: .top, spacing: Theme.spacingSM) {
-            Image(systemName: "info.circle")
+            Image(systemName: icon)
                 .font(.system(size: Theme.fontSizeSM))
                 .foregroundColor(Theme.textSecondary)
 
-            Text("Photos should be of text — we transcribe what we see. Anything you upload is transcribed to text. Videos and zip files aren't supported yet.")
+            Text(message)
                 .font(.system(size: Theme.fontSizeXS))
                 .foregroundColor(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
