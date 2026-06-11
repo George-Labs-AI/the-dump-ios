@@ -182,6 +182,10 @@ class UploadService {
             )
         )
 
+        // Kick the status poller (restarts at the fast cadence) so the new
+        // record is tracked promptly.
+        await NoteStatusService.shared.noteUploaded()
+
         return response
     }
 

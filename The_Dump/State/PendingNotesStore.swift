@@ -1,5 +1,12 @@
 import Foundation
 
+extension Notification.Name {
+    /// Posted after any persisted mutation of the pending-note records
+    /// (add / update / acknowledge / remove / prune). Observed by
+    /// `PendingNotesViewModel` to mirror the actor's state for SwiftUI.
+    static let pendingNotesStoreDidChange = Notification.Name("pendingNotesStoreDidChange")
+}
+
 /// Persisted store of in-flight note uploads (docs/note-status-contract.md,
 /// Phase 1). One record per successful upload; survives app relaunch so the
 /// status poller can resume after the app is killed.
@@ -107,6 +114,7 @@ actor PendingNotesStore {
         do {
             let data = try JSONEncoder().encode(Array(recordsByUuid.values))
             defaults.set(data, forKey: storageKey)
+            NotificationCenter.default.post(name: .pendingNotesStoreDidChange, object: nil)
         } catch {
             #if DEBUG
             print("[PendingNotesStore] Failed to persist records: \(error)")

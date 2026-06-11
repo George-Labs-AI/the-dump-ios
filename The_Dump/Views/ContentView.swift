@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var sessionStore = SessionStore()
+    @StateObject private var pendingNotesViewModel = PendingNotesViewModel()
     // @state makes sure what the variable is set to doesn't change just becuase the code reloads, and state is often used for things that a user may change
     @State private var showCamera = false
     @State private var showVoiceMemo = false
@@ -77,6 +78,20 @@ struct ContentView: View {
                             
                             ForEach(sessionStore.items) { item in
                                 SessionItemRow(item: item)
+                            }
+
+                            // Pending-note processing status (note-status
+                            // contract, Phase 1). A SessionItemRow above may
+                            // briefly overlap a fresh record here — there is
+                            // no shared key to dedupe on (SessionItem ids are
+                            // local UUIDs; records key on the server uuid).
+                            if !pendingNotesViewModel.records.isEmpty {
+                                ProcessingSection(
+                                    records: pendingNotesViewModel.records,
+                                    onAcknowledge: { fileUuid in
+                                        pendingNotesViewModel.acknowledge(fileUuid: fileUuid)
+                                    }
+                                )
                             }
 
                             Spacer(minLength: Theme.spacingXL)
@@ -446,6 +461,150 @@ struct SessionItemRow: View {
         case .pending:
             Image(systemName: "clock")
                 .foregroundColor(Theme.textSecondary)
+        }
+    }
+}
+
+/// "Processing" section on the capture screen: one row per pending-note
+/// record, mirroring SessionItemRow styling (44pt icon tile, surface card).
+struct ProcessingSection: View {
+    let records: [PendingNoteRecord]
+    let onAcknowledge: (String) -> Void
+
+    var body: some View {
+        VStack(spacing: Theme.spacingMD) {
+            Text("Processing")
+                .sectionLabel()
+                .foregroundColor(Theme.textSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            ForEach(records) { record in
+                PendingNoteRow(record: record) {
+                    onAcknowledge(record.fileUuid)
+                }
+            }
+        }
+    }
+}
+
+struct PendingNoteRow: View {
+    let record: PendingNoteRecord
+    /// Tapping an organized row, or the dismiss button on a failed row.
+    let onAcknowledge: () -> Void
+
+    var body: some View {
+        HStack(spacing: Theme.spacingMD) {
+            ZStack {
+                Theme.surface2
+                Image(systemName: iconForKind)
+                    .foregroundColor(Theme.textSecondary)
+            }
+            .frame(width: 44, height: 44)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadiusSM))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(primaryText)
+                    .font(.system(size: Theme.fontSizeMD, weight: .medium))
+                    .foregroundColor(Theme.textPrimary)
+                    .lineLimit(2)
+
+                Text(statusText)
+                    .font(.system(size: Theme.fontSizeXS))
+                    .foregroundColor(statusColor)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            statusIndicator
+        }
+        .padding(Theme.spacingMD)
+        .background(Theme.surface)
+        .cornerRadius(Theme.cornerRadius)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if record.lifecycleStatus == .organized {
+                onAcknowledge()
+            }
+        }
+    }
+
+    private var iconForKind: String {
+        switch record.kind {
+        case .photo: return "photo"
+        case .voice: return "waveform"
+        case .file: return "doc"
+        case .text: return "keyboard"
+        }
+    }
+
+    private var kindLabel: String {
+        switch record.kind {
+        case .photo: return "Photo"
+        case .voice: return "Voice Memo"
+        case .file: return "File"
+        case .text: return "Note"
+        }
+    }
+
+    /// Typed notes show what the user typed immediately, regardless of
+    /// status. Voice/photo/file show a kind label until the transcribed
+    /// preview arrives.
+    private var primaryText: String {
+        if record.kind == .text, let text = record.localText, !text.isEmpty {
+            return text
+        }
+        if let preview = record.transcribedPreview, !preview.isEmpty {
+            return preview
+        }
+        if record.lifecycleStatus == .organized, let title = record.title, !title.isEmpty {
+            return title
+        }
+        return kindLabel
+    }
+
+    private var statusText: String {
+        switch record.lifecycleStatus {
+        case .uploaded:
+            return "Processing…"
+        case .transcribed:
+            return "Transcribed — organizing…"
+        case .organized:
+            if let category = record.categoryName, !category.isEmpty {
+                return "Organized → \(category)"
+            }
+            return "Organized"
+        case .failed:
+            return "Processing failed"
+        }
+    }
+
+    private var statusColor: Color {
+        switch record.lifecycleStatus {
+        case .organized:
+            return Theme.success
+        case .failed:
+            return Theme.accent
+        case .uploaded, .transcribed:
+            return Theme.textSecondary
+        }
+    }
+
+    @ViewBuilder
+    private var statusIndicator: some View {
+        switch record.lifecycleStatus {
+        case .uploaded, .transcribed:
+            ProgressView()
+                .tint(Theme.textSecondary)
+        case .organized:
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(Theme.success)
+        case .failed:
+            Button(action: onAcknowledge) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(Theme.textSecondary)
+            }
+            .buttonStyle(.plain)
         }
     }
 }
