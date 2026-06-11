@@ -575,6 +575,9 @@ struct PendingNoteRow: View {
             }
             return "Organized"
         case .failed:
+            if let message = record.errorMessage, !message.isEmpty {
+                return message
+            }
             return "Processing failed"
         }
     }

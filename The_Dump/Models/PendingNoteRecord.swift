@@ -46,6 +46,9 @@ struct PendingNoteRecord: Codable, Equatable, Identifiable, Sendable {
     var organizedNoteId: String?
     var categoryName: String?
     var title: String?
+    /// From the `failed` payload's `error` string. Optional + Codable, so
+    /// records persisted before this field existed decode unchanged.
+    var errorMessage: String?
     /// Set when the user acknowledges a terminal state; acknowledged
     /// terminal records are dropped on the next prune.
     var acknowledged: Bool
@@ -65,6 +68,7 @@ struct PendingNoteRecord: Codable, Equatable, Identifiable, Sendable {
         organizedNoteId: String? = nil,
         categoryName: String? = nil,
         title: String? = nil,
+        errorMessage: String? = nil,
         acknowledged: Bool = false
     ) {
         self.fileUuid = fileUuid
@@ -77,6 +81,7 @@ struct PendingNoteRecord: Codable, Equatable, Identifiable, Sendable {
         self.organizedNoteId = organizedNoteId
         self.categoryName = categoryName
         self.title = title
+        self.errorMessage = errorMessage
         self.acknowledged = acknowledged
     }
 }

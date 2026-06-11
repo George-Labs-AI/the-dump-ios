@@ -67,6 +67,19 @@ enum NoteWireStatus: String, Sendable {
 /// `completed` → organized (+organizedNoteId/title/categoryName),
 /// `failed` → failed, unknown → no-op.
 enum NoteStatusMapping {
+    /// The server silently caps `file_uuids` at 50 per request — anything
+    /// past the cap is dropped from the response, so requests must be
+    /// chunked or the oldest records starve.
+    static let maxUuidsPerRequest = 50
+
+    /// Splits `uuids` into request-sized chunks, preserving order.
+    static func chunked(_ uuids: [String], size: Int = maxUuidsPerRequest) -> [[String]] {
+        guard size > 0, !uuids.isEmpty else { return [] }
+        return stride(from: 0, to: uuids.count, by: size).map { start in
+            Array(uuids[start..<min(start + size, uuids.count)])
+        }
+    }
+
     /// Returns the record as it should look after applying `entry`.
     /// Terminal records are never changed (the poller only asks about
     /// non-terminal uuids; this guard is belt-and-braces), and a record is
@@ -92,6 +105,9 @@ enum NoteStatusMapping {
             updated.categoryName = entry.categoryName
         case .failed:
             updated.lifecycleStatus = .failed
+            if let message = entry.error, !message.isEmpty {
+                updated.errorMessage = message
+            }
         }
         return updated
     }

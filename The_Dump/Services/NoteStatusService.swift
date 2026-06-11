@@ -59,6 +59,15 @@ final class NoteStatusService {
             suspendPolling()
         default:
             isInForeground = true
+            if isAppActive {
+                // Contract: TTL prune runs on every foregrounding, not just
+                // cold launch — iOS apps stay resident for days, and after
+                // 24h the server can no longer answer for a uuid. Also
+                // covers the case where the loop is already running.
+                Task { [store] in
+                    await store.prune()
+                }
+            }
             startPollingIfNeeded()
         }
     }
@@ -89,6 +98,11 @@ final class NoteStatusService {
 
     private func pollLoop() async {
         while !Task.isCancelled {
+            // Expire records past the 24h TTL before deciding whether to
+            // continue: a record whose server-side mapping is lost would
+            // otherwise report "processing" forever and pin this loop at
+            // the 30s cadence. Expired rows are unresolvable anyway.
+            await store.prune()
             let pending = await store.nonTerminalRecords()
             guard !pending.isEmpty else {
                 // Nothing left to track — stop entirely. `noteUploaded()` or
@@ -103,7 +117,7 @@ final class NoteStatusService {
             if pollingStartedAt == nil {
                 pollingStartedAt = Date()
             }
-            await requestNotificationAuthorizationIfNeeded()
+            requestNotificationAuthorizationIfNeeded()
             await pollOnce(fileUuids: pending.map(\.fileUuid))
 
             guard !Task.isCancelled else { return }
@@ -118,15 +132,19 @@ final class NoteStatusService {
     }
 
     private func pollOnce(fileUuids: [String]) async {
-        do {
-            let response = try await fetchStatuses(fileUuids: fileUuids)
-            await apply(response.statuses)
-        } catch {
-            // Transient (network blip, token refresh failure, 5xx) — keep
-            // the cadence and try again on the next tick.
-            #if DEBUG
-            print("[NoteStatusService] Poll failed: \(error)")
-            #endif
+        // The server silently caps file_uuids at 50 per request, so chunk —
+        // otherwise the oldest (past-cap) records never get an answer.
+        for chunk in NoteStatusMapping.chunked(fileUuids) {
+            do {
+                let response = try await fetchStatuses(fileUuids: chunk)
+                await apply(response.statuses)
+            } catch {
+                // Transient (network blip, token refresh failure, 5xx) —
+                // keep the cadence and try again on the next tick.
+                #if DEBUG
+                print("[NoteStatusService] Poll failed: \(error)")
+                #endif
+            }
         }
     }
 
@@ -192,14 +210,20 @@ final class NoteStatusService {
 
     // MARK: - Local notifications
 
-    private func requestNotificationAuthorizationIfNeeded() async {
+    /// Fire-and-forget: `requestAuthorization` suspends until the user
+    /// answers the system prompt, so this must never be awaited from the
+    /// poll loop (contract: the permission request must never block a poll
+    /// cycle — the first-ever upload would otherwise stall status polling).
+    private func requestNotificationAuthorizationIfNeeded() {
         guard !hasRequestedNotificationAuthorization else { return }
         hasRequestedNotificationAuthorization = true
 
-        let center = UNUserNotificationCenter.current()
-        let settings = await center.notificationSettings()
-        guard settings.authorizationStatus == .notDetermined else { return }
-        _ = try? await center.requestAuthorization(options: [.alert, .sound])
+        Task {
+            let center = UNUserNotificationCenter.current()
+            let settings = await center.notificationSettings()
+            guard settings.authorizationStatus == .notDetermined else { return }
+            _ = try? await center.requestAuthorization(options: [.alert, .sound])
+        }
     }
 
     /// Posted when a record turns organized while the app is not active.
