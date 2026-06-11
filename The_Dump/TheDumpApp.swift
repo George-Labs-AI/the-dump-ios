@@ -53,6 +53,9 @@ struct TheDumpApp: App {
                     StoreKitService.shared.listenForTransactions { transaction, jwsRepresentation in
                         await appState.subscriptionViewModel.handleTransactionUpdate(transaction, jwsRepresentation: jwsRepresentation)
                     }
+                    // Drop pending-note records past the 24h contract TTL
+                    // (and acknowledged terminal ones) on launch.
+                    await PendingNotesStore.shared.prune()
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     recategorizationTracker.setPollingEnabled(newPhase == .active)
