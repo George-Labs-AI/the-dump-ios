@@ -114,10 +114,13 @@ struct LegalView: View {
     )
 
     // compile-time constant URLs
-    // swiftlint:disable force_unwrapping
-    private static let privacyPolicyURL = URL(string: "https://thedump.ai/privacy")!
-    private static let appleStandardTermsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
-    // swiftlint:enable force_unwrapping
+    private static let privacyPolicyURL = constantURL("https://thedump.ai/privacy")
+    private static let appleStandardTermsURL = constantURL("https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")
+
+    private static func constantURL(_ string: String) -> URL {
+        guard let url = URL(string: string) else { preconditionFailure("Invalid constant URL: \(string)") }
+        return url
+    }
 }
 
 #Preview("Privacy Policy") {
