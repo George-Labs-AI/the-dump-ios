@@ -105,7 +105,11 @@ struct TextNoteView: View {
                     content: noteContent,
                     idToken: idToken
                 )
-                sessionStore.markCaptured(id: item.id)
+                // The PendingNoteRecord is added before uploadTextNote
+                // returns — the Processing row on the capture screen takes
+                // over, so drop the transient session row instead of
+                // overlapping it with "Captured!".
+                sessionStore.removeItem(id: item.id)
                 dismiss()
             } catch {
                 sessionStore.markFailed(id: item.id, error: error.localizedDescription)

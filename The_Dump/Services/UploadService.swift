@@ -8,8 +8,13 @@ class UploadService {
     
     private let backendBaseURL = "https://thedump.ai"
     private let uploadEndpoint = "/api/mobile/upload_file"
-    
-    private init() {}
+
+    /// Shared persisted store of in-flight uploads (note-status contract).
+    private let pendingNotesStore: PendingNotesStore
+
+    private init(pendingNotesStore: PendingNotesStore = .shared) {
+        self.pendingNotesStore = pendingNotesStore
+    }
     
     // MARK: - Photo Upload
     
@@ -29,6 +34,7 @@ class UploadService {
             filename: filename,
             contentType: "image/jpeg",
             isQuickNote: false,
+            kind: .photo,
             idToken: idToken
         )
     }
@@ -55,6 +61,7 @@ class UploadService {
             filename: filename,
             contentType: "audio/m4a",
             isQuickNote: false,
+            kind: .voice,
             idToken: idToken
         )
     }
@@ -93,6 +100,7 @@ class UploadService {
             filename: filename,
             contentType: contentType,
             isQuickNote: false,
+            kind: .file,
             idToken: idToken
         )
     }
@@ -115,6 +123,8 @@ class UploadService {
             filename: filename,
             contentType: "text/plain",
             isQuickNote: true,
+            kind: .text,
+            localText: content,
             idToken: idToken
         )
     }
@@ -141,6 +151,8 @@ class UploadService {
         filename: String,
         contentType: String,
         isQuickNote: Bool = false,
+        kind: PendingNoteKind,
+        localText: String? = nil,
         idToken: String
     ) async throws -> UploadResponse {
         // Get signed URL from backend
@@ -157,6 +169,22 @@ class UploadService {
             uploadURL: response.uploadUrl,
             contentType: contentType
         )
+
+        // Upload fully succeeded (signed URL obtained and GCS PUT accepted):
+        // record it so processing status can be tracked across relaunches
+        // (note-status contract, Phase 1).
+        await pendingNotesStore.add(
+            PendingNoteRecord(
+                fileUuid: response.uuid,
+                storagePath: response.storagePath,
+                kind: kind,
+                localText: localText
+            )
+        )
+
+        // Kick the status poller (restarts at the fast cadence) so the new
+        // record is tracked promptly.
+        await NoteStatusService.shared.noteUploaded()
 
         return response
     }

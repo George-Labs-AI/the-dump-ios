@@ -231,8 +231,12 @@ struct VoiceMemoView: View {
                     userEmail: email,
                     idToken: idToken
                 )
-                sessionStore.markCaptured(id: item.id)
-                
+                // The PendingNoteRecord is added before uploadAudio returns —
+                // the Processing row on the capture screen takes over, so
+                // drop the transient session row instead of overlapping it
+                // with "Captured!".
+                sessionStore.removeItem(id: item.id)
+
                 // Clean up local file after successful upload
                 try? FileManager.default.removeItem(at: fileURL)
                 

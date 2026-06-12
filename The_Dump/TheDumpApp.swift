@@ -53,9 +53,16 @@ struct TheDumpApp: App {
                     StoreKitService.shared.listenForTransactions { transaction, jwsRepresentation in
                         await appState.subscriptionViewModel.handleTransactionUpdate(transaction, jwsRepresentation: jwsRepresentation)
                     }
+                    // Drop pending-note records past the 24h contract TTL
+                    // (and acknowledged terminal ones) on launch.
+                    await PendingNotesStore.shared.prune()
+                    // Start status polling for any pending records that
+                    // survived relaunch (foreground only).
+                    NoteStatusService.shared.handleScenePhase(scenePhase)
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     recategorizationTracker.setPollingEnabled(newPhase == .active)
+                    NoteStatusService.shared.handleScenePhase(newPhase)
                     if newPhase == .background {
                         // Refresh the shared token so the share extension has a fresh one
                         Task {
