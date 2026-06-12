@@ -32,6 +32,15 @@ class SessionStore: ObservableObject {
         updateStatus(id: id, status: .failed(error: error))
     }
 
+    /// Remove a single item immediately. Upload success paths use this so
+    /// the transient session row hands off to the persistent Processing row
+    /// (PendingNotesStore) without the two overlapping.
+    func removeItem(id: String) {
+        withAnimation {
+            items.removeAll { $0.id == id }
+        }
+    }
+
     func getItem(id: String) -> SessionItem? {
         items.first { $0.id == id }
     }

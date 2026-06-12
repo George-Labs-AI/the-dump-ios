@@ -81,10 +81,10 @@ struct ContentView: View {
                             }
 
                             // Pending-note processing status (note-status
-                            // contract, Phase 1). A SessionItemRow above may
-                            // briefly overlap a fresh record here — there is
-                            // no shared key to dedupe on (SessionItem ids are
-                            // local UUIDs; records key on the server uuid).
+                            // contract, Phase 1). Session rows above are
+                            // removed on upload success, so each capture
+                            // shows in at most one list (modulo a 1-2 frame
+                            // gap while the view model mirrors the store).
                             if !pendingNotesViewModel.records.isEmpty {
                                 ProcessingSection(
                                     records: pendingNotesViewModel.records,
@@ -191,7 +191,10 @@ struct ContentView: View {
                     userEmail: email,
                     idToken: idToken
                 )
-                sessionStore.markCaptured(id: item.id)
+                // The PendingNoteRecord is added before uploadPhoto returns,
+                // so the Processing row replaces this transient one — remove
+                // it instead of showing "Captured!" for 8s alongside.
+                sessionStore.removeItem(id: item.id)
             } catch {
                 sessionStore.markFailed(id: item.id, error: error.localizedDescription)
             }
@@ -222,7 +225,8 @@ struct ContentView: View {
                     userEmail: email,
                     idToken: idToken
                 )
-                sessionStore.markCaptured(id: item.id)
+                // Hand off to the Processing row (see handleCapturedPhoto).
+                sessionStore.removeItem(id: item.id)
             } catch {
                 sessionStore.markFailed(id: item.id, error: error.localizedDescription)
             }
