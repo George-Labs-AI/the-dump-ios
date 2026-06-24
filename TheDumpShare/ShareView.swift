@@ -95,6 +95,12 @@ struct ShareView: View {
                 .background(ShareColors.surface)
                 .cornerRadius(12)
 
+            // Info notice
+            Text("The Dump will attempt to download the full conversation from this link and include it in your notes. The link is saved as a fallback. Adding a title helps organize your notes.")
+                .font(.system(size: 12))
+                .foregroundColor(ShareColors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
             // Title field
             TextField("Add a title (optional)", text: $title)
                 .font(.system(size: 15))
