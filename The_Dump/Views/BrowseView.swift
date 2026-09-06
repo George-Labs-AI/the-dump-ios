@@ -82,6 +82,7 @@ struct BrowseView: View {
             errorSection
             recategorizingSection
             recentSection
+            routinesSection
             activeCategoriesSection
             dateGroupSection
             mimeTypeSection
@@ -128,6 +129,33 @@ struct BrowseView: View {
             Text("Recent")
                 .sectionLabel()
                 .foregroundColor(Theme.textSecondary)
+        }
+    }
+
+    /// Only rendered when the user has at least one enabled routine, so the
+    /// Browse screen is unchanged for everyone else (same rule as the web nav).
+    @ViewBuilder
+    private var routinesSection: some View {
+        if viewModel.routineCount > 0 {
+            Section {
+                NavigationLink {
+                    RoutinesListView()
+                } label: {
+                    BrowseFolderRowView(
+                        icon: "🔁",
+                        title: "Routines",
+                        count: viewModel.routineCount,
+                        statusText: viewModel.routineOpenAskCount > 0
+                            ? "\(viewModel.routineOpenAskCount) to review"
+                            : nil
+                    )
+                }
+                .listRowBackground(Theme.surface)
+            } header: {
+                Text("Routines")
+                    .sectionLabel()
+                    .foregroundColor(Theme.textSecondary)
+            }
         }
     }
 

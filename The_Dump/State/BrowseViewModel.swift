@@ -26,12 +26,21 @@ final class BrowseViewModel: ObservableObject {
     @Published private(set) var dateGroupRows: [FolderRow] = []
     @Published private(set) var mimeTypeRows: [FolderRow] = []
     @Published private(set) var recentCount: Int = 0
-    
+    /// Routines the user has enabled. Zero hides the Routines row entirely —
+    /// "the data is the feature flag", same rule as the web nav.
+    @Published private(set) var routineCount: Int = 0
+    @Published private(set) var routineOpenAskCount: Int = 0
+    private var routineSummaryTask: Task<Void, Never>?
+
     func loadCounts() async {
         guard !isLoading else { return }
         isLoading = true
         errorMessage = nil
-        
+
+        // Fire-and-forget: the routines call never gates isLoading, so a
+        // slow or failing routines API leaves Browse exactly as it was.
+        refreshRoutineSummary()
+
         do {
             async let countsTask = NotesService.shared.fetchCounts()
             async let categoriesTask = NotesService.shared.fetchCategories()
@@ -56,10 +65,28 @@ final class BrowseViewModel: ObservableObject {
             mimeTypeRows = []
             recentCount = 0
         }
-        
+
         isLoading = false
     }
-    
+
+    /// Refresh the Routines row independently of the folder counts. One
+    /// request in flight at a time; any failure (network, 500, decode)
+    /// leaves the last known values so the row never flickers.
+    private func refreshRoutineSummary() {
+        guard routineSummaryTask == nil else { return }
+        routineSummaryTask = Task { [weak self] in
+            defer { self?.routineSummaryTask = nil }
+            do {
+                let routines = try await RoutinesService.shared.fetchRoutines().filter { $0.enabled }
+                guard let self, !Task.isCancelled else { return }
+                self.routineCount = routines.count
+                self.routineOpenAskCount = routines.reduce(0) { $0 + ($1.openAskCount ?? 0) }
+            } catch {
+                // Keep previous values; the row stays hidden for users without routines.
+            }
+        }
+    }
+
     private static func sortedRows(dict: [String: Int], kind: FolderRow.Kind) -> [FolderRow] {
         dict
             .map { FolderRow(stableID: nil, categoryId: nil, kind: kind, name: $0.key, count: $0.value) }
