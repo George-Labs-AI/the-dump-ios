@@ -26,12 +26,19 @@ final class BrowseViewModel: ObservableObject {
     @Published private(set) var dateGroupRows: [FolderRow] = []
     @Published private(set) var mimeTypeRows: [FolderRow] = []
     @Published private(set) var recentCount: Int = 0
-    
+    /// Routines the user has enabled. Zero hides the Routines row entirely —
+    /// "the data is the feature flag", same rule as the web nav.
+    @Published private(set) var routineCount: Int = 0
+    @Published private(set) var routineOpenAskCount: Int = 0
+
     func loadCounts() async {
         guard !isLoading else { return }
         isLoading = true
         errorMessage = nil
-        
+
+        // Fetched alongside the folder counts but never allowed to fail them.
+        async let routineSummary = Self.fetchRoutineSummary()
+
         do {
             async let countsTask = NotesService.shared.fetchCounts()
             async let categoriesTask = NotesService.shared.fetchCategories()
@@ -56,10 +63,25 @@ final class BrowseViewModel: ObservableObject {
             mimeTypeRows = []
             recentCount = 0
         }
-        
+
+        let summary = await routineSummary
+        routineCount = summary.count
+        routineOpenAskCount = summary.openAsks
+
         isLoading = false
     }
-    
+
+    /// Any failure (network, 500, decode) resolves to zeros so Browse still
+    /// renders the folders; the Routines row simply stays hidden.
+    private static func fetchRoutineSummary() async -> (count: Int, openAsks: Int) {
+        do {
+            let routines = try await RoutinesService.shared.fetchRoutines().filter { $0.enabled }
+            return (routines.count, routines.reduce(0) { $0 + ($1.openAskCount ?? 0) })
+        } catch {
+            return (0, 0)
+        }
+    }
+
     private static func sortedRows(dict: [String: Int], kind: FolderRow.Kind) -> [FolderRow] {
         dict
             .map { FolderRow(stableID: nil, categoryId: nil, kind: kind, name: $0.key, count: $0.value) }
