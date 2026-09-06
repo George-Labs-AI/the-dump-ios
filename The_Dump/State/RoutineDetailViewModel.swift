@@ -7,6 +7,9 @@ final class RoutineDetailViewModel: ObservableObject {
     @Published private(set) var openAsks: [RoutineAsk] = []
     @Published private(set) var isLoading: Bool = false
     @Published private(set) var errorMessage: String?
+    /// Set when the open-asks request fails. The previous asks are kept so
+    /// a failed refresh never wipes the queue or reads as "nothing waiting".
+    @Published private(set) var asksErrorMessage: String?
 
     let slug: String
 
@@ -40,16 +43,18 @@ final class RoutineDetailViewModel: ObservableObject {
         guard !isLoading else { return }
         isLoading = true
         errorMessage = nil
+        asksErrorMessage = nil
 
         do {
             async let detailTask = RoutinesService.shared.fetchRoutine(slug: slug)
             async let asksTask = RoutinesService.shared.fetchAsks(routineSlug: slug, status: "open")
             routine = try await detailTask
-            // The ask queue failing must not hide the documents.
+            // The ask queue failing must not hide the documents, and must
+            // not discard asks that were already loaded.
             do {
                 openAsks = try await asksTask
             } catch {
-                openAsks = []
+                asksErrorMessage = error.localizedDescription
             }
         } catch {
             errorMessage = error.localizedDescription

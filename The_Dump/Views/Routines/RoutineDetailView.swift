@@ -7,6 +7,10 @@ struct RoutineDetailView: View {
     private let slug: String
     private let name: String
     @StateObject private var viewModel: RoutineDetailViewModel
+    // One destination owned by the screen, not by the preview rows: a row
+    // vanishing after its ask is answered must not pop or recreate the
+    // asks view that is presenting.
+    @State private var showAsks = false
 
     private static let askPreviewLimit = 3
 
@@ -55,6 +59,11 @@ struct RoutineDetailView: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbarBackground(Theme.background, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
+        .navigationDestination(isPresented: $showAsks) {
+            RoutineAsksView(routineSlug: slug, routineName: viewModel.routine?.name ?? name) { askID in
+                viewModel.removeAnswered(askID: askID)
+            }
+        }
         .task {
             await viewModel.loadIfNeeded()
         }
@@ -75,32 +84,50 @@ struct RoutineDetailView: View {
 
     private var needsYouSection: some View {
         Section {
-            if viewModel.openAsks.isEmpty {
+            if let asksError = viewModel.asksErrorMessage {
                 HStack(spacing: Theme.spacingSM) {
-                    Image(systemName: "checkmark.circle")
-                        .foregroundColor(Theme.success)
-                    Text("Nothing waiting on you.")
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundColor(Theme.warning)
+                    Text(viewModel.openAsks.isEmpty
+                         ? "Couldn't load asks: \(asksError)"
+                         : "Couldn't refresh asks: \(asksError)")
                         .font(.system(size: Theme.fontSizeSM))
                         .foregroundColor(Theme.textSecondary)
                 }
                 .listRowBackground(Theme.surface)
+            }
+
+            if viewModel.openAsks.isEmpty {
+                if viewModel.asksErrorMessage == nil {
+                    HStack(spacing: Theme.spacingSM) {
+                        Image(systemName: "checkmark.circle")
+                            .foregroundColor(Theme.success)
+                        Text("Nothing waiting on you.")
+                            .font(.system(size: Theme.fontSizeSM))
+                            .foregroundColor(Theme.textSecondary)
+                    }
+                    .listRowBackground(Theme.surface)
+                }
             } else {
                 ForEach(viewModel.openAsks.prefix(Self.askPreviewLimit)) { ask in
-                    NavigationLink {
-                        RoutineAsksView(routineSlug: slug, routineName: viewModel.routine?.name ?? name) { askID in
-                            viewModel.removeAnswered(askID: askID)
-                        }
+                    Button {
+                        showAsks = true
                     } label: {
-                        AskPreviewRow(ask: ask)
+                        HStack(spacing: Theme.spacingSM) {
+                            AskPreviewRow(ask: ask)
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: Theme.fontSizeSM, weight: .semibold))
+                                .foregroundColor(Theme.textTertiary)
+                        }
                     }
+                    .buttonStyle(.plain)
                     .listRowBackground(Theme.surface)
                 }
             }
 
-            NavigationLink {
-                RoutineAsksView(routineSlug: slug, routineName: viewModel.routine?.name ?? name) { askID in
-                            viewModel.removeAnswered(askID: askID)
-                        }
+            Button {
+                showAsks = true
             } label: {
                 HStack {
                     Text(viewModel.openAsks.count > Self.askPreviewLimit
@@ -109,8 +136,12 @@ struct RoutineDetailView: View {
                         .font(.system(size: Theme.fontSizeSM, weight: .medium))
                         .foregroundColor(Theme.accent)
                     Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: Theme.fontSizeSM, weight: .semibold))
+                        .foregroundColor(Theme.textTertiary)
                 }
             }
+            .buttonStyle(.plain)
             .listRowBackground(Theme.surface)
         } header: {
             HStack {

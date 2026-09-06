@@ -30,14 +30,16 @@ final class BrowseViewModel: ObservableObject {
     /// "the data is the feature flag", same rule as the web nav.
     @Published private(set) var routineCount: Int = 0
     @Published private(set) var routineOpenAskCount: Int = 0
+    private var routineSummaryTask: Task<Void, Never>?
 
     func loadCounts() async {
         guard !isLoading else { return }
         isLoading = true
         errorMessage = nil
 
-        // Fetched alongside the folder counts but never allowed to fail them.
-        async let routineSummary = Self.fetchRoutineSummary()
+        // Fire-and-forget: the routines call never gates isLoading, so a
+        // slow or failing routines API leaves Browse exactly as it was.
+        refreshRoutineSummary()
 
         do {
             async let countsTask = NotesService.shared.fetchCounts()
@@ -64,21 +66,24 @@ final class BrowseViewModel: ObservableObject {
             recentCount = 0
         }
 
-        let summary = await routineSummary
-        routineCount = summary.count
-        routineOpenAskCount = summary.openAsks
-
         isLoading = false
     }
 
-    /// Any failure (network, 500, decode) resolves to zeros so Browse still
-    /// renders the folders; the Routines row simply stays hidden.
-    private static func fetchRoutineSummary() async -> (count: Int, openAsks: Int) {
-        do {
-            let routines = try await RoutinesService.shared.fetchRoutines().filter { $0.enabled }
-            return (routines.count, routines.reduce(0) { $0 + ($1.openAskCount ?? 0) })
-        } catch {
-            return (0, 0)
+    /// Refresh the Routines row independently of the folder counts. One
+    /// request in flight at a time; any failure (network, 500, decode)
+    /// leaves the last known values so the row never flickers.
+    private func refreshRoutineSummary() {
+        guard routineSummaryTask == nil else { return }
+        routineSummaryTask = Task { [weak self] in
+            defer { self?.routineSummaryTask = nil }
+            do {
+                let routines = try await RoutinesService.shared.fetchRoutines().filter { $0.enabled }
+                guard let self, !Task.isCancelled else { return }
+                self.routineCount = routines.count
+                self.routineOpenAskCount = routines.reduce(0) { $0 + ($1.openAskCount ?? 0) }
+            } catch {
+                // Keep previous values; the row stays hidden for users without routines.
+            }
         }
     }
 
