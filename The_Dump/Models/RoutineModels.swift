@@ -102,31 +102,19 @@ struct RoutineDocumentMeta: Identifiable, Decodable, Equatable {
     }
 }
 
-struct RoutineDocumentRevision: Identifiable, Decodable, Equatable {
-    let revision: Int
-    let title: String?
-    let createdAt: String?
-
-    var id: Int { revision }
-
-    enum CodingKeys: String, CodingKey {
-        case revision
-        case title
-        case createdAt = "created_at"
-    }
-}
-
 // GET /api/routines/<slug>/documents/<doc_slug>
 struct RoutineDocument: Identifiable, Decodable {
     let documentID: String
     let slug: String
     let title: String
     let body: String
+    /// Optional self-contained presentation; `body` remains the searchable,
+    /// accessible Markdown fallback and the source for copying text.
+    let interactiveHTML: String?
     let summary: String?
     let docKind: String?
     let revision: Int
     let updatedAt: String?
-    let revisions: [RoutineDocumentRevision]?
 
     var id: String { documentID }
 
@@ -135,11 +123,11 @@ struct RoutineDocument: Identifiable, Decodable {
         case slug
         case title
         case body
+        case interactiveHTML = "interactive_html"
         case summary
         case docKind = "doc_kind"
         case revision
         case updatedAt = "updated_at"
-        case revisions
     }
 }
 

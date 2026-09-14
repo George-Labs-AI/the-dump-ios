@@ -230,7 +230,7 @@ private struct DocumentRow: View {
                         Text("updated \(updated)")
                         Text("·")
                     }
-                    Text("rev \(document.revision)")
+                    Text("version \(document.revision)")
                 }
                 .font(.system(size: Theme.fontSizeXS))
                 .foregroundColor(Theme.textSecondary)

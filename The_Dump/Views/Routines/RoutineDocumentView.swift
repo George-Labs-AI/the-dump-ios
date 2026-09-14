@@ -1,6 +1,7 @@
 import SwiftUI
 
-// One canon document, rendered as markdown blocks. Bodies can be very large
+// One canon document with an optional interactive presentation and Markdown
+// fallback. Markdown bodies can be very large
 // (the index doc is ~217K chars), so the body is split into blocks off the
 // main actor and rendered a page at a time in a LazyVStack; a sentinel at
 // the end of the visible slice pulls in the next page as the user scrolls,
@@ -13,7 +14,8 @@ struct RoutineDocumentView: View {
     @StateObject private var viewModel: RoutineDocumentViewModel
     @State private var selectedNoteID: String?
     @State private var showNote = false
-    @State private var showRevisions = false
+    @State private var showText = false
+    @State private var interactiveFailed = false
 
     init(routineSlug: String, documentSlug: String, title: String) {
         self.routineSlug = routineSlug
@@ -48,35 +50,61 @@ struct RoutineDocumentView: View {
                     }
                     .padding(Theme.spacingLG)
                 } else if let document = viewModel.document {
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: Theme.spacingSMPlus) {
-                            DocumentHeader(document: document)
-
-                            ForEach(viewModel.visibleBlocks) { indexed in
-                                MarkdownBlockView(block: indexed.block)
+                    if let html = document.interactiveHTML, !html.isEmpty, !showText {
+                        VStack(alignment: .leading, spacing: Theme.spacingSM) {
+                            VStack(alignment: .leading, spacing: Theme.spacingSM) {
+                                DocumentHeader(document: document, summaryLineLimit: 3)
+                                presentationPicker
                             }
+                            .padding(.horizontal, Theme.spacingLG)
+                            .padding(.top, Theme.spacingMD)
 
-                            if viewModel.hasMore {
-                                loadMoreFooter
-                            } else if viewModel.blocks.isEmpty {
-                                Text("This document is empty.")
-                                    .font(.system(size: Theme.fontSizeSM))
-                                    .foregroundColor(Theme.textSecondary)
+                            InteractiveCanonView(html: html) {
+                                interactiveFailed = true
+                                showText = true
                             }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
-                        .padding(Theme.spacingLG)
+                    } else {
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: Theme.spacingSMPlus) {
+                                DocumentHeader(document: document)
+
+                                if let html = document.interactiveHTML, !html.isEmpty {
+                                    presentationPicker
+                                }
+                                if interactiveFailed {
+                                    Text("The interactive view could not load. The document text is available below.")
+                                        .font(.system(size: Theme.fontSizeSM))
+                                        .foregroundColor(Theme.textSecondary)
+                                }
+
+                                ForEach(viewModel.visibleBlocks) { indexed in
+                                    MarkdownBlockView(block: indexed.block)
+                                }
+
+                                if viewModel.hasMore {
+                                    loadMoreFooter
+                                } else if viewModel.blocks.isEmpty {
+                                    Text("This document is empty.")
+                                        .font(.system(size: Theme.fontSizeSM))
+                                        .foregroundColor(Theme.textSecondary)
+                                }
+                            }
+                            .padding(Theme.spacingLG)
+                        }
+                        // Second gate on links: only http(s) leaves the app, and
+                        // the runner's note token opens NoteDetailView in place.
+                        .environment(\.openURL, OpenURLAction { url in
+                            if let noteID = MarkdownBlockParser.noteID(from: url) {
+                                selectedNoteID = noteID
+                                showNote = true
+                                return .handled
+                            }
+                            let scheme = url.scheme?.lowercased() ?? ""
+                            return (scheme == "http" || scheme == "https") ? .systemAction : .discarded
+                        })
                     }
-                    // Second gate on links: only http(s) leaves the app, and
-                    // the runner's note token opens NoteDetailView in place.
-                    .environment(\.openURL, OpenURLAction { url in
-                        if let noteID = MarkdownBlockParser.noteID(from: url) {
-                            selectedNoteID = noteID
-                            showNote = true
-                            return .handled
-                        }
-                        let scheme = url.scheme?.lowercased() ?? ""
-                        return (scheme == "http" || scheme == "https") ? .systemAction : .discarded
-                    })
                 } else {
                     Text("No content.")
                         .font(.system(size: Theme.fontSizeSM))
@@ -95,15 +123,9 @@ struct RoutineDocumentView: View {
                         if viewModel.hasMore {
                             Button {
                                 viewModel.showAll()
+                                showText = true
                             } label: {
                                 Label("Show entire document", systemImage: "arrow.down.to.line")
-                            }
-                        }
-                        if let revisions = document.revisions, !revisions.isEmpty {
-                            Button {
-                                showRevisions = true
-                            } label: {
-                                Label("Revision history", systemImage: "clock.arrow.circlepath")
                             }
                         }
                         Button {
@@ -123,13 +145,24 @@ struct RoutineDocumentView: View {
                 NoteDetailView(noteID: selectedNoteID)
             }
         }
-        .sheet(isPresented: $showRevisions) {
-            if let document = viewModel.document {
-                RevisionHistorySheet(document: document)
-            }
-        }
         .task {
             await viewModel.loadIfNeeded()
+        }
+    }
+
+    private var presentationPicker: some View {
+        VStack(alignment: .leading, spacing: Theme.spacingXS) {
+            Picker("Document view", selection: $showText) {
+                Text("Interactive").tag(false)
+                Text("Text").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: showText) { _, value in
+                if !value { interactiveFailed = false }
+            }
+            Text("Read-only. Source links are available in Text. Interactive controls reset when switching views.")
+                .font(.system(size: Theme.fontSizeXS))
+                .foregroundColor(Theme.textSecondary)
         }
     }
 
@@ -161,6 +194,7 @@ struct RoutineDocumentView: View {
 
 private struct DocumentHeader: View {
     let document: RoutineDocument
+    var summaryLineLimit: Int? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.spacingSM) {
@@ -168,7 +202,7 @@ private struct DocumentHeader: View {
                 if let updated = RoutineDateParser.relative(document.updatedAt) {
                     MetaPill(text: "updated \(updated)", icon: "clock")
                 }
-                MetaPill(text: "rev \(document.revision)", icon: "number")
+                MetaPill(text: "version \(document.revision)", icon: "number")
                 if let kind = document.docKind?.trimmingCharacters(in: .whitespacesAndNewlines), !kind.isEmpty {
                     MetaPill(text: kind, icon: "tag")
                 }
@@ -179,6 +213,7 @@ private struct DocumentHeader: View {
                 Text(summary)
                     .font(.system(size: Theme.fontSizeSM))
                     .foregroundColor(Theme.textSecondary)
+                    .lineLimit(summaryLineLimit)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
@@ -206,54 +241,6 @@ private struct MetaPill: View {
         .padding(.vertical, Theme.spacingXS)
         .background(Theme.surface)
         .cornerRadius(Theme.cornerRadius)
-    }
-}
-
-private struct RevisionHistorySheet: View {
-    let document: RoutineDocument
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                Theme.background.ignoresSafeArea()
-
-                List {
-                    Section {
-                        ForEach(document.revisions ?? []) { rev in
-                            HStack {
-                                Text("rev \(rev.revision)")
-                                    .font(.system(size: Theme.fontSizeMD, weight: rev.revision == document.revision ? .semibold : .regular))
-                                    .foregroundColor(Theme.textPrimary)
-                                Spacer()
-                                Text(RoutineDateParser.relative(rev.createdAt) ?? (rev.createdAt ?? ""))
-                                    .font(.system(size: Theme.fontSizeSM))
-                                    .foregroundColor(Theme.textSecondary)
-                            }
-                        }
-                    } header: {
-                        Text("\(document.revisions?.count ?? 0) revisions")
-                            .sectionLabel()
-                            .foregroundColor(Theme.textSecondary)
-                    }
-                    .listRowBackground(Theme.surface)
-                }
-                .scrollContentBackground(.hidden)
-                .listStyle(.insetGrouped)
-            }
-            .navigationTitle("Revision History")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Theme.background, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                    .foregroundColor(Theme.accent)
-                }
-            }
-        }
     }
 }
 
