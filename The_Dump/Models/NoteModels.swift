@@ -247,6 +247,8 @@ struct UpdatedCategory: Codable {
     let categoryName: String
     let categoryDescription: String
     let keywords: [String]
+    /// Always false since the server stopped embedding categories on save;
+    /// kept because this client requires the key.
     let embeddingRefreshed: Bool
 
     enum CodingKeys: String, CodingKey {
