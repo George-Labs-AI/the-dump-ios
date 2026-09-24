@@ -61,6 +61,8 @@ struct RecategorizeJobStatus: Decodable {
     let total: Int
     let processed: Int
     let moved: Int
+    /// Always 0 since the backend stopped using embeddings to re-sort notes;
+    /// the key is still sent so shipped clients keep decoding the response.
     let skippedNoEmbeddings: Int
     let errors: Int
     let errorMessage: String?

@@ -1,3 +1,5 @@
+> **Historical (superseded).** This was the original request for the endpoint, which now exists in the web app's backend. The current contract has four statuses (`processing`, `transcribed`, `completed`, `failed`) and is described in `docs/note-status-contract.md` in the monorepo. `failed` is also returned for a note the organizing pipeline gave up on after 3 attempts (intake status `failed_permanent`), so such a note will never become `completed`.
+
 # Backend Task: Build `POST /api/file_status` Endpoint
 
 ## Why We're Doing This
