@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import PhotosUI
 import UniformTypeIdentifiers
 
 // this is the view page that defines the other views
@@ -9,7 +10,10 @@ struct ContentView: View {
     @StateObject private var sessionStore = SessionStore()
     @StateObject private var pendingNotesViewModel = PendingNotesViewModel()
     // @state makes sure what the variable is set to doesn't change just becuase the code reloads, and state is often used for things that a user may change
+    @State private var showPhotoSourceDialog = false
     @State private var showCamera = false
+    @State private var showPhotoLibraryPicker = false
+    @State private var selectedLibraryItems: [PhotosPickerItem] = []
     @State private var showVoiceMemo = false
     @State private var showSettings = false
     @State private var showFilePicker = false
@@ -69,7 +73,7 @@ struct ContentView: View {
                         VStack(spacing: Theme.spacingLG) {
                             // Capture buttons
                             CaptureButtonsSection(
-                                onPhotoTap: { guardCapture { showCamera = true } },
+                                onPhotoTap: { guardCapture { showPhotoSourceDialog = true } },
                                 onVoiceTap: { guardCapture { showVoiceMemo = true } },
                                 onFileTap: { guardCapture { showFilePicker = true } },
                                 onTextTap: { guardCapture { showTextNote = true } }
@@ -106,8 +110,30 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("")
-    .sheet(isPresented: $showCamera) {
+        // Photo has two sources: the camera, or the photo library (where
+        // screenshots and saved images live — the Files picker can't see
+        // those). The library picker runs out of process, so it needs no
+        // photo-library permission prompt.
+        .confirmationDialog("Add a photo", isPresented: $showPhotoSourceDialog, titleVisibility: .visible) {
+            Button("Take Photo") { showCamera = true }
+            Button("Choose from Library") { showPhotoLibraryPicker = true }
+            Button("Cancel", role: .cancel) {}
+        }
+        .sheet(isPresented: $showCamera) {
             CameraView(image: $capturedImage)
+        }
+        .photosPicker(
+            isPresented: $showPhotoLibraryPicker,
+            selection: $selectedLibraryItems,
+            maxSelectionCount: Self.maxLibrarySelection,
+            matching: .images
+        )
+        .onChange(of: selectedLibraryItems) { _, items in
+            guard !items.isEmpty else { return }
+            // Clear immediately so re-opening the picker starts empty and the
+            // same selection can't be handled twice.
+            selectedLibraryItems = []
+            handleLibrarySelection(items)
         }
         .sheet(isPresented: $showVoiceMemo) {
             VoiceMemoView()
@@ -157,6 +183,11 @@ struct ContentView: View {
     }
     }
 
+    /// Upper bound on photos picked from the library in one go. Each one
+    /// becomes its own upload and its own note; this just keeps a single
+    /// batch from tying up the device for too long.
+    static let maxLibrarySelection = 10
+
     private func guardCapture(_ action: () -> Void) {
         if appState.subscriptionViewModel.isBlocked {
             showPaywall = true
@@ -167,37 +198,67 @@ struct ContentView: View {
     
     private func handleCapturedPhoto(_ image: UIImage) {
         Task {
-            guard let email = appState.userEmail,
-                  let idToken = await appState.idToken else {
-                errorAlertMessage = "Unable to upload. Please check your connection and try again."
+            await uploadPhoto(image)
+        }
+    }
+
+    /// Library selections are uploaded one at a time: each item is decoded
+    /// into a full-resolution UIImage, and holding several of those at once
+    /// (a 12MP photo decodes to ~48MB) would risk memory pressure. Each photo
+    /// becomes its own upload with its own uuid, so each becomes its own note.
+    private func handleLibrarySelection(_ items: [PhotosPickerItem]) {
+        Task {
+            var failedCount = 0
+            for item in items {
+                guard let data = try? await item.loadTransferable(type: Data.self),
+                      let image = UIImage(data: data) else {
+                    failedCount += 1
+                    continue
+                }
+                await uploadPhoto(image.fixedOrientation())
+            }
+            if failedCount > 0 {
+                errorAlertMessage = failedCount == 1
+                    ? "One photo couldn't be read and was skipped."
+                    : "\(failedCount) photos couldn't be read and were skipped."
                 showErrorAlert = true
-                return
             }
-            
-            // Create session item with thumbnail
-            let thumbnailData = image.jpegData(compressionQuality: 0.3)
-            let item = SessionItem(
-                kind: .photo,
-                originalFilename: "photo_\(UUID().uuidString).jpg",
-                status: .uploading,
-                thumbnailData: thumbnailData
+        }
+    }
+
+    /// Shared by the camera and library paths. Adds a transient session row,
+    /// uploads, and hands off to the Processing row on success.
+    private func uploadPhoto(_ image: UIImage) async {
+        guard let email = appState.userEmail,
+              let idToken = await appState.idToken else {
+            errorAlertMessage = "Unable to upload. Please check your connection and try again."
+            showErrorAlert = true
+            return
+        }
+
+        // Create session item with thumbnail
+        let thumbnailData = image.jpegData(compressionQuality: 0.3)
+        let item = SessionItem(
+            kind: .photo,
+            originalFilename: "photo_\(UUID().uuidString).jpg",
+            status: .uploading,
+            thumbnailData: thumbnailData
+        )
+
+        sessionStore.addItem(item)
+
+        do {
+            _ = try await UploadService.shared.uploadPhoto(
+                image: image,
+                userEmail: email,
+                idToken: idToken
             )
-            
-            sessionStore.addItem(item)
-            
-            do {
-                _ = try await UploadService.shared.uploadPhoto(
-                    image: image,
-                    userEmail: email,
-                    idToken: idToken
-                )
-                // The PendingNoteRecord is added before uploadPhoto returns,
-                // so the Processing row replaces this transient one — remove
-                // it instead of showing "Captured!" for 8s alongside.
-                sessionStore.removeItem(id: item.id)
-            } catch {
-                sessionStore.markFailed(id: item.id, error: error.localizedDescription)
-            }
+            // The PendingNoteRecord is added before uploadPhoto returns,
+            // so the Processing row replaces this transient one — remove
+            // it instead of showing "Captured!" for 8s alongside.
+            sessionStore.removeItem(id: item.id)
+        } catch {
+            sessionStore.markFailed(id: item.id, error: error.localizedDescription)
         }
     }
 
@@ -253,7 +314,7 @@ struct CaptureButtonsSection: View {
                 CaptureButton(
                     emoji: "📸",
                     label: "Photo",
-                    subLabel: "Take a photo",
+                    subLabel: "Camera or library",
                     action: onPhotoTap
                 )
 

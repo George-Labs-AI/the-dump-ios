@@ -7,8 +7,16 @@ enum SharedConstants {
     /// Backend base URL.
     static let baseURL = "https://thedump.ai"
 
-    /// Ingest endpoint path.
+    /// Ingest endpoint path (text and links).
     static let ingestEndpoint = "/api/ingest"
+
+    /// Signed-URL endpoint for file uploads (photos shared from Photos go
+    /// through the same GCS upload path the main app uses, not /api/ingest).
+    static let uploadFileEndpoint = "/api/mobile/upload_file"
+
+    /// Most images accepted from one share-sheet invocation. Must match
+    /// `NSExtensionActivationSupportsImageWithMaxCount` in TheDumpShare/Info.plist.
+    static let maxSharedImages = 10
 
     /// UserDefaults key for the cached Firebase ID token.
     static let tokenKey = "shared_firebase_id_token"
