@@ -108,6 +108,49 @@ struct NoteDetail: Identifiable, Codable {
     var id: String { organized_note_id }
 }
 
+// MARK: - Sub-category lists
+
+// The server has sent sub_cat_names with a null entry in it (a stale
+// sub-category ID stored by the backend's recheck). Decoding that as
+// [String] failed the whole notes response and blanked Browse, so these
+// models drop empty entries instead.
+extension KeyedDecodingContainer {
+    func decodeSubCategoryNames(forKey key: Key) throws -> [String]? {
+        try decodeIfPresent([String?].self, forKey: key)?.compactMap { $0 }
+    }
+}
+
+extension NotePreview {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        organized_note_id = try c.decode(String.self, forKey: .organized_note_id)
+        title = try c.decodeIfPresent(String.self, forKey: .title)
+        preview = try c.decode(String.self, forKey: .preview)
+        note_content_modified = try c.decode(String.self, forKey: .note_content_modified)
+        category_id = try c.decodeIfPresent(Int.self, forKey: .category_id)
+        category_name = try c.decodeIfPresent(String.self, forKey: .category_name)
+        note_type = try c.decodeIfPresent(String.self, forKey: .note_type)
+        mime_type = try c.decodeIfPresent(String.self, forKey: .mime_type)
+        sub_cat_names = try c.decodeSubCategoryNames(forKey: .sub_cat_names)
+    }
+}
+
+extension NoteDetail {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        organized_note_id = try c.decode(String.self, forKey: .organized_note_id)
+        title = try c.decodeIfPresent(String.self, forKey: .title)
+        note_content = try c.decode(String.self, forKey: .note_content)
+        note_content_modified = try c.decode(String.self, forKey: .note_content_modified)
+        category_id = try c.decodeIfPresent(Int.self, forKey: .category_id)
+        category_name = try c.decodeIfPresent(String.self, forKey: .category_name)
+        sub_cat_names = try c.decodeSubCategoryNames(forKey: .sub_cat_names)
+        tags = try c.decodeIfPresent([String].self, forKey: .tags)
+        mime_type = try c.decodeIfPresent(String.self, forKey: .mime_type)
+        note_type = try c.decodeIfPresent(String.self, forKey: .note_type)
+    }
+}
+
 // MARK: - Edit Note
 
 struct EditNoteRequest: Codable {
@@ -148,6 +191,21 @@ struct EditNoteResponseNote: Codable, Identifiable {
     let mime_type: String?
 
     var id: String { organized_note_id }
+}
+
+extension EditNoteResponseNote {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        organized_note_id = try c.decode(String.self, forKey: .organized_note_id)
+        title = try c.decodeIfPresent(String.self, forKey: .title)
+        note_content = try c.decodeIfPresent(String.self, forKey: .note_content)
+        note_content_modified = try c.decodeIfPresent(String.self, forKey: .note_content_modified)
+        category_id = try c.decodeIfPresent(Int.self, forKey: .category_id)
+        category_name = try c.decodeIfPresent(String.self, forKey: .category_name)
+        sub_cat_names = try c.decodeSubCategoryNames(forKey: .sub_cat_names)
+        note_type = try c.decodeIfPresent(String.self, forKey: .note_type)
+        mime_type = try c.decodeIfPresent(String.self, forKey: .mime_type)
+    }
 }
 
 // MARK: - Delete Note
