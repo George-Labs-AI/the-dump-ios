@@ -105,7 +105,7 @@ struct PhotoUploadClient {
 
         let response: URLResponse
         do {
-            (_, response) = try await urlSession.data(for: request)
+            response = try await urlSession.data(for: request).1
         } catch {
             throw ShareExtensionError.networkError(error.localizedDescription)
         }
