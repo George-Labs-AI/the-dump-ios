@@ -117,7 +117,11 @@ struct ShareContentParser {
                 return try Data(contentsOf: url)
             }
             if let image = item as? UIImage {
-                return image.pngData()
+                // Rare path (an app handing over a decoded image). JPEG, not
+                // PNG: a PNG of a full photo is tens of MB on top of the
+                // decoded bitmap, which the extension's memory limit can't
+                // absorb; a JPEG is a few MB and is what the encoder wants.
+                return image.jpegData(compressionQuality: ShareImageEncoder.jpegQuality)
             }
         } catch {
             #if DEBUG

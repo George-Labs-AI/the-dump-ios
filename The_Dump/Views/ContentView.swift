@@ -130,9 +130,6 @@ struct ContentView: View {
         )
         .onChange(of: selectedLibraryItems) { _, items in
             guard !items.isEmpty else { return }
-            // Clear immediately so re-opening the picker starts empty and the
-            // same selection can't be handled twice.
-            selectedLibraryItems = []
             handleLibrarySelection(items)
         }
         .sheet(isPresented: $showVoiceMemo) {
@@ -202,16 +199,30 @@ struct ContentView: View {
         }
     }
 
-    /// Library selections are uploaded one at a time: each item is decoded
-    /// into a full-resolution UIImage, and holding several of those at once
-    /// (a 12MP photo decodes to ~48MB) would risk memory pressure. Each photo
-    /// becomes its own upload with its own uuid, so each becomes its own note.
+    /// Library selections: first pull the encoded bytes of every pick while
+    /// the picker selection is still live (the items' loaders are tied to
+    /// it), then clear the selection, then decode and upload one at a time.
+    /// Encoded photos are a few MB each, so holding up to 10 is fine; a
+    /// decoded 12MP image is ~48MB, so only one of those exists at a time.
+    /// Each photo becomes its own upload with its own uuid, so each becomes
+    /// its own note.
     private func handleLibrarySelection(_ items: [PhotosPickerItem]) {
         Task {
             var failedCount = 0
+            var encodedPhotos: [Data] = []
             for item in items {
-                guard let data = try? await item.loadTransferable(type: Data.self),
-                      let image = UIImage(data: data) else {
+                if let data = try? await item.loadTransferable(type: Data.self) {
+                    encodedPhotos.append(data)
+                } else {
+                    failedCount += 1
+                }
+            }
+            // Cleared only now so re-opening the picker starts empty; the
+            // guard in onChange ignores this reset.
+            selectedLibraryItems = []
+
+            for data in encodedPhotos {
+                guard let image = UIImage(data: data) else {
                     failedCount += 1
                     continue
                 }
