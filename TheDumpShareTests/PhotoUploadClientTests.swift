@@ -80,6 +80,26 @@ final class PhotoUploadClientTests: XCTestCase {
         XCTAssertEqual(putRequest.value(forHTTPHeaderField: "Content-Type"), "image/jpeg")
     }
 
+    /// Guards the split between the two clients: images must never reach /api/ingest.
+    func test_ingestClient_rejectsImagesWithoutSendingRequest() async {
+        let ingest = IngestAPIClient(tokenManager: tokenManager, urlSession: session)
+        let provider = NSItemProvider(item: Data([0xFF, 0xD8]) as NSData, typeIdentifier: "public.jpeg")
+
+        do {
+            _ = try await ingest.ingest(content: .images([provider]), source: "photos", command: "upload_photo", title: nil)
+            XCTFail("Expected error")
+        } catch let error as ShareExtensionError {
+            if case .badRequest = error {
+                // expected
+            } else {
+                XCTFail("Expected .badRequest, got \(error)")
+            }
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+        XCTAssertTrue(MockURLProtocol.capturedRequests.isEmpty)
+    }
+
     func test_upload_withoutToken_throwsNotAuthenticated() async {
         tokenManager.clearToken()
 

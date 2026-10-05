@@ -106,6 +106,9 @@ struct IngestAPIClient {
             ]
         case .url(let url):
             body["url"] = url.absoluteString
+        case .images:
+            // Photos go through PhotoUploadClient (signed GCS upload), never /api/ingest.
+            throw ShareExtensionError.badRequest("Photos are uploaded as files, not through ingest.")
         }
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
