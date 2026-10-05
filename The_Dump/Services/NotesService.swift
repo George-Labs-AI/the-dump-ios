@@ -109,6 +109,9 @@ class NotesService {
         } catch let error as APIError {
             throw error
         } catch let error as DecodingError {
+#if DEBUG
+            print("[NotesService][categories] Decode failed: \(error)")
+#endif
             throw APIError.decodingFailed(underlying: error)
         } catch {
             throw APIError.networkError(underlying: error)
@@ -140,6 +143,9 @@ class NotesService {
         } catch let error as APIError {
             throw error
         } catch let error as DecodingError {
+#if DEBUG
+            print("[NotesService][note_counts] Decode failed: \(error)")
+#endif
             throw APIError.decodingFailed(underlying: error)
         } catch {
             throw APIError.networkError(underlying: error)
@@ -233,6 +239,9 @@ class NotesService {
         } catch let error as APIError {
             throw error
         } catch let error as DecodingError {
+#if DEBUG
+            print("[NotesService][pull_notes] Decode failed: \(error)")
+#endif
             throw APIError.decodingFailed(underlying: error)
         } catch {
             throw APIError.networkError(underlying: error)
