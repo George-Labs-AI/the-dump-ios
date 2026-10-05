@@ -55,6 +55,29 @@ private struct ErrorResponse: Codable {
     let error: String
 }
 
+extension ShareExtensionError {
+    /// Maps a non-2xx backend response (`{"error": "..."}` body) to the
+    /// matching case. Shared by the ingest and photo-upload clients so both
+    /// surface the same messages for auth, account and quota failures.
+    static func fromBackendResponse(statusCode: Int, body: Data) -> ShareExtensionError {
+        let message = (try? JSONDecoder().decode(ErrorResponse.self, from: body))?.error ?? "Unknown error"
+        switch statusCode {
+        case 400:
+            return .badRequest(message)
+        case 401:
+            return .unauthorized
+        case 402:
+            return .noAccount
+        case 429:
+            return .rateLimited
+        case 500...599:
+            return .serverError(message)
+        default:
+            return .serverError("HTTP \(statusCode): \(message)")
+        }
+    }
+}
+
 // MARK: - API Client
 
 struct IngestAPIClient {
@@ -127,23 +150,7 @@ struct IngestAPIClient {
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
-            let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data)
-            let message = errorResponse?.error ?? "Unknown error"
-
-            switch httpResponse.statusCode {
-            case 400:
-                throw ShareExtensionError.badRequest(message)
-            case 401:
-                throw ShareExtensionError.unauthorized
-            case 402:
-                throw ShareExtensionError.noAccount
-            case 429:
-                throw ShareExtensionError.rateLimited
-            case 500...599:
-                throw ShareExtensionError.serverError(message)
-            default:
-                throw ShareExtensionError.serverError("HTTP \(httpResponse.statusCode): \(message)")
-            }
+            throw ShareExtensionError.fromBackendResponse(statusCode: httpResponse.statusCode, body: data)
         }
 
         do {

@@ -10,10 +10,6 @@ struct SignedUploadResponse: Codable {
     let uuid: String
 }
 
-private struct ErrorResponse: Codable {
-    let error: String
-}
-
 // MARK: - Client
 
 /// Uploads a photo the same way the main app does: ask the backend for a
@@ -68,21 +64,7 @@ struct PhotoUploadClient {
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
-            let message = (try? JSONDecoder().decode(ErrorResponse.self, from: data))?.error ?? "Unknown error"
-            switch httpResponse.statusCode {
-            case 400:
-                throw ShareExtensionError.badRequest(message)
-            case 401:
-                throw ShareExtensionError.unauthorized
-            case 402:
-                throw ShareExtensionError.noAccount
-            case 429:
-                throw ShareExtensionError.rateLimited
-            case 500...599:
-                throw ShareExtensionError.serverError(message)
-            default:
-                throw ShareExtensionError.serverError("HTTP \(httpResponse.statusCode): \(message)")
-            }
+            throw ShareExtensionError.fromBackendResponse(statusCode: httpResponse.statusCode, body: data)
         }
 
         do {
