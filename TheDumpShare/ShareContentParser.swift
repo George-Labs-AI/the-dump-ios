@@ -1,18 +1,34 @@
 import Foundation
+import UIKit
 import UniformTypeIdentifiers
 
 /// The type of content extracted from the share sheet.
 enum SharedContent {
     case text(String)
     case url(URL)
+    /// Images (screenshots, camera roll photos). Providers are kept rather
+    /// than loaded bytes so each image is decoded only when it is uploaded;
+    /// the extension's memory limit can't hold several full photos at once.
+    case images([NSItemProvider])
 }
 
 /// Extracts shared content from NSExtensionItem and detects source app + appropriate command.
 struct ShareContentParser {
 
     /// Parses the first usable content from extension items.
-    /// Priority: URL > Text.
+    /// Priority: Images > URL > Text.
+    ///
+    /// Images come first because Photos (and some other apps) can attach a
+    /// `file://` URL alongside the image; treating that as a link would send
+    /// a useless file path to the ingest endpoint.
     func parse(from items: [NSExtensionItem]) async -> SharedContent? {
+        let imageProviders = items
+            .flatMap { $0.attachments ?? [] }
+            .filter { $0.hasItemConformingToTypeIdentifier(UTType.image.identifier) }
+        if !imageProviders.isEmpty {
+            return .images(Array(imageProviders.prefix(SharedConstants.maxSharedImages)))
+        }
+
         for item in items {
             guard let attachments = item.attachments else { continue }
 
@@ -38,8 +54,12 @@ struct ShareContentParser {
     /// Infers the source LLM service from the shared content's URL host.
     /// Apple does not expose the source app's bundle ID to share extensions,
     /// so we match against known URL domains instead.
-    /// Returns "unknown" for plain text or unrecognized URLs.
+    /// Returns "photos" for images and "unknown" for plain text or
+    /// unrecognized URLs.
     static func detectSource(from content: SharedContent?) -> String {
+        if case .images = content {
+            return "photos"
+        }
         guard case .url(let url) = content,
               let host = url.host?.lowercased() else {
             return "unknown"
@@ -56,12 +76,66 @@ struct ShareContentParser {
     // MARK: - Command Inference
 
     /// Infers the appropriate ingest command based on the content type.
+    /// Images don't go through /api/ingest (see `PhotoUploadClient`); the
+    /// value for them is informational only.
     static func inferCommand(for content: SharedContent) -> String {
         switch content {
         case .url:
             return "conversation_link_and_title"
         case .text:
             return "share_conversation"
+        case .images:
+            return "upload_photo"
+        }
+    }
+
+    // MARK: - Image Loading
+
+    /// Loads the raw bytes of one shared image. Tries the data representation
+    /// of the most specific image type the provider offers (e.g. public.heic),
+    /// then falls back to `loadItem`, which some apps answer with a file URL,
+    /// a `UIImage`, or `Data`.
+    static func loadImageData(from provider: NSItemProvider) async -> Data? {
+        let typeIdentifier = provider.registeredTypeIdentifiers
+            .first { UTType($0)?.conforms(to: .image) == true }
+            ?? UTType.image.identifier
+
+        if let data = await loadDataRepresentation(from: provider, typeIdentifier: typeIdentifier) {
+            return data
+        }
+
+        do {
+            let item = try await provider.loadItem(forTypeIdentifier: typeIdentifier, options: nil)
+            if let data = item as? Data {
+                return data
+            }
+            if let url = item as? URL {
+                let didStartAccess = url.startAccessingSecurityScopedResource()
+                defer {
+                    if didStartAccess { url.stopAccessingSecurityScopedResource() }
+                }
+                return try Data(contentsOf: url)
+            }
+            if let image = item as? UIImage {
+                // Rare path (an app handing over a decoded image). JPEG, not
+                // PNG: a PNG of a full photo is tens of MB on top of the
+                // decoded bitmap, which the extension's memory limit can't
+                // absorb; a JPEG is a few MB and is what the encoder wants.
+                return image.jpegData(compressionQuality: ShareImageEncoder.jpegQuality)
+            }
+        } catch {
+            #if DEBUG
+            print("[ShareContentParser] Failed to load image: \(error)")
+            #endif
+        }
+        return nil
+    }
+
+    private static func loadDataRepresentation(from provider: NSItemProvider, typeIdentifier: String) async -> Data? {
+        await withCheckedContinuation { continuation in
+            _ = provider.loadDataRepresentation(forTypeIdentifier: typeIdentifier) { data, _ in
+                continuation.resume(returning: data)
+            }
         }
     }
 

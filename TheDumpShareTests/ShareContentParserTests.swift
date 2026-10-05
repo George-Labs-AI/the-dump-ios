@@ -26,8 +26,12 @@ final class MockItemProvider: NSItemProvider {
         mockTypeIdentifiers
     }
 
+    /// Honors UTType conformance like the real class does (a `public.jpeg`
+    /// provider answers yes to `public.image`), falling back to an exact match.
     override func hasItemConformingToTypeIdentifier(_ typeIdentifier: String) -> Bool {
-        mockTypeIdentifiers.contains(typeIdentifier)
+        if mockTypeIdentifiers.contains(typeIdentifier) { return true }
+        guard let wanted = UTType(typeIdentifier) else { return false }
+        return mockTypeIdentifiers.contains { UTType($0)?.conforms(to: wanted) == true }
     }
 
     override func loadItem(
@@ -190,5 +194,81 @@ final class CommandInferenceTests: XCTestCase {
         let content = SharedContent.text("Some conversation text here")
         let command = ShareContentParser.inferCommand(for: content)
         XCTAssertEqual(command, "share_conversation")
+    }
+}
+
+// MARK: - Image Tests
+
+final class ImageParsingTests: XCTestCase {
+
+    private let parser = ShareContentParser()
+
+    private func makeImageProvider() -> MockItemProvider {
+        MockItemProvider(typeIdentifier: UTType.jpeg.identifier, item: Data([0xFF, 0xD8]) as NSData)
+    }
+
+    func test_parseImage_returnsImagesCase() async {
+        let item = makeExtensionItem(provider: makeImageProvider())
+
+        let result = await parser.parse(from: [item])
+
+        if case .images(let providers) = result {
+            XCTAssertEqual(providers.count, 1)
+        } else {
+            XCTFail("Expected .images, got \(String(describing: result))")
+        }
+    }
+
+    func test_parseImages_collectsEveryAttachment() async {
+        let item = NSExtensionItem()
+        item.attachments = [makeImageProvider(), makeImageProvider(), makeImageProvider()]
+
+        let result = await parser.parse(from: [item])
+
+        if case .images(let providers) = result {
+            XCTAssertEqual(providers.count, 3)
+        } else {
+            XCTFail("Expected .images, got \(String(describing: result))")
+        }
+    }
+
+    func test_parseImages_capsAtMaxSharedImages() async {
+        let item = NSExtensionItem()
+        item.attachments = (0..<(SharedConstants.maxSharedImages + 5)).map { _ in makeImageProvider() }
+
+        let result = await parser.parse(from: [item])
+
+        if case .images(let providers) = result {
+            XCTAssertEqual(providers.count, SharedConstants.maxSharedImages)
+        } else {
+            XCTFail("Expected .images, got \(String(describing: result))")
+        }
+    }
+
+    /// Photos can attach a file URL next to the image; the image must win or
+    /// the extension would send a `file://` path to the ingest endpoint.
+    func test_imageTakesPriorityOverURL() async throws {
+        let urlProvider = MockItemProvider(
+            typeIdentifier: UTType.url.identifier,
+            item: try XCTUnwrap(URL(string: "file:///var/mobile/IMG_0001.HEIC")) as NSURL
+        )
+        let item = NSExtensionItem()
+        item.attachments = [urlProvider, makeImageProvider()]
+
+        let result = await parser.parse(from: [item])
+
+        if case .images = result {
+            // expected
+        } else {
+            XCTFail("Expected .images (priority over URL), got \(String(describing: result))")
+        }
+    }
+
+    func test_detectSource_images() {
+        XCTAssertEqual(ShareContentParser.detectSource(from: .images([makeImageProvider()])), "photos")
+    }
+
+    func test_inferCommand_images() {
+        XCTAssertEqual(ShareContentParser.inferCommand(for: .images([makeImageProvider()])), "upload_photo")
     }
 }
