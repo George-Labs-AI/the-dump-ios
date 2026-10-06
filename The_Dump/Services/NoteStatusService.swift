@@ -65,6 +65,10 @@ final class NoteStatusService {
                 // 24h the server can no longer answer for a uuid. Also
                 // covers the case where the loop is already running.
                 Task { [store] in
+                    // The share extension may have added records while we
+                    // were suspended; reload first or prune() would persist
+                    // our stale copy over them.
+                    await store.reload()
                     await store.prune()
                 }
             }
@@ -97,6 +101,10 @@ final class NoteStatusService {
     }
 
     private func pollLoop() async {
+        // A loop starts on foregrounding (or a new upload): pick up anything
+        // the share extension wrote while this process was suspended before
+        // the first prune() below writes the blob back.
+        await store.reload()
         while !Task.isCancelled {
             // Expire records past the 24h TTL before deciding whether to
             // continue: a record whose server-side mapping is lost would

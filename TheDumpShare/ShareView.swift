@@ -287,6 +287,17 @@ struct ShareView: View {
                     command: command,
                     title: trimmedTitle.isEmpty ? nil : trimmedTitle
                 )
+                // /api/ingest writes a processing_manifest row for this
+                // uuid, so the main app can poll it like any other upload
+                // and show it under Processing.
+                await PendingNotesStore.shared.add(
+                    PendingNoteRecord(
+                        fileUuid: response.uuid,
+                        storagePath: response.gcsPath,
+                        kind: .text,
+                        localText: Self.pendingPreview(for: content, title: trimmedTitle)
+                    )
+                )
                 state = .success(response.uuid)
             } catch let error as ShareExtensionError {
                 if error == .notAuthenticated || error == .unauthorized {
@@ -323,6 +334,15 @@ struct ShareView: View {
 
                 do {
                     let response = try await photoUploadClient.upload(jpegData: jpegData)
+                    // Same record the main app writes after its own photo
+                    // uploads, so this photo shows under Processing there.
+                    await PendingNotesStore.shared.add(
+                        PendingNoteRecord(
+                            fileUuid: response.uuid,
+                            storagePath: response.storagePath,
+                            kind: .photo
+                        )
+                    )
                     lastUuid = response.uuid
                     uploadedImageCount += 1
                 } catch let error as ShareExtensionError {
@@ -347,6 +367,22 @@ struct ShareView: View {
             } else {
                 state = .success(lastUuid)
             }
+        }
+    }
+
+    /// What the main app's Processing row shows for an ingested share until
+    /// the server has a title: the user's title if they typed one, else the
+    /// shared text or link.
+    static func pendingPreview(for content: SharedContent, title: String) -> String? {
+        if !title.isEmpty { return title }
+        switch content {
+        case .text(let text):
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : String(trimmed.prefix(200))
+        case .url(let url):
+            return url.absoluteString
+        case .images:
+            return nil
         }
     }
 

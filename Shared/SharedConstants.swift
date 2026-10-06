@@ -18,6 +18,12 @@ enum SharedConstants {
     /// `NSExtensionActivationSupportsImageWithMaxCount` in TheDumpShare/Info.plist.
     static let maxSharedImages = 10
 
+    /// UserDefaults key (in the App Group suite) for the pending-note
+    /// records both the main app and the share extension write
+    /// (`PendingNotesStore`). The same key was used in the main app's
+    /// standard defaults before the records moved to the shared suite.
+    static let pendingNoteRecordsKey = "pendingNoteRecords.v1"
+
     /// UserDefaults key for the cached Firebase ID token.
     static let tokenKey = "shared_firebase_id_token"
 
