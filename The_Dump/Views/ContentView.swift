@@ -73,13 +73,22 @@ struct ContentView: View {
                         VStack(spacing: Theme.spacingLG) {
                             // Capture buttons
                             CaptureButtonsSection(
+                                photoSourceDialogPresented: $showPhotoSourceDialog,
                                 onPhotoTap: { guardCapture { showPhotoSourceDialog = true } },
+                                onTakePhoto: { showCamera = true },
+                                onChooseFromLibrary: { showPhotoLibraryPicker = true },
                                 onVoiceTap: { guardCapture { showVoiceMemo = true } },
                                 onFileTap: { guardCapture { showFilePicker = true } },
                                 onTextTap: { guardCapture { showTextNote = true } }
                             )
                             .padding(.top, Theme.spacingLG)
-                            
+
+                            // Upload + processing feedback sits directly
+                            // under the capture grid, above the hint cards:
+                            // the grid plus both hints already fill an
+                            // iPhone screen, so anything placed after them
+                            // is below the fold and a capture looks like it
+                            // did nothing (QA 2026-10-06).
                             ForEach(sessionStore.items) { item in
                                 SessionItemRow(item: item)
                             }
@@ -98,6 +107,16 @@ struct ContentView: View {
                                 )
                             }
 
+                            CaptureHintNote(
+                                icon: "info.circle",
+                                message: "Videos and zip files aren't supported yet."
+                            )
+
+                            CaptureHintNote(
+                                icon: "square.and.arrow.up",
+                                message: "Saving an AI chat? Tap the share button in ChatGPT, Claude, or any other app and choose The Dump. Using Claude on your computer? Connect The Dump's MCP server to save conversations directly."
+                            )
+
                             Spacer(minLength: Theme.spacingXL)
                         }
                         .padding(.horizontal, Theme.screenH)
@@ -113,12 +132,9 @@ struct ContentView: View {
         // Photo has two sources: the camera, or the photo library (where
         // screenshots and saved images live — the Files picker can't see
         // those). The library picker runs out of process, so it needs no
-        // photo-library permission prompt.
-        .confirmationDialog("Add a photo", isPresented: $showPhotoSourceDialog, titleVisibility: .visible) {
-            Button("Take Photo") { showCamera = true }
-            Button("Choose from Library") { showPhotoLibraryPicker = true }
-            Button("Cancel", role: .cancel) {}
-        }
+        // photo-library permission prompt. The source dialog itself is
+        // attached to the Photo tile (CaptureButtonsSection) so that where
+        // iOS presents it as a popover it anchors to that tile.
         .sheet(isPresented: $showCamera) {
             CameraView(image: $capturedImage)
         }
@@ -309,7 +325,11 @@ struct ContentView: View {
 // MARK: - Subviews
 
 struct CaptureButtonsSection: View {
+    /// Drives the "Add a photo" source dialog, attached to the Photo tile.
+    @Binding var photoSourceDialogPresented: Bool
     let onPhotoTap: () -> Void
+    let onTakePhoto: () -> Void
+    let onChooseFromLibrary: () -> Void
     let onVoiceTap: () -> Void
     let onFileTap: () -> Void
     let onTextTap: () -> Void
@@ -328,6 +348,15 @@ struct CaptureButtonsSection: View {
                     subLabel: "Camera or library",
                     action: onPhotoTap
                 )
+                .confirmationDialog(
+                    "Add a photo",
+                    isPresented: $photoSourceDialogPresented,
+                    titleVisibility: .visible
+                ) {
+                    Button("Take Photo", action: onTakePhoto)
+                    Button("Choose from Library", action: onChooseFromLibrary)
+                    Button("Cancel", role: .cancel) {}
+                }
 
                 CaptureButton(
                     emoji: "🎤",
@@ -350,16 +379,6 @@ struct CaptureButtonsSection: View {
                     action: onTextTap
                 )
             }
-
-            CaptureHintNote(
-                icon: "info.circle",
-                message: "Videos and zip files aren't supported yet."
-            )
-
-            CaptureHintNote(
-                icon: "square.and.arrow.up",
-                message: "Saving an AI chat? Tap the share button in ChatGPT, Claude, or any other app and choose The Dump. Using Claude on your computer? Connect The Dump's MCP server to save conversations directly."
-            )
         }
     }
 }
@@ -625,16 +644,17 @@ struct PendingNoteRow: View {
 
     /// Typed notes show what the user typed immediately, regardless of
     /// status. Voice/photo/file show a kind label until the transcribed
-    /// preview arrives.
+    /// preview arrives, and the note's title once it is organized (the
+    /// preview is raw extracted text, e.g. "*Image (photo):* A close-up…").
     private var primaryText: String {
         if record.kind == .text, let text = record.localText, !text.isEmpty {
             return text
         }
-        if let preview = record.transcribedPreview, !preview.isEmpty {
-            return preview
-        }
         if record.lifecycleStatus == .organized, let title = record.title, !title.isEmpty {
             return title
+        }
+        if let preview = record.transcribedPreview, !preview.isEmpty {
+            return preview
         }
         return kindLabel
     }

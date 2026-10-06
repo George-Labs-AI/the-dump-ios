@@ -4,7 +4,7 @@ extension Notification.Name {
     /// Posted after any persisted mutation of the pending-note records
     /// (add / update / acknowledge / remove / prune). Observed by
     /// `PendingNotesViewModel` to mirror the actor's state for SwiftUI.
-    static let pendingNotesStoreDidChange = Notification.Name("pendingNotesStoreDidChange")
+    nonisolated static let pendingNotesStoreDidChange = Notification.Name("pendingNotesStoreDidChange")
 }
 
 /// Persisted store of in-flight note uploads (docs/note-status-contract.md,
