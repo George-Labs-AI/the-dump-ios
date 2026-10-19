@@ -254,7 +254,7 @@ struct NoteDetailView: View {
                 .background(Color.clear)
                 .scrollContentBackground(.hidden)
 
-            if !viewModel.draft.isContentSizeOK {
+            if viewModel.draft.contentChanged && !viewModel.draft.isContentSizeOK {
                 Text("This note is too long to save (500 KB at most).")
                     .font(.system(size: Theme.fontSizeXS))
                     .foregroundColor(Theme.accent)

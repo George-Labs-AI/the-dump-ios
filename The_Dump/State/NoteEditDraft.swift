@@ -270,8 +270,10 @@ struct NoteEditDraft: Equatable {
         titleChanged || contentChanged || categoryChanged || subCategoriesChanged || typeChanged
     }
 
+    /// The size limit only applies when the text is sent, so a note already
+    /// over it can still be moved, retyped or renamed.
     var canSave: Bool {
-        hasChanges && isTitleValid && isContentSizeOK
+        hasChanges && isTitleValid && (!contentChanged || isContentSizeOK)
     }
 
     /// The fields to send to /api/edit_note; nil means "leave unchanged".

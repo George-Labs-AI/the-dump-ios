@@ -98,6 +98,21 @@ final class NoteEditDraftTests: XCTestCase {
         XCTAssertFalse(draft.canSave)
     }
 
+    func testNoteOverTheSizeLimitCanStillBeRenamedButNotGrown() throws {
+        let longText = String(repeating: "a", count: NoteEditDraft.maxContentBytes + 1)
+        var draft = NoteEditDraft(title: "Long", content: longText, categoryId: 216, categoryName: "Work")
+        XCTAssertFalse(draft.isContentSizeOK)
+
+        // The text isn't sent, so the limit doesn't apply.
+        draft.title = "Long note"
+        XCTAssertTrue(draft.canSave)
+        XCTAssertEqual(Set(try body(draft.changes).keys), ["note_id", "title"])
+
+        // Changing the text while it stays too long can't be saved.
+        draft.content = longText + "b"
+        XCTAssertFalse(draft.canSave)
+    }
+
     // MARK: - Category
 
     func testMoveKeepsOnlySubCategoriesTheNewCategoryHas() throws {
