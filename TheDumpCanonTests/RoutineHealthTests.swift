@@ -101,7 +101,8 @@ final class RoutineHealthTests: XCTestCase {
         RoutineHealth.displayText(for: status, now: endedDate.addingTimeInterval(seconds))
     }
 
-    func testChipUsesTheWebWordingWhenAStatusArrives() {
+    @MainActor
+    func testChipUsesTheWebWordingWhenAStatusArrives() async {
         let unclear = RoutineStatus(verdict: "UNKNOWN", asOf: ended)
         XCTAssertEqual(RoutineStatusDisplay(status: unclear), .health(.unknown))
         XCTAssertEqual(chipText(unclear), "Result unclear · 3h ago")
@@ -116,7 +117,8 @@ final class RoutineHealthTests: XCTestCase {
         XCTAssertEqual(chipText(RoutineStatus(verdict: "PAUSED", asOf: ended, paused: true)), "Paused")
     }
 
-    func testChipSaysStatusUnavailableOnlyWhenTheStatusIsNull() {
+    @MainActor
+    func testChipSaysStatusUnavailableOnlyWhenTheStatusIsNull() async {
         XCTAssertEqual(RoutineStatusDisplay(status: nil), .unavailable)
         XCTAssertEqual(RoutineStatusDisplay.unavailableLabel, "Status unavailable")
 
