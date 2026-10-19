@@ -87,6 +87,8 @@ struct NotePreview: Identifiable, Codable {
     let note_type: String?
     let mime_type: String?
     let sub_cat_names: [String]?
+    /// Who sent an emailed note; nil (or blank) for the account owner's own notes.
+    let author: String?
     
     // Map API ID to Swift's Identifiable ID
     var id: String { organized_note_id }
@@ -104,6 +106,8 @@ struct NoteDetail: Identifiable, Codable {
     let tags: [String]?
     let mime_type: String?
     let note_type: String?
+    /// Who sent an emailed note; nil (or blank) for the account owner's own notes.
+    let author: String?
     
     var id: String { organized_note_id }
 }
@@ -132,6 +136,7 @@ extension NotePreview {
         note_type = try c.decodeIfPresent(String.self, forKey: .note_type)
         mime_type = try c.decodeIfPresent(String.self, forKey: .mime_type)
         sub_cat_names = try c.decodeSubCategoryNames(forKey: .sub_cat_names)
+        author = try c.decodeIfPresent(String.self, forKey: .author)
     }
 }
 
@@ -148,6 +153,7 @@ extension NoteDetail {
         tags = try c.decodeIfPresent([String].self, forKey: .tags)
         mime_type = try c.decodeIfPresent(String.self, forKey: .mime_type)
         note_type = try c.decodeIfPresent(String.self, forKey: .note_type)
+        author = try c.decodeIfPresent(String.self, forKey: .author)
     }
 }
 

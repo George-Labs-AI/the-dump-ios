@@ -46,6 +46,32 @@ final class NoteModelsDecodingTests: XCTestCase {
         XCTAssertEqual(edited.note?.sub_cat_names, [])
     }
 
+    // author (the sender of an emailed note) comes back on every note from
+    // /api/pull_notes and /api/pull_full_notes, as null for the owner's own
+    // notes; older servers left it out.
+    func testNotePreviewAuthorPresentNullOrMissing() throws {
+        let emailed = try decode(NoteListResponse.self, """
+        {"notes": [{"organized_note_id": "n1", "preview": "p", "note_content_modified": "x",
+                    "author": "Pat Sender <pat@example.com>"},
+                   {"organized_note_id": "n2", "preview": "p", "note_content_modified": "x",
+                    "author": null},
+                   {"organized_note_id": "n3", "preview": "p", "note_content_modified": "x"}],
+         "has_more": false}
+        """)
+        XCTAssertEqual(emailed.notes.map(\.author), ["Pat Sender <pat@example.com>", nil, nil])
+    }
+
+    func testNoteDetailAuthorPresentNullOrMissing() throws {
+        let response = try decode(NoteDetailResponse.self, """
+        {"notes": [{"organized_note_id": "n1", "note_content": "body", "note_content_modified": "x",
+                    "author": "pat@example.com"},
+                   {"organized_note_id": "n2", "note_content": "body", "note_content_modified": "x",
+                    "author": null},
+                   {"organized_note_id": "n3", "note_content": "body", "note_content_modified": "x"}]}
+        """)
+        XCTAssertEqual(response.notes.map(\.author), ["pat@example.com", nil, nil])
+    }
+
     func testRequiredFieldsStillRequired() {
         XCTAssertThrowsError(try decode(NotePreview.self, """
         {"organized_note_id": "n1", "note_content_modified": "x"}
