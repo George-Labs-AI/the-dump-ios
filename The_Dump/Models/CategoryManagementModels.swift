@@ -27,10 +27,29 @@ enum RecategorizeScope: String, Codable, CaseIterable, Identifiable {
 struct StartRecategorizeRequest: Encodable {
     let scope: RecategorizeScope
     let categoryId: Int?
+    /// Set only when the category is archived right after this re-sort, so
+    /// the backend never moves a note back into it — the same body the web's
+    /// category_manager.js sends. Nil keys are left out of the JSON.
+    let archiving: Bool?
+    let excludeCategoryIds: [Int]?
+
+    init(scope: RecategorizeScope, categoryId: Int?, archiving: Bool = false) {
+        self.scope = scope
+        self.categoryId = categoryId
+        if archiving, let categoryId {
+            self.archiving = true
+            self.excludeCategoryIds = [categoryId]
+        } else {
+            self.archiving = nil
+            self.excludeCategoryIds = nil
+        }
+    }
 
     enum CodingKeys: String, CodingKey {
         case scope
         case categoryId = "category_id"
+        case archiving
+        case excludeCategoryIds = "exclude_category_ids"
     }
 }
 
@@ -84,6 +103,23 @@ struct RecategorizeJobStatus: Decodable {
         case createdAt = "created_at"
         case startedAt = "started_at"
         case completedAt = "completed_at"
+    }
+}
+
+// MARK: - Restore (POST /api/categories/{id}/restore)
+
+struct RestoreCategoryResponse: Decodable {
+    let status: String
+    let categoryId: Int
+    let restoredSubcategoryCount: Int
+    /// Only present when restoring a category that is already active (idempotent no-op).
+    let alreadyActive: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case categoryId = "category_id"
+        case restoredSubcategoryCount = "restored_subcategory_count"
+        case alreadyActive = "already_active"
     }
 }
 
@@ -179,4 +215,26 @@ enum CategoryLimits {
     /// Client-side cap until the backend exposes one. Drives the cap meter
     /// and the disabled state of the "Add category" button.
     static let maxActiveCategories: Int = 15
+
+    /// Longest category name the server accepts (it rejects longer ones with
+    /// a 400). The web's Settings field uses the same number.
+    static let maxNameLength: Int = 80
+
+    /// `text` cut back to `maxNameLength`, counted in Unicode code points as
+    /// the server's Python `len()` counts them. Never splits a character, so
+    /// an emoji at the limit is dropped whole.
+    static func limitedName(_ text: String) -> String {
+        var kept = ""
+        var count = 0
+        for character in text {
+            count += character.unicodeScalars.count
+            if count > maxNameLength { break }
+            kept.append(character)
+        }
+        return kept
+    }
+
+    static func isNameAtLimit(_ text: String) -> Bool {
+        text.unicodeScalars.count >= maxNameLength
+    }
 }

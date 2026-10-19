@@ -43,6 +43,7 @@ struct RoutineDetailView: View {
                     .padding(Theme.spacingLG)
                 } else {
                     List {
+                        statusSection
                         headerSection
                         needsYouSection
                         documentsSection
@@ -66,6 +67,22 @@ struct RoutineDetailView: View {
         }
         .task {
             await viewModel.loadIfNeeded()
+        }
+    }
+
+    @ViewBuilder
+    private var statusSection: some View {
+        if RoutineHealth(status: viewModel.routine?.status) != nil {
+            Section {
+                HStack {
+                    Text("Status")
+                        .font(.system(size: Theme.fontSizeSM))
+                        .foregroundColor(Theme.textSecondary)
+                    Spacer()
+                    RoutineHealthLabel(status: viewModel.routine?.status)
+                }
+            }
+            .listRowBackground(Theme.surface)
         }
     }
 

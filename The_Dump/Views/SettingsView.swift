@@ -27,6 +27,9 @@ struct SettingsView: View {
                                 .foregroundColor(Theme.textPrimary)
                         }
                         .listRowBackground(Theme.surface)
+
+                        ExportDataRow()
+                            .listRowBackground(Theme.surface)
                     } header: {
                         Text("Account")
                             .foregroundColor(Theme.textSecondary)
@@ -105,6 +108,24 @@ struct SettingsView: View {
                             Spacer()
                             Text(appVersion)
                                 .foregroundColor(Theme.textPrimary)
+                        }
+                        .listRowBackground(Theme.surface)
+
+                        // The support page lists the support email, which
+                        // reaches the team's inbox, plus the FAQ.
+                        Button {
+                            if let url = URL(string: "\(SharedConstants.defaultBaseURL)/support") {
+                                UIApplication.shared.open(url)
+                            }
+                        } label: {
+                            HStack {
+                                Text("Contact support")
+                                    .foregroundColor(Theme.textPrimary)
+                                Spacer()
+                                Image(systemName: "arrow.up.right")
+                                    .font(.system(size: Theme.fontSizeXS, weight: .semibold))
+                                    .foregroundColor(Theme.textTertiary)
+                            }
                         }
                         .listRowBackground(Theme.surface)
 

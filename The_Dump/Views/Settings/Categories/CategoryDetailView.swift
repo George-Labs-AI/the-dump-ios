@@ -16,6 +16,8 @@ struct CategoryDetailView: View {
     /// Every other category name (active + archived). Archived names are still
     /// owned by the server, so renaming onto one collides.
     @State private var reservedNames: [String] = []
+    /// Restoring is blocked at the active-category cap, as on the web.
+    @State private var activeCount: Int = 0
     @State private var emoji: String = "📁"
     @State private var loadedEmoji: String = "📁"
     @State private var name: String = ""
@@ -166,6 +168,19 @@ struct CategoryDetailView: View {
                             .cornerRadius(Theme.cornerRadiusSM)
                             .focused($focusedField, equals: .name)
                             .disabled(readonly)
+                            .onChange(of: name) { _, newValue in
+                                // Only trim what the user types, so loading an
+                                // older, longer name doesn't silently edit it.
+                                guard focusedField == .name else { return }
+                                let limited = CategoryLimits.limitedName(newValue)
+                                if limited != newValue { name = limited }
+                            }
+
+                        if !readonly && CategoryLimits.isNameAtLimit(name) {
+                            Text("Names can be up to \(CategoryLimits.maxNameLength) characters.")
+                                .font(.system(size: Theme.fontSizeXS))
+                                .foregroundColor(Theme.textTertiary)
+                        }
 
                         if nameCollides {
                             Text("A category named \"\(name.trimmingCharacters(in: .whitespacesAndNewlines))\" already exists.")
@@ -246,12 +261,19 @@ struct CategoryDetailView: View {
                 .padding(.top, Theme.spacingMD)
 
             if archived {
+                let atCap = activeCount >= CategoryLimits.maxActiveCategories
                 Button {
                     Task { await restore() }
                 } label: {
-                    dangerLabel(systemImage: "arrow.uturn.backward", title: "Restore category", tint: Theme.accent)
+                    dangerLabel(systemImage: "arrow.uturn.backward", title: "Restore category", tint: atCap ? Theme.textTertiary : Theme.accent)
                 }
-                .disabled(isPerformingDangerAction)
+                .disabled(isPerformingDangerAction || atCap)
+
+                if atCap {
+                    Text("You're at the \(CategoryLimits.maxActiveCategories)-category limit. Archive a category first to restore this one.")
+                        .font(.system(size: Theme.fontSizeXS))
+                        .foregroundColor(Theme.textTertiary)
+                }
             } else {
                 Button {
                     choiceTrigger = .archiveTapped
@@ -332,6 +354,7 @@ struct CategoryDetailView: View {
             reservedNames = categories.categories
                 .filter { $0.categoryId != categoryId }
                 .map { $0.name }
+            activeCount = categories.categories.filter { !($0.archived ?? false) }.count
             let resolvedEmoji = match.emoji ?? CategoryEmojiStore.emoji(for: categoryId)
             loadedEmoji = resolvedEmoji
             emoji = resolvedEmoji
@@ -394,6 +417,8 @@ struct CategoryDetailView: View {
             try await NotesService.shared.restoreCategory(categoryId: categoryId)
             didChange = true
             dismiss()
+        } catch APIError.conflict(_) {
+            dangerError = "Couldn't restore \"\(original?.name ?? name)\" — an active category already has that name. Rename it first."
         } catch {
             dangerError = error.localizedDescription
         }

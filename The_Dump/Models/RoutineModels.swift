@@ -20,6 +20,7 @@ struct RoutineDetailResponse: Decodable {
     let description: String?
     let enabled: Bool
     let updatedAt: String?
+    let status: RoutineStatus?
     let documents: [RoutineDocumentMeta]
 
     enum CodingKeys: String, CodingKey {
@@ -29,6 +30,7 @@ struct RoutineDetailResponse: Decodable {
         case description
         case enabled
         case updatedAt = "updated_at"
+        case status
         case documents
     }
 }
@@ -65,6 +67,7 @@ struct RoutineSummary: Identifiable, Decodable, Equatable {
     let documentCount: Int?
     let openAskCount: Int?
     let updatedAt: String?
+    let status: RoutineStatus?
 
     var id: String { routineID }
 
@@ -77,6 +80,58 @@ struct RoutineSummary: Identifiable, Decodable, Equatable {
         case documentCount = "document_count"
         case openAskCount = "open_ask_count"
         case updatedAt = "updated_at"
+        case status
+    }
+}
+
+/// The runner status the server attaches to every routine
+/// (helpers/routine_scorecard_helpers.py `derive_status`). Only the verdict
+/// code is read. The whole object is null when the server can't work it out.
+struct RoutineStatus: Decodable, Equatable {
+    let verdict: String?
+
+    enum CodingKeys: String, CodingKey {
+        case verdict
+    }
+
+    init(verdict: String?) {
+        self.verdict = verdict
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        // An odd verdict must hide the label, not fail the whole routines list.
+        verdict = try? container.decodeIfPresent(String.self, forKey: .verdict)
+    }
+}
+
+/// The verdict code in plain words, shared by the routines list and detail.
+/// A missing or unrecognised code gives nil so the label hides instead of
+/// showing a raw code.
+enum RoutineHealth: String, CaseIterable {
+    case ok = "OK"
+    case nothingToDo = "NOTHING_TO_DO"
+    case partial = "PARTIAL"
+    case unknown = "UNKNOWN"
+    case failed = "FAILED"
+    case silent = "SILENT"
+    case paused = "PAUSED"
+
+    init?(status: RoutineStatus?) {
+        guard let code = status?.verdict else { return nil }
+        self.init(rawValue: code)
+    }
+
+    var label: String {
+        switch self {
+        case .ok: return "Up to date"
+        case .nothingToDo: return "Nothing new"
+        case .partial: return "Partly done"
+        case .unknown: return "Waiting for first report"
+        case .failed: return "Failed"
+        case .silent: return "Not running"
+        case .paused: return "Paused"
+        }
     }
 }
 

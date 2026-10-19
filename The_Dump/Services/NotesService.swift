@@ -548,13 +548,19 @@ class NotesService {
     }
 
     // Start a recategorize job. Returns the job_id to poll.
-    func startRecategorize(scope: RecategorizeScope, categoryId: Int? = nil) async throws -> StartRecategorizeResponse {
+    // Pass `archiving: true` when the category is archived right after, so no
+    // note is re-sorted back into it.
+    func startRecategorize(scope: RecategorizeScope, categoryId: Int? = nil, archiving: Bool = false) async throws -> StartRecategorizeResponse {
         if scope == .category, categoryId == nil {
             throw APIError.badRequest(message: "category_id is required when scope is \"category\"")
         }
 
         var request = try await createRequest(endpoint: "/api/recategorize", method: "POST", baseURLOverride: recategorizeBaseURL)
-        let body = StartRecategorizeRequest(scope: scope, categoryId: scope == .category ? categoryId : nil)
+        let body = StartRecategorizeRequest(
+            scope: scope,
+            categoryId: scope == .category ? categoryId : nil,
+            archiving: archiving
+        )
 
         do {
             request.httpBody = try JSONEncoder().encode(body)
@@ -667,9 +673,45 @@ class NotesService {
         }
     }
 
-    // Restore an archived category. Stubbed — backend support pending.
-    func restoreCategory(categoryId: Int) async throws {
-        throw APIError.httpError(statusCode: 501, message: "Restore endpoint not implemented yet")
+    // Restore an archived category and the sub-categories archived with it.
+    // Idempotent — restoring an active category returns `alreadyActive == true`.
+    // Fails with 409 when another active category now has the same name.
+    @discardableResult
+    func restoreCategory(categoryId: Int) async throws -> RestoreCategoryResponse {
+        let request = try await createRequest(
+            endpoint: "/api/categories/\(categoryId)/restore",
+            method: "POST"
+        )
+
+        do {
+#if DEBUG
+            debugLogRequest(request, label: "restore_category")
+#endif
+            let (data, response) = try await URLSession.shared.data(for: request)
+#if DEBUG
+            debugLogResponse(data: data, response: response, label: "restore_category")
+#endif
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.networkError(underlying: URLError(.badServerResponse))
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+                throw APIError.from(statusCode: httpResponse.statusCode, errorResponse: errorResponse)
+            }
+
+            return try JSONDecoder().decode(RestoreCategoryResponse.self, from: data)
+        } catch let error as APIError {
+            throw error
+        } catch let error as DecodingError {
+#if DEBUG
+            print("[NotesService][restore_category] Decoding error: \(error)")
+#endif
+            throw APIError.decodingFailed(underlying: error)
+        } catch {
+            throw APIError.networkError(underlying: error)
+        }
     }
 
     // Delete a category with a chosen disposition for its existing notes.
@@ -814,6 +856,41 @@ class NotesService {
             throw error
         } catch let error as DecodingError {
             throw APIError.decodingFailed(underlying: error)
+        } catch {
+            throw APIError.networkError(underlying: error)
+        }
+    }
+
+    // Everything the account holds, as the JSON the web's "Export data" downloads.
+    // The body is checked to be a JSON object so an error page is never shared
+    // as someone's export.
+    func exportData() async throws -> Data {
+        let request = try await createRequest(endpoint: "/export-data")
+
+        do {
+#if DEBUG
+            debugLogRequest(request, label: "export_data")
+#endif
+            let (data, response) = try await URLSession.shared.data(for: request)
+#if DEBUG
+            debugLogResponse(data: data, response: response, label: "export_data")
+#endif
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.networkError(underlying: URLError(.badServerResponse))
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+                throw APIError.from(statusCode: httpResponse.statusCode, errorResponse: errorResponse)
+            }
+
+            guard (try? JSONSerialization.jsonObject(with: data)) is [String: Any] else {
+                throw APIError.decodingFailed(underlying: URLError(.cannotParseResponse))
+            }
+            return data
+        } catch let error as APIError {
+            throw error
         } catch {
             throw APIError.networkError(underlying: error)
         }

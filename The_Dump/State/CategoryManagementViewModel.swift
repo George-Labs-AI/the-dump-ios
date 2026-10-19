@@ -6,7 +6,6 @@ import Combine
 final class CategoryManagementViewModel: ObservableObject {
     @Published var active: [CategoryListItem] = []
     @Published var archived: [CategoryListItem] = []
-    @Published var recentlyDeleted: [CategoryListItem] = []
     @Published var isLoading: Bool = true
     @Published var errorMessage: String?
 
@@ -45,9 +44,6 @@ final class CategoryManagementViewModel: ObservableObject {
             archived = allItems
                 .filter { $0.archived }
                 .sorted { $0.name.lowercased() < $1.name.lowercased() }
-            // Recently-deleted is server-driven (retention window). Empty until
-            // the backend exposes the list.
-            recentlyDeleted = []
             isLoading = false
         } catch {
             errorMessage = error.localizedDescription

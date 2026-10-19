@@ -103,6 +103,9 @@ private struct RoutineRowView: View {
                 }
                 .font(.system(size: Theme.fontSizeXS))
                 .foregroundColor(Theme.textSecondary)
+
+                RoutineHealthLabel(status: routine.status)
+                    .padding(.top, 2)
             }
 
             Spacer()
