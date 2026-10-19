@@ -363,10 +363,20 @@ enum RoutineHealth: String, CaseIterable {
     }
 
     /// The report time is the runner's own timestamp. One without a time
-    /// zone is read as UTC, as the server does.
+    /// zone is read as UTC, as the server does, and so is one with a space
+    /// instead of "T" between the date and the time, which the web accepts.
     private static func reportDate(_ iso: String?) -> Date? {
         guard let iso = iso?.trimmingCharacters(in: .whitespaces), !iso.isEmpty else { return nil }
-        return RoutineDateParser.date(from: iso) ?? RoutineDateParser.date(from: iso + "Z")
+        var forms = [iso]
+        if let space = iso.firstIndex(of: " ") {
+            forms.append(iso.replacingCharacters(in: space...space, with: "T"))
+        }
+        for form in forms {
+            if let date = RoutineDateParser.date(from: form) ?? RoutineDateParser.date(from: form + "Z") {
+                return date
+            }
+        }
+        return nil
     }
 }
 

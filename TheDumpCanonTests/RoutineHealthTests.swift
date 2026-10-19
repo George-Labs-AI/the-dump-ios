@@ -74,6 +74,9 @@ final class RoutineHealthTests: XCTestCase {
         XCTAssertEqual(label("OK", asOf: "2026-10-18T08:00:00-04:00"), "Up to date · 42m ago")
         // No time zone: read as UTC, as the server does.
         XCTAssertEqual(label("OK", asOf: "2026-10-18T12:00:00"), "Up to date · 42m ago")
+        // A space between the date and the time, which the web also reads.
+        XCTAssertEqual(label("OK", asOf: "2026-10-18 12:00:00+00:00"), "Up to date · 42m ago")
+        XCTAssertEqual(label("OK", asOf: "2026-10-18 12:00:00"), "Up to date · 42m ago")
         // Unreadable: just the words.
         XCTAssertEqual(label("OK", asOf: "yesterday"), "Up to date")
         XCTAssertEqual(label("UNKNOWN", asOf: "yesterday"), "Result unclear")
