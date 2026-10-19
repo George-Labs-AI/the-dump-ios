@@ -38,6 +38,10 @@ final class NotesListViewModel: ObservableObject {
     /// reload the sub-categories. It runs as soon as the running one ends,
     /// so the list always ends up matching the latest request.
     private var pendingReloadSubCategories: Bool?
+    /// Counts reloads, so a page that was still loading when the list was
+    /// reloaded (for another search or filter) is thrown away rather than
+    /// added to the new list.
+    private var loadGeneration = 0
 
     // Inputs to the sub-category pills (see SubCategoryPills.build).
     private var categoryMap: CategoryMapResponse?
@@ -152,6 +156,7 @@ final class NotesListViewModel: ObservableObject {
         }
         isLoadingInitial = true
         isLoadingMore = false
+        loadGeneration += 1
         errorMessage = nil
         nextCursorTime = nil
         nextCursorId = nil
@@ -211,7 +216,8 @@ final class NotesListViewModel: ObservableObject {
         
         isLoadingMore = true
         errorMessage = nil
-        
+        let generation = loadGeneration
+
         do {
             let response = try await fetch(
                 limit: 30,
@@ -219,6 +225,8 @@ final class NotesListViewModel: ObservableObject {
                 cursorId: nextCursorId,
                 offset: nextOffset
             )
+            // The list was reloaded meanwhile; this page belongs to the old one.
+            guard generation == loadGeneration else { return }
             notes.append(contentsOf: response.notes)
             nextCursorTime = response.next_cursor_time
             nextCursorId = response.next_cursor_id
@@ -230,6 +238,7 @@ final class NotesListViewModel: ObservableObject {
             collectSubCategoryNames(from: response.notes, replacing: false)
             rebuildSubCategoryPills()
         } catch {
+            guard generation == loadGeneration else { return }
             errorMessage = error.localizedDescription
         }
 
