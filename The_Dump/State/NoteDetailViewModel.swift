@@ -215,13 +215,21 @@ final class NoteDetailViewModel: ObservableObject {
 
     // MARK: - Original file
 
-    /// Whether this note has an original file to open (photo, recording,
-    /// document). Servers that don't send has_asset fall back to the old
-    /// guess from the media type.
-    var hasOriginalAsset: Bool {
-        if let hasAsset = note?.has_asset { return hasAsset }
-        let mt = note?.mime_type?.lowercased() ?? ""
-        let nt = note?.note_type?.lowercased() ?? ""
+    var hasOriginalAsset: Bool { Self.showsOriginalButton(for: note) }
+
+    var assetIconName: String { Self.originalButtonIcon(for: note) }
+
+    /// Whether to show the original-file button. Same rule as the web's
+    /// Original buttons (static/notes.js): every note the server says has an
+    /// original file (has_asset), whatever its kind, and no others. Servers
+    /// that don't send has_asset fall back to the old guess from the media
+    /// type. A file missing from storage still answers "No original file
+    /// available for this note."
+    static func showsOriginalButton(for note: NoteDetail?) -> Bool {
+        guard let note else { return false }
+        if let hasAsset = note.has_asset { return hasAsset }
+        let mt = note.mime_type?.lowercased() ?? ""
+        let nt = note.note_type?.lowercased() ?? ""
         if mt.hasPrefix("image") || mt.hasPrefix("photo") || nt == "photo" { return true }
         if mt.hasPrefix("audio") || mt.hasPrefix("voice") || nt == "voice" { return true }
         return false
@@ -230,7 +238,7 @@ final class NoteDetailViewModel: ObservableObject {
     /// SF Symbol name for the original asset button based on mime type and note type.
     /// Same kinds as the web's card button: photo, recording, document, and a
     /// paperclip for anything else (typed and shared text).
-    var assetIconName: String {
+    static func originalButtonIcon(for note: NoteDetail?) -> String {
         let mt = note?.mime_type?.lowercased() ?? ""
         let nt = note?.note_type?.lowercased() ?? ""
         if mt.hasPrefix("image") || mt.hasPrefix("photo") || nt == "photo" { return "photo.on.rectangle" }
