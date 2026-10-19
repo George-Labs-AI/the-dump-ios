@@ -86,6 +86,43 @@ final class RoutineHealthTests: XCTestCase {
         XCTAssertNil(RoutineHealth(status: RoutineStatus(verdict: "")))
     }
 
+    // MARK: - What the chip shows, including "Status unavailable"
+
+    private func display(_ status: RoutineStatus?, after seconds: TimeInterval = 3 * 3600) -> RoutineStatusDisplay {
+        RoutineStatusDisplay(status: status, now: endedDate.addingTimeInterval(seconds))
+    }
+
+    func testChipUsesTheWebWordingWhenAStatusArrives() {
+        let unclear = display(RoutineStatus(verdict: "UNKNOWN", asOf: ended))
+        XCTAssertEqual(unclear, .health(.unknown, text: "Result unclear · 3h ago"))
+        XCTAssertEqual(unclear.text, "Result unclear · 3h ago")
+        XCTAssertEqual(unclear.accessibilityLabel, "Status: Result unclear · 3h ago")
+
+        let waiting = display(RoutineStatus(verdict: "UNKNOWN"))
+        XCTAssertEqual(waiting.text, "Waiting for first report")
+        XCTAssertEqual(waiting.accessibilityLabel, "Status: Waiting for first report")
+
+        XCTAssertEqual(display(RoutineStatus(verdict: "OK", asOf: ended)).text, "Up to date · 3h ago")
+        XCTAssertEqual(display(RoutineStatus(verdict: "SILENT", asOf: ended, silentForHours: 29)).text,
+                       "Not running · no report for 29h")
+        XCTAssertEqual(display(RoutineStatus(verdict: "PAUSED", asOf: ended, paused: true)).text, "Paused")
+    }
+
+    func testChipSaysStatusUnavailableOnlyWhenTheStatusIsNull() {
+        let unavailable = display(nil)
+        XCTAssertEqual(unavailable, .unavailable)
+        XCTAssertEqual(unavailable.text, "Status unavailable")
+        // VoiceOver reads it once, not "Status: Status unavailable".
+        XCTAssertEqual(unavailable.accessibilityLabel, "Status unavailable")
+
+        // A status the app can't read still hides rather than showing a code.
+        for odd in [RoutineStatus(verdict: "NEW_CODE", asOf: ended), RoutineStatus(verdict: nil)] {
+            XCTAssertEqual(display(odd), .hidden)
+            XCTAssertNil(display(odd).text)
+            XCTAssertNil(display(odd).accessibilityLabel)
+        }
+    }
+
     func testListDecodesStatusInEveryShape() throws {
         let list = try decode(RoutinesListResponse.self, """
         {"routines": [

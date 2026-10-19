@@ -10,6 +10,8 @@ final class RoutineDetailViewModel: ObservableObject {
     /// Set when the open-asks request fails. The previous asks are kept so
     /// a failed refresh never wipes the queue or reads as "nothing waiting".
     @Published private(set) var asksErrorMessage: String?
+    @Published private(set) var isUpdatingPause: Bool = false
+    @Published private(set) var pauseErrorMessage: String?
 
     let slug: String
 
@@ -67,5 +69,34 @@ final class RoutineDetailViewModel: ObservableObject {
     /// preview stays honest without a full reload.
     func removeAnswered(askID: String) {
         openAsks.removeAll { $0.askID == askID }
+    }
+
+    /// Pauses or resumes the routine. The server works the status out again
+    /// in its reply (resuming never leaves a stale "Paused"), so that reply
+    /// replaces the routine's status; the document list is kept.
+    func setPaused(_ paused: Bool) async {
+        guard !isUpdatingPause else { return }
+        isUpdatingPause = true
+        pauseErrorMessage = nil
+
+        do {
+            let updated = try await RoutinesService.shared.setPaused(paused, routineSlug: slug)
+            if let current = routine {
+                routine = RoutineDetailResponse(
+                    routineID: current.routineID,
+                    slug: current.slug,
+                    name: updated.name,
+                    description: updated.description,
+                    enabled: updated.enabled,
+                    updatedAt: updated.updatedAt,
+                    status: updated.status,
+                    documents: current.documents
+                )
+            }
+        } catch {
+            pauseErrorMessage = RoutineErrorText.message(for: error)
+        }
+
+        isUpdatingPause = false
     }
 }

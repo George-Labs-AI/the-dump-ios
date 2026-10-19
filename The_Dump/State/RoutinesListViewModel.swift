@@ -11,11 +11,6 @@ final class RoutinesListViewModel: ObservableObject {
         routines.reduce(0) { $0 + ($1.openAskCount ?? 0) }
     }
 
-    func loadIfNeeded() async {
-        guard routines.isEmpty else { return }
-        await load()
-    }
-
     func load() async {
         guard !isLoading else { return }
         isLoading = true

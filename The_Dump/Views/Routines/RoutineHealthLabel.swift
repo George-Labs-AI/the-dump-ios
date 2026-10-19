@@ -1,26 +1,32 @@
 import SwiftUI
 
 /// The routine runner's health in plain words ("Up to date · 42m ago",
-/// "Not running"…), worded and coloured like the web's status chip. Draws
-/// nothing when the server sent no status or a code this app doesn't know.
+/// "Not running"…), worded and coloured like the web's status chip. Says
+/// "Status unavailable" when the server sent no status, as the web does,
+/// and draws nothing for a code this app doesn't know.
 struct RoutineHealthLabel: View {
     let status: RoutineStatus?
 
     var body: some View {
-        if let health = RoutineHealth(status: status),
-           let text = RoutineHealth.displayText(for: status) {
-            Text(text)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundColor(color(for: health))
-                .padding(.horizontal, Theme.spacingSM)
-                .padding(.vertical, 3)
-                .background(color(for: health).opacity(0.12))
-                .clipShape(Capsule())
-                .accessibilityLabel("Status: \(text)")
+        let display = RoutineStatusDisplay(status: status)
+        if let text = display.text, let spokenLabel = display.accessibilityLabel {
+            chip(text, color: color(for: display), accessibilityLabel: spokenLabel)
         }
     }
 
-    private func color(for health: RoutineHealth) -> Color {
+    private func chip(_ label: String, color: Color, accessibilityLabel: String) -> some View {
+        Text(label)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundColor(color)
+            .padding(.horizontal, Theme.spacingSM)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.12))
+            .clipShape(Capsule())
+            .accessibilityLabel(accessibilityLabel)
+    }
+
+    private func color(for display: RoutineStatusDisplay) -> Color {
+        guard case .health(let health, _) = display else { return Theme.textSecondary }
         switch health {
         case .ok, .nothingToDo:
             return Theme.success
@@ -44,6 +50,7 @@ struct RoutineHealthLabel: View {
                 silentForHours: 29
             ))
         }
+        RoutineHealthLabel(status: nil)
     }
     .padding()
     .background(Theme.background)

@@ -134,30 +134,27 @@ struct BrowseView: View {
         }
     }
 
-    /// Only rendered when the user has at least one enabled routine, so the
-    /// Browse screen is unchanged for everyone else (same rule as the web nav).
-    @ViewBuilder
+    /// Always shown, even before the first routine, so routines can be
+    /// created from the phone (the web nav shows its entry the same way).
     private var routinesSection: some View {
-        if viewModel.routineCount > 0 {
-            Section {
-                NavigationLink {
-                    RoutinesListView()
-                } label: {
-                    BrowseFolderRowView(
-                        icon: "🔁",
-                        title: "Routines",
-                        count: viewModel.routineCount,
-                        statusText: viewModel.routineOpenAskCount > 0
-                            ? "\(viewModel.routineOpenAskCount) to review"
-                            : nil
-                    )
-                }
-                .listRowBackground(Theme.surface)
-            } header: {
-                Text("Routines")
-                    .sectionLabel()
-                    .foregroundColor(Theme.textSecondary)
+        Section {
+            NavigationLink {
+                RoutinesListView()
+            } label: {
+                BrowseFolderRowView(
+                    icon: "🔁",
+                    title: "Routines",
+                    count: viewModel.routineCount,
+                    statusText: viewModel.routineOpenAskCount > 0
+                        ? "\(viewModel.routineOpenAskCount) to review"
+                        : nil
+                )
             }
+            .listRowBackground(Theme.surface)
+        } header: {
+            Text("Routines")
+                .sectionLabel()
+                .foregroundColor(Theme.textSecondary)
         }
     }
 
