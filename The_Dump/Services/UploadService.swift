@@ -81,10 +81,18 @@ class UploadService {
             }
         }
 
-        let fileData = try Data(contentsOf: fileURL)
-
-        // Enforce 100MB size limit
+        // Enforce 100MB size limit. The size on disk is checked first, so a
+        // huge file is turned away without being read into memory.
         let maxSize = 100 * 1024 * 1024
+        if let size = try? fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize, size > maxSize {
+            throw APIError.badRequest(message: "File exceeds 100MB limit")
+        }
+
+        // Read off the main thread, so picking several large files doesn't
+        // freeze the screen while each one loads.
+        let fileData = try await Task.detached(priority: .userInitiated) {
+            try Data(contentsOf: fileURL)
+        }.value
         guard fileData.count <= maxSize else {
             throw APIError.badRequest(message: "File exceeds 100MB limit")
         }
