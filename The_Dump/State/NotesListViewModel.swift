@@ -340,7 +340,12 @@ final class NotesListViewModel: ObservableObject {
     /// Dissolve a stack shown in this list; its notes come back as ordinary rows.
     func unstack(stackId: String) async -> Bool {
         await performBulkAction {
-            try await NotesService.shared.unstackNotes(stackId: stackId)
+            do {
+                try await NotesService.shared.unstackNotes(stackId: stackId)
+            } catch APIError.notFound(_) {
+                // Already unstacked elsewhere (on the web, say): the reload
+                // that follows shows its notes one by one.
+            }
         }
     }
 
