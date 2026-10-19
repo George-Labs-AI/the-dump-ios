@@ -1,6 +1,5 @@
 import XCTest
 import UniformTypeIdentifiers
-@testable import TheDumpShare
 
 // MARK: - Mock NSItemProvider
 

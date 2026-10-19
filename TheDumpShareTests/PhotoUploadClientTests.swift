@@ -1,5 +1,4 @@
 import XCTest
-@testable import TheDumpShare
 
 // Reuses `MockURLProtocol` from IngestAPIClientTests.swift (same test module).
 
