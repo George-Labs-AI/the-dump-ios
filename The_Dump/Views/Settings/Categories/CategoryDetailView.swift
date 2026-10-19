@@ -168,6 +168,19 @@ struct CategoryDetailView: View {
                             .cornerRadius(Theme.cornerRadiusSM)
                             .focused($focusedField, equals: .name)
                             .disabled(readonly)
+                            .onChange(of: name) { _, newValue in
+                                // Only trim what the user types, so loading an
+                                // older, longer name doesn't silently edit it.
+                                guard focusedField == .name else { return }
+                                let limited = CategoryLimits.limitedName(newValue)
+                                if limited != newValue { name = limited }
+                            }
+
+                        if !readonly && CategoryLimits.isNameAtLimit(name) {
+                            Text("Names can be up to \(CategoryLimits.maxNameLength) characters.")
+                                .font(.system(size: Theme.fontSizeXS))
+                                .foregroundColor(Theme.textTertiary)
+                        }
 
                         if nameCollides {
                             Text("A category named \"\(name.trimmingCharacters(in: .whitespacesAndNewlines))\" already exists.")

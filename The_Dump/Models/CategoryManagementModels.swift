@@ -215,4 +215,26 @@ enum CategoryLimits {
     /// Client-side cap until the backend exposes one. Drives the cap meter
     /// and the disabled state of the "Add category" button.
     static let maxActiveCategories: Int = 15
+
+    /// Longest category name the server accepts (it rejects longer ones with
+    /// a 400). The web's Settings field uses the same number.
+    static let maxNameLength: Int = 80
+
+    /// `text` cut back to `maxNameLength`, counted in Unicode code points as
+    /// the server's Python `len()` counts them. Never splits a character, so
+    /// an emoji at the limit is dropped whole.
+    static func limitedName(_ text: String) -> String {
+        var kept = ""
+        var count = 0
+        for character in text {
+            count += character.unicodeScalars.count
+            if count > maxNameLength { break }
+            kept.append(character)
+        }
+        return kept
+    }
+
+    static func isNameAtLimit(_ text: String) -> Bool {
+        text.unicodeScalars.count >= maxNameLength
+    }
 }

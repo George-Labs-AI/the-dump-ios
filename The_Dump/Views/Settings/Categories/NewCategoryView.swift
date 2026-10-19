@@ -41,6 +41,16 @@ struct NewCategoryView: View {
                                     .background(Theme.surface)
                                     .cornerRadius(Theme.cornerRadiusSM)
                                     .focused($focusedField, equals: .name)
+                                    .onChange(of: name) { _, newValue in
+                                        let limited = CategoryLimits.limitedName(newValue)
+                                        if limited != newValue { name = limited }
+                                    }
+
+                                if CategoryLimits.isNameAtLimit(name) {
+                                    Text("Names can be up to \(CategoryLimits.maxNameLength) characters.")
+                                        .font(.system(size: Theme.fontSizeXS))
+                                        .foregroundColor(Theme.textTertiary)
+                                }
 
                                 if collision {
                                     Text("A category named \"\(name.trimmingCharacters(in: .whitespacesAndNewlines))\" already exists.")

@@ -36,6 +36,30 @@ final class CategoryRequestsTests: XCTestCase {
         XCTAssertNil(body["archiving"])
     }
 
+    // MARK: - Name length (server rejects names over 80)
+
+    func testNameIsCutBackToTheServerLimit() {
+        XCTAssertEqual(CategoryLimits.maxNameLength, 80)
+        let long = String(repeating: "a", count: 81)
+        XCTAssertEqual(CategoryLimits.limitedName(long).count, 80)
+        XCTAssertTrue(CategoryLimits.isNameAtLimit(CategoryLimits.limitedName(long)))
+
+        let short = "Work"
+        XCTAssertEqual(CategoryLimits.limitedName(short), short)
+        XCTAssertFalse(CategoryLimits.isNameAtLimit(short))
+    }
+
+    func testNameLimitCountsCodePointsAndNeverSplitsAnEmoji() {
+        // A family emoji is one character on screen but five code points,
+        // which is how the server's Python len() counts it.
+        let family = "👨‍👩‍👧"
+        XCTAssertEqual(family.unicodeScalars.count, 5)
+        let name = String(repeating: "a", count: 77) + family
+        let limited = CategoryLimits.limitedName(name)
+        XCTAssertEqual(limited, String(repeating: "a", count: 77))
+        XCTAssertLessThanOrEqual(limited.unicodeScalars.count, 80)
+    }
+
     // MARK: - Restore response (POST /api/categories/<id>/restore)
 
     func testRestoreResponseDecodesBothServerShapes() throws {
