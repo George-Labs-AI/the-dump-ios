@@ -1,6 +1,5 @@
 import XCTest
 import UIKit
-@testable import TheDumpShare
 
 final class ShareImageEncoderTests: XCTestCase {
 

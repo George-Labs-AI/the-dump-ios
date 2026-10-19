@@ -111,8 +111,7 @@ struct SettingsView: View {
                         }
                         .listRowBackground(Theme.surface)
 
-                        // The support page lists the support email, which
-                        // reaches the team's inbox, plus the FAQ.
+                        // The support page lists the support email address and the FAQ.
                         Button {
                             if let url = URL(string: "\(SharedConstants.defaultBaseURL)/support") {
                                 UIApplication.shared.open(url)

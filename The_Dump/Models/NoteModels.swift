@@ -89,6 +89,14 @@ struct NotePreview: Identifiable, Codable {
     let sub_cat_names: [String]?
     /// Who sent an emailed note; nil (or blank) for the account owner's own notes.
     let author: String?
+    /// Stack fields. A list fetched with stacks=1 sends stack_size and
+    /// stack_total on the one row that stands for a whole stack; a stack's
+    /// members (from /api/stack/<id>) carry stack_id but no counts.
+    let stack_id: String?
+    /// How many of the stack's notes match the list's filters.
+    let stack_size: Int?
+    /// How many notes the whole stack holds.
+    let stack_total: Int?
     
     // Map API ID to Swift's Identifiable ID
     var id: String { organized_note_id }
@@ -108,6 +116,9 @@ struct NoteDetail: Identifiable, Codable {
     let note_type: String?
     /// Who sent an emailed note; nil (or blank) for the account owner's own notes.
     let author: String?
+    /// Whether the note has an original file (photo, recording, document)
+    /// to open. Nil from servers that don't send it.
+    let has_asset: Bool?
     
     var id: String { organized_note_id }
 }
@@ -137,6 +148,9 @@ extension NotePreview {
         mime_type = try c.decodeIfPresent(String.self, forKey: .mime_type)
         sub_cat_names = try c.decodeSubCategoryNames(forKey: .sub_cat_names)
         author = try c.decodeIfPresent(String.self, forKey: .author)
+        stack_id = try c.decodeIfPresent(String.self, forKey: .stack_id)
+        stack_size = try c.decodeIfPresent(Int.self, forKey: .stack_size)
+        stack_total = try c.decodeIfPresent(Int.self, forKey: .stack_total)
     }
 }
 
@@ -154,6 +168,7 @@ extension NoteDetail {
         mime_type = try c.decodeIfPresent(String.self, forKey: .mime_type)
         note_type = try c.decodeIfPresent(String.self, forKey: .note_type)
         author = try c.decodeIfPresent(String.self, forKey: .author)
+        has_asset = try c.decodeIfPresent(Bool.self, forKey: .has_asset)
     }
 }
 
@@ -211,6 +226,21 @@ extension EditNoteResponseNote {
         sub_cat_names = try c.decodeSubCategoryNames(forKey: .sub_cat_names)
         note_type = try c.decodeIfPresent(String.self, forKey: .note_type)
         mime_type = try c.decodeIfPresent(String.self, forKey: .mime_type)
+    }
+}
+
+// MARK: - Category Map
+
+// Matches the response from GET /api/category_map. Both lists are keyed and
+// spelled in lower case ("work": ["meetings", "project ideas"]); only active
+// categories and sub-categories are included.
+struct CategoryMapResponse: Decodable {
+    let categories: [String]?
+    let subcategoriesByCategory: [String: [String]]?
+
+    enum CodingKeys: String, CodingKey {
+        case categories
+        case subcategoriesByCategory = "subcategories_by_category"
     }
 }
 

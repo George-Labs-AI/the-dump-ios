@@ -75,6 +75,7 @@ struct BrowseView: View {
             && viewModel.archivedCategoryRows.isEmpty
             && viewModel.dateGroupRows.isEmpty
             && viewModel.mimeTypeRows.isEmpty
+            && viewModel.noteTypeRows.isEmpty
     }
 
     private var folderList: some View {
@@ -86,6 +87,7 @@ struct BrowseView: View {
             activeCategoriesSection
             dateGroupSection
             mimeTypeSection
+            noteTypeSection
             archivedCategoriesSection
         }
     }
@@ -132,30 +134,27 @@ struct BrowseView: View {
         }
     }
 
-    /// Only rendered when the user has at least one enabled routine, so the
-    /// Browse screen is unchanged for everyone else (same rule as the web nav).
-    @ViewBuilder
+    /// Always shown, even before the first routine, so routines can be
+    /// created from the phone (the web nav shows its entry the same way).
     private var routinesSection: some View {
-        if viewModel.routineCount > 0 {
-            Section {
-                NavigationLink {
-                    RoutinesListView()
-                } label: {
-                    BrowseFolderRowView(
-                        icon: "🔁",
-                        title: "Routines",
-                        count: viewModel.routineCount,
-                        statusText: viewModel.routineOpenAskCount > 0
-                            ? "\(viewModel.routineOpenAskCount) to review"
-                            : nil
-                    )
-                }
-                .listRowBackground(Theme.surface)
-            } header: {
-                Text("Routines")
-                    .sectionLabel()
-                    .foregroundColor(Theme.textSecondary)
+        Section {
+            NavigationLink {
+                RoutinesListView()
+            } label: {
+                BrowseFolderRowView(
+                    icon: "🔁",
+                    title: "Routines",
+                    count: viewModel.routineCount,
+                    statusText: viewModel.routineOpenAskCount > 0
+                        ? "\(viewModel.routineOpenAskCount) to review"
+                        : nil
+                )
             }
+            .listRowBackground(Theme.surface)
+        } header: {
+            Text("Routines")
+                .sectionLabel()
+                .foregroundColor(Theme.textSecondary)
         }
     }
 
@@ -205,6 +204,27 @@ struct BrowseView: View {
             Text("File Types")
                 .sectionLabel()
                 .foregroundColor(Theme.textSecondary)
+        }
+    }
+
+    /// Note types the user's notes have (Recipe, To-Do, …), each with its count.
+    @ViewBuilder
+    private var noteTypeSection: some View {
+        if !viewModel.noteTypeRows.isEmpty {
+            Section {
+                ForEach(viewModel.noteTypeRows) { row in
+                    NavigationLink {
+                        BrowseFolderDestinationView(kind: .noteType, name: row.name, count: row.count, categoryId: nil)
+                    } label: {
+                        BrowseFolderRowView(icon: "🏷️", title: row.name, count: row.count)
+                    }
+                    .listRowBackground(Theme.surface)
+                }
+            } header: {
+                Text("Types")
+                    .sectionLabel()
+                    .foregroundColor(Theme.textSecondary)
+            }
         }
     }
 
@@ -267,7 +287,9 @@ struct SearchResultsView: View {
     init(initialQuery: String) {
         self.initialQuery = initialQuery
         self._searchText = State(initialValue: initialQuery)
-        let vm = NotesListViewModel(filter: .all)
+        // Its rows open single notes, so stacks are never collapsed here,
+        // even when the search box is cleared.
+        let vm = NotesListViewModel(filter: .all, collapsesStacks: false)
         vm.searchQuery = initialQuery
         self._viewModel = StateObject(wrappedValue: vm)
     }
@@ -363,6 +385,13 @@ private struct SearchResultRowView: View {
                 Text(category)
                     .font(.system(size: Theme.fontSizeXS))
                     .foregroundColor(Theme.textSecondary)
+            }
+
+            if let author = note.displayAuthor {
+                Text("from \(author)")
+                    .font(.system(size: Theme.fontSizeXS))
+                    .foregroundColor(Theme.textSecondary)
+                    .lineLimit(1)
             }
         }
         .padding(.vertical, Theme.spacingSM)

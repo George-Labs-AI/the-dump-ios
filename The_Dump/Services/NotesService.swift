@@ -119,6 +119,41 @@ class NotesService {
         }
     }
 
+    // Fetch each active category's sub-categories (lower-case names)
+    func fetchCategoryMap() async throws -> CategoryMapResponse {
+        let request = try await createRequest(endpoint: "/api/category_map")
+
+        do {
+#if DEBUG
+            debugLogRequest(request, label: "category_map")
+#endif
+            let (data, response) = try await URLSession.shared.data(for: request)
+#if DEBUG
+            debugLogResponse(data: data, response: response, label: "category_map")
+#endif
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.networkError(underlying: URLError(.badServerResponse))
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+                throw APIError.from(statusCode: httpResponse.statusCode, errorResponse: errorResponse)
+            }
+
+            return try JSONDecoder().decode(CategoryMapResponse.self, from: data)
+        } catch let error as APIError {
+            throw error
+        } catch let error as DecodingError {
+#if DEBUG
+            print("[NotesService][category_map] Decode failed: \(error)")
+#endif
+            throw APIError.decodingFailed(underlying: error)
+        } catch {
+            throw APIError.networkError(underlying: error)
+        }
+    }
+
     // Fetch the sidebar counts
     func fetchCounts() async throws -> NoteCountsResponse {
         let request = try await createRequest(endpoint: "/api/note_counts")
@@ -202,7 +237,8 @@ class NotesService {
         tz: String? = nil,
         q: String? = nil,
         noteType: String? = nil,
-        offset: Int? = nil
+        offset: Int? = nil,
+        stacks: Bool = false
     ) async throws -> NoteListResponse {
         // Build query parameters
         guard var components = URLComponents(string: "\(baseURL)/api/pull_notes") else {
@@ -232,6 +268,10 @@ class NotesService {
         addQueryItem("note_type", noteType)
         if let offset {
             queryItems.append(URLQueryItem(name: "offset", value: "\(offset)"))
+        }
+        // One row per stack instead of one per note (browse lists only).
+        if stacks {
+            queryItems.append(URLQueryItem(name: "stacks", value: "1"))
         }
 
         components.queryItems = queryItems
@@ -329,43 +369,17 @@ class NotesService {
         type: String? = nil,
         tags: [String]? = nil
     ) async throws -> EditNoteResponseNote {
-        let cleanedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cleanedType = type?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cleanedSubCategories = subCategories?
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        let cleanedTags = tags?
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        if let entries, entries.utf8.count > 500 * 1024 {
-            throw APIError.badRequest(message: "Content too large (max 500KB)")
-        }
-
-        let hasUpdate =
-            entries != nil ||
-            cleanedTitle != nil ||
-            categoryId != nil ||
-            cleanedSubCategories != nil ||
-            cleanedType != nil ||
-            cleanedTags != nil
-
-        guard hasUpdate else {
-            throw APIError.badRequest(message: "At least one field must be provided for update")
-        }
-
-        if let cleanedSubCategories, cleanedSubCategories.count > 3 {
-            throw APIError.badRequest(message: "Maximum of 3 sub-categories allowed")
-        }
+        let body = try Self.editNoteBody(
+            noteId: noteId,
+            entries: entries,
+            title: title,
+            categoryId: categoryId,
+            subCategories: subCategories,
+            type: type,
+            tags: tags
+        )
 
         var request = try await createRequest(endpoint: "/api/edit_note", method: "POST")
-        var body = EditNoteRequest(noteId: noteId)
-        body.entries = entries
-        body.title = cleanedTitle
-        body.categoryId = categoryId
-        body.subCategories = cleanedSubCategories
-        body.type = cleanedType
-        body.tags = cleanedTags
 
         do {
             request.httpBody = try JSONEncoder().encode(body)
@@ -402,6 +416,56 @@ class NotesService {
         } catch {
             throw APIError.networkError(underlying: error)
         }
+    }
+
+    // The /api/edit_note body. Fields left nil are left out of the JSON, and
+    // the server leaves them unchanged.
+    static func editNoteBody(
+        noteId: String,
+        entries: String? = nil,
+        title: String? = nil,
+        categoryId: Int? = nil,
+        subCategories: [String]? = nil,
+        type: String? = nil,
+        tags: [String]? = nil
+    ) throws -> EditNoteRequest {
+        let cleanedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanedType = type?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanedSubCategories = subCategories?
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let cleanedTags = tags?
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        if let entries, entries.utf8.count > 500 * 1024 {
+            throw APIError.badRequest(message: "Content too large (max 500KB)")
+        }
+
+        let hasUpdate =
+            entries != nil ||
+            cleanedTitle != nil ||
+            categoryId != nil ||
+            cleanedSubCategories != nil ||
+            cleanedType != nil ||
+            cleanedTags != nil
+
+        guard hasUpdate else {
+            throw APIError.badRequest(message: "At least one field must be provided for update")
+        }
+
+        if let cleanedSubCategories, cleanedSubCategories.count > 3 {
+            throw APIError.badRequest(message: "Maximum of 3 sub-categories allowed")
+        }
+
+        var body = EditNoteRequest(noteId: noteId)
+        body.entries = entries
+        body.title = cleanedTitle
+        body.categoryId = categoryId
+        body.subCategories = cleanedSubCategories
+        body.type = cleanedType
+        body.tags = cleanedTags
+        return body
     }
 
     // Add user categories (used during onboarding to seed the user's category list)

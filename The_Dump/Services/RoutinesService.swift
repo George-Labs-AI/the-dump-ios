@@ -1,7 +1,6 @@
 import Foundation
 
-// Client for the Routines JSON API on the Flask frontend
-// (The_Dump_Front_End/routes/routines_routes.py). Mirrors the request /
+// Client for the Routines JSON API on the web server. Mirrors the request /
 // error-handling pattern in NotesService. Read paths only fetch metadata
 // until a single document is opened — GET /documents (all bodies) is
 // deliberately not used because one index document is ~217K chars.
@@ -17,6 +16,47 @@ struct RoutineAnswerConflict: LocalizedError {
             return "This ask changed on another device. It has been refreshed."
         }
         return "This ask was already answered. It has been refreshed."
+    }
+}
+
+/// Web addresses for a routine's pages, used to send the owner to a computer.
+enum RoutineLinks {
+    static func connectPath(slug: String) -> String {
+        let encoded = slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? slug
+        return "/routines/\(encoded)/connect"
+    }
+
+    /// The web's "Connect your runner" page, for finishing on a computer.
+    static func connectPageURL(slug: String, baseURL: String = SharedConstants.baseURL) -> URL? {
+        URL(string: baseURL + connectPath(slug: slug))
+    }
+}
+
+/// The words to show for a failed create, preview or pause request. The
+/// server's own messages are already written for people ("Select at least
+/// one category or subcategory."), so they are shown as they are, without
+/// the "Bad request:" prefix the shared error text adds.
+enum RoutineErrorText {
+    static func message(for error: Error) -> String {
+        guard let apiError = error as? APIError else { return error.localizedDescription }
+        switch apiError {
+        case .unauthorized:
+            return "Please sign in again, then try again."
+        case .httpError(statusCode: 429, _):
+            return "Too many requests. Wait a minute and try again."
+        case .badRequest(let message), .conflict(let message), .notFound(let message),
+             .serverError(let message), .upstreamFailed(let message):
+            return serverMessage(message)
+        case .httpError(_, let message):
+            return serverMessage(message)
+        default:
+            return apiError.localizedDescription
+        }
+    }
+
+    // APIError.from fills in "Unknown error" when the reply had no message.
+    private static func serverMessage(_ message: String) -> String {
+        message == "Unknown error" || message.isEmpty ? "Request failed. Please try again." : message
     }
 }
 
@@ -69,7 +109,29 @@ class RoutinesService {
     /// Shared send + decode for the plain GET endpoints.
     private func fetch<T: Decodable>(_ type: T.Type, endpoint: String, label: String) async throws -> T {
         let request = try await createRequest(endpoint: endpoint)
+        return try await send(request, decoding: T.self, label: label)
+    }
 
+    /// `fetch` with a JSON body, for the create / preview / pause endpoints.
+    /// The bearer token is what lets these skip the web form's security
+    /// check, which only applies to signed-in browser sessions.
+    private func send<Body: Encodable, T: Decodable>(
+        _ body: Body,
+        to endpoint: String,
+        method: String,
+        decoding type: T.Type,
+        label: String
+    ) async throws -> T {
+        var request = try await createRequest(endpoint: endpoint, method: method)
+        do {
+            request.httpBody = try JSONEncoder().encode(body)
+        } catch {
+            throw APIError.encodingFailed
+        }
+        return try await send(request, decoding: T.self, label: label)
+    }
+
+    private func send<T: Decodable>(_ request: URLRequest, decoding type: T.Type, label: String) async throws -> T {
         do {
 #if DEBUG
             debugLogRequest(request, label: label)
@@ -113,6 +175,81 @@ class RoutinesService {
             endpoint: "/api/routines/\(pathEncode(slug))",
             label: "routine_detail"
         )
+    }
+
+    // MARK: - Creating and pausing
+
+    /// GET /api/routines/scope-options — the categories and sub-categories a
+    /// new routine can read from.
+    func fetchScopeOptions() async throws -> RoutineScopeOptionsResponse {
+        try await fetch(RoutineScopeOptionsResponse.self, endpoint: "/api/routines/scope-options", label: "scope_options")
+    }
+
+    /// POST /api/routines/preview — how many notes `scope` matches today.
+    /// Reads only; nothing is saved.
+    func previewScope(_ scope: RoutineScope) async throws -> RoutinePreviewResponse {
+        try await send(
+            RoutinePreviewRequest(scope: scope),
+            to: "/api/routines/preview",
+            method: "POST",
+            decoding: RoutinePreviewResponse.self,
+            label: "routine_preview"
+        )
+    }
+
+    /// POST /api/routines — registers the routine. Sending the same body
+    /// with the same request ID again returns the routine already saved.
+    func createRoutine(_ body: RoutineCreateRequest) async throws -> RoutineCreateResponse {
+        try await send(body, to: "/api/routines", method: "POST", decoding: RoutineCreateResponse.self, label: "routine_create")
+    }
+
+    /// PATCH /api/routines/<slug> with {paused}. The reply is the routine
+    /// with its status worked out again but without its document list, so
+    /// it decodes as a summary rather than a detail response.
+    func setPaused(_ paused: Bool, routineSlug: String) async throws -> RoutineSummary {
+        try await send(
+            RoutinePauseRequest(paused: paused),
+            to: "/api/routines/\(pathEncode(routineSlug))",
+            method: "PATCH",
+            decoding: RoutineSummary.self,
+            label: "routine_pause"
+        )
+    }
+
+    /// The runner instructions for one routine, read out of the web's
+    /// "Connect your runner" page (see `RunnerInstructionsPage`).
+    func fetchRunnerInstructions(routineSlug: String) async throws -> String {
+        var request = try await createRequest(endpoint: RoutineLinks.connectPath(slug: routineSlug))
+        request.setValue("text/html", forHTTPHeaderField: "Accept")
+
+        do {
+#if DEBUG
+            debugLogRequest(request, label: "runner_instructions")
+#endif
+            let (data, response) = try await URLSession.shared.data(for: request)
+#if DEBUG
+            debugLogResponse(data: data, response: response, label: "runner_instructions")
+#endif
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.networkError(underlying: URLError(.badServerResponse))
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+                throw APIError.from(statusCode: httpResponse.statusCode, errorResponse: errorResponse)
+            }
+
+            guard let html = String(data: data, encoding: .utf8),
+                  let instructions = RunnerInstructionsPage.instructions(fromHTML: html) else {
+                throw APIError.upstreamFailed(message: "The runner instructions could not be read.")
+            }
+            return instructions
+        } catch let error as APIError {
+            throw error
+        } catch {
+            throw APIError.networkError(underlying: error)
+        }
     }
 
     // MARK: - Documents

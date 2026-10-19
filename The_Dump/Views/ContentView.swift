@@ -21,7 +21,10 @@ struct ContentView: View {
     @State private var showPaywall = false
     @State private var capturedImage: UIImage?
     @State private var showErrorAlert = false
+    @State private var errorAlertTitle = ""
     @State private var errorAlertMessage = ""
+    /// Set by tapping an organized Processing row; pushes that note.
+    @State private var openedNoteID: String?
     
 // a view is a type of struct that is called out as a view, and it must provide a body variable that contains the layout
     // "some" view is used to not have to tell the compiler the exact type name of what is in the view, since it would be too complex. There can only be one body property per View
@@ -89,18 +92,28 @@ struct ContentView: View {
                             // iPhone screen, so anything placed after them
                             // is below the fold and a capture looks like it
                             // did nothing (QA 2026-10-06).
-                            ForEach(sessionStore.items) { item in
-                                SessionItemRow(item: item)
-                            }
-
-                            // Pending-note processing status (note-status
-                            // contract, Phase 1). Session rows above are
+                            //
+                            // One Processing section holds both: captures
+                            // still uploading (session rows), then captures
+                            // the server is working on (pending-note records,
+                            // note-status contract Phase 1). Session rows are
                             // removed on upload success, so each capture
-                            // shows in at most one list (modulo a 1-2 frame
-                            // gap while the view model mirrors the store).
-                            if !pendingNotesViewModel.records.isEmpty {
+                            // shows once (modulo a 1-2 frame gap while the
+                            // view model mirrors the store).
+                            if !sessionStore.items.isEmpty || !pendingNotesViewModel.records.isEmpty {
                                 ProcessingSection(
+                                    sessionItems: sessionStore.items,
                                     records: pendingNotesViewModel.records,
+                                    onDismissUpload: { id in
+                                        sessionStore.removeItem(id: id)
+                                    },
+                                    onOpen: { record in
+                                        // Opening an organized note also
+                                        // clears its row, as tapping it
+                                        // always has.
+                                        openedNoteID = record.openableNoteId
+                                        pendingNotesViewModel.acknowledge(fileUuid: record.fileUuid)
+                                    },
                                     onAcknowledge: { fileUuid in
                                         pendingNotesViewModel.acknowledge(fileUuid: fileUuid)
                                     }
@@ -158,19 +171,19 @@ struct ContentView: View {
                 .environmentObject(appState)
                 .environmentObject(sessionStore)
         }
+        // Every file stays pickable ([.item]) so that a video or zip gets a
+        // clear "not supported" message instead of just being greyed out;
+        // the type check happens in handleSelectedFiles.
         .fileImporter(
             isPresented: $showFilePicker,
             allowedContentTypes: [.item],
-            allowsMultipleSelection: false
+            allowsMultipleSelection: true
         ) { result in
             switch result {
             case .success(let urls):
-                if let url = urls.first {
-                    handleSelectedFile(url)
-                }
+                handleSelectedFiles(urls)
             case .failure(let error):
-                errorAlertMessage = "File selection failed: \(error.localizedDescription)"
-                showErrorAlert = true
+                showError("File selection failed: \(error.localizedDescription)")
             }
         }
         .sheet(isPresented: $showTextNote) {
@@ -187,8 +200,11 @@ struct ContentView: View {
                 capturedImage = nil
             }
         }
+        .navigationDestination(item: $openedNoteID) { noteID in
+            NoteDetailView(noteID: noteID)
+        }
         .environmentObject(sessionStore)
-        .alert("Something went wrong", isPresented: $showErrorAlert) {
+        .alert(errorAlertTitle, isPresented: $showErrorAlert) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(errorAlertMessage)
@@ -207,6 +223,12 @@ struct ContentView: View {
         } else {
             action()
         }
+    }
+
+    private func showError(_ message: String, title: String = "Something went wrong") {
+        errorAlertTitle = title
+        errorAlertMessage = message
+        showErrorAlert = true
     }
     
     private func handleCapturedPhoto(_ image: UIImage) {
@@ -245,10 +267,9 @@ struct ContentView: View {
                 await uploadPhoto(image.fixedOrientation())
             }
             if failedCount > 0 {
-                errorAlertMessage = failedCount == 1
+                showError(failedCount == 1
                     ? "One photo couldn't be read and was skipped."
-                    : "\(failedCount) photos couldn't be read and were skipped."
-                showErrorAlert = true
+                    : "\(failedCount) photos couldn't be read and were skipped.")
             }
         }
     }
@@ -258,8 +279,7 @@ struct ContentView: View {
     private func uploadPhoto(_ image: UIImage) async {
         guard let email = appState.userEmail,
               let idToken = await appState.idToken else {
-            errorAlertMessage = "Unable to upload. Please check your connection and try again."
-            showErrorAlert = true
+            showError(Self.cannotUploadMessage)
             return
         }
 
@@ -289,35 +309,80 @@ struct ContentView: View {
         }
     }
 
-    private func handleSelectedFile(_ url: URL) {
+    private static let cannotUploadMessage = "Unable to upload. Please check your connection and try again."
+
+    /// Files picker selections. Types the server can't read (videos, zips,
+    /// anything off the web's list) are turned away first with one message
+    /// naming them. Each remaining file gets its own row straight away, so
+    /// the whole pick is visible, then uploads one at a time (each file is
+    /// read fully into memory, up to 100MB) and becomes its own note.
+    private func handleSelectedFiles(_ urls: [URL]) {
+        let notice = CaptureFileTypes.skippedNotice(forFilenames: urls.map(\.lastPathComponent))
+        if let notice {
+            showError(notice.message, title: notice.title)
+        }
+        let accepted = urls.filter { CaptureFileTypes.rejection(forFilename: $0.lastPathComponent) == nil }
+        guard !accepted.isEmpty else { return }
+
+        // Picked files are security-scoped. Start access for every file now,
+        // while the picker's grant is fresh, and hold it until the uploads
+        // are done: files upload one at a time, so a later file can wait a
+        // long while before its own upload starts.
+        let accessStarted = accepted.map { $0.startAccessingSecurityScopedResource() }
+
         Task {
-            guard let email = appState.userEmail,
-                  let idToken = await appState.idToken else {
-                errorAlertMessage = "Unable to upload. Please check your connection and try again."
-                showErrorAlert = true
+            defer {
+                for (url, started) in zip(accepted, accessStarted) where started {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+            guard appState.userEmail != nil, await appState.idToken != nil else {
+                // Both alerts share one slot, so say both things at once
+                // rather than replacing the list of files turned away.
+                if let notice {
+                    showError("\(notice.message)\n\n\(Self.cannotUploadMessage)", title: notice.title)
+                } else {
+                    showError(Self.cannotUploadMessage)
+                }
                 return
             }
 
-            let item = SessionItem(
-                kind: .file,
-                originalFilename: url.lastPathComponent,
-                localFileURL: url,
-                status: .uploading
-            )
-
-            sessionStore.addItem(item)
-
-            do {
-                _ = try await UploadService.shared.uploadFile(
-                    fileURL: url,
-                    userEmail: email,
-                    idToken: idToken
+            let items = accepted.map { url in
+                SessionItem(
+                    kind: .file,
+                    originalFilename: url.lastPathComponent,
+                    localFileURL: url,
+                    status: .uploading
                 )
-                // Hand off to the Processing row (see handleCapturedPhoto).
-                sessionStore.removeItem(id: item.id)
-            } catch {
-                sessionStore.markFailed(id: item.id, error: error.localizedDescription)
             }
+            for item in items {
+                sessionStore.addItem(item)
+            }
+            for (item, url) in zip(items, accepted) {
+                await uploadFile(url, sessionItemID: item.id)
+            }
+        }
+    }
+
+    private func uploadFile(_ url: URL, sessionItemID: String) async {
+        // Fetched per file: Firebase refreshes the token if an earlier,
+        // large upload took long enough for it to expire.
+        guard let email = appState.userEmail,
+              let idToken = await appState.idToken else {
+            sessionStore.markFailed(id: sessionItemID, error: Self.cannotUploadMessage)
+            return
+        }
+
+        do {
+            _ = try await UploadService.shared.uploadFile(
+                fileURL: url,
+                userEmail: email,
+                idToken: idToken
+            )
+            // Hand off to the Processing row (see uploadPhoto).
+            sessionStore.removeItem(id: sessionItemID)
+        } catch {
+            sessionStore.markFailed(id: sessionItemID, error: error.localizedDescription)
         }
     }
 }
@@ -443,6 +508,8 @@ struct CaptureButton: View {
 
 struct SessionItemRow: View {
     let item: SessionItem
+    /// The dismiss button on a failed upload.
+    let onDismiss: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -519,16 +586,7 @@ struct SessionItemRow: View {
     }
 
     private var statusText: String {
-        switch item.status {
-        case .pending:
-            return "Pending"
-        case .uploading:
-            return "Uploading…"
-        case .captured:
-            return "Captured!"
-        case .failed(let error):
-            return error
-        }
+        ProcessingStatusText.text(for: item.status)
     }
 
     private var statusColor: Color {
@@ -551,8 +609,14 @@ struct SessionItemRow: View {
             Image(systemName: "checkmark.circle.fill")
                 .foregroundColor(Theme.success)
         case .failed:
-            Image(systemName: "exclamationmark.circle.fill")
-                .foregroundColor(Theme.accent)
+            // Same dismiss button as a failed PendingNoteRow; without it a
+            // failed upload's row stayed until the app was relaunched.
+            Button(action: onDismiss) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(Theme.textSecondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss")
         case .pending:
             Image(systemName: "clock")
                 .foregroundColor(Theme.textSecondary)
@@ -560,10 +624,18 @@ struct SessionItemRow: View {
     }
 }
 
-/// "Processing" section on the capture screen: one row per pending-note
-/// record, mirroring SessionItemRow styling (44pt icon tile, surface card).
+/// "Processing" section on the capture screen: captures still uploading
+/// (one SessionItemRow each), then one row per pending-note record. Both
+/// row types share the same styling (44pt icon tile, surface card) and the
+/// same words (ProcessingStatusText).
 struct ProcessingSection: View {
+    let sessionItems: [SessionItem]
     let records: [PendingNoteRecord]
+    /// Session item id of a failed upload the user dismissed.
+    let onDismissUpload: (String) -> Void
+    /// An organized row was tapped.
+    let onOpen: (PendingNoteRecord) -> Void
+    /// File uuid of a failed note the user dismissed.
     let onAcknowledge: (String) -> Void
 
     var body: some View {
@@ -573,10 +645,18 @@ struct ProcessingSection: View {
                 .foregroundColor(Theme.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            ForEach(records) { record in
-                PendingNoteRow(record: record) {
-                    onAcknowledge(record.fileUuid)
+            ForEach(sessionItems) { item in
+                SessionItemRow(item: item) {
+                    onDismissUpload(item.id)
                 }
+            }
+
+            ForEach(records) { record in
+                PendingNoteRow(
+                    record: record,
+                    onOpen: { onOpen(record) },
+                    onAcknowledge: { onAcknowledge(record.fileUuid) }
+                )
             }
         }
     }
@@ -584,7 +664,9 @@ struct ProcessingSection: View {
 
 struct PendingNoteRow: View {
     let record: PendingNoteRecord
-    /// Tapping an organized row, or the dismiss button on a failed row.
+    /// Tapping an organized row.
+    let onOpen: () -> Void
+    /// The dismiss button on a failed row.
     let onAcknowledge: () -> Void
 
     var body: some View {
@@ -619,7 +701,7 @@ struct PendingNoteRow: View {
         .contentShape(Rectangle())
         .onTapGesture {
             if record.lifecycleStatus == .organized {
-                onAcknowledge()
+                onOpen()
             }
         }
     }
@@ -660,22 +742,7 @@ struct PendingNoteRow: View {
     }
 
     private var statusText: String {
-        switch record.lifecycleStatus {
-        case .uploaded:
-            return "Processing…"
-        case .transcribed:
-            return "Transcribed — organizing…"
-        case .organized:
-            if let category = record.categoryName, !category.isEmpty {
-                return "Organized → \(category)"
-            }
-            return "Organized"
-        case .failed:
-            if let message = record.errorMessage, !message.isEmpty {
-                return message
-            }
-            return "Processing failed"
-        }
+        ProcessingStatusText.text(for: record)
     }
 
     private var statusColor: Color {
@@ -704,6 +771,7 @@ struct PendingNoteRow: View {
                     .foregroundColor(Theme.textSecondary)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss")
         }
     }
 }

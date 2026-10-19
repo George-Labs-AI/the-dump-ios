@@ -8,12 +8,11 @@ final class NoteTypeCatalogTests: XCTestCase {
     private struct Failure: Error {}
 
     func testBuiltInListMatchesServerNoteTypes() {
-        // Same spelling and order as NOTE_TYPES in the web server's
-        // helpers/normalization_helpers.py.
+        // Same spelling and order as the web server's list of note types.
         XCTAssertEqual(NoteTypeCatalog.builtIn, [
             "Scratch Capture", "To-Do", "Checklist", "Shopping List", "Media List",
             "Recipe", "Contact", "Resume", "Schedule", "Reference", "Log",
-            "Reflection", "Inspiration", "Reminder", "Brainstorm", "Content Idea", "Draft",
+            "Reflection", "Inspiration", "Reminder", "Brainstorm", "Content Idea", "Draft"
         ])
         XCTAssertEqual(NoteTypeCatalog.builtIn.count, 17)
     }

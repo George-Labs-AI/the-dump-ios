@@ -1,5 +1,4 @@
 import XCTest
-@testable import TheDumpShare
 
 // MARK: - Mock URL Protocol
 
@@ -19,7 +18,26 @@ final class MockURLProtocol: URLProtocol {
     override static func canInit(with request: URLRequest) -> Bool { true }
     override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
+    /// URLSession hands a URLProtocol the body as `httpBodyStream`, never as
+    /// `httpBody`, so read it back for the tests that inspect what was sent.
+    private static func withBody(_ request: URLRequest) -> URLRequest {
+        guard request.httpBody == nil, let stream = request.httpBodyStream else { return request }
+        var copy = request
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        stream.open()
+        defer { stream.close() }
+        while stream.hasBytesAvailable {
+            let count = stream.read(&buffer, maxLength: buffer.count)
+            if count <= 0 { break }
+            data.append(buffer, count: count)
+        }
+        copy.httpBody = data
+        return copy
+    }
+
     override func startLoading() {
+        let request = Self.withBody(self.request)
         Self.capturedRequests.append(request)
 
         guard let handler = Self.requestHandler else {

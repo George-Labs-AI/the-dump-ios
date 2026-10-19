@@ -60,19 +60,32 @@ final class CategoryRequestsTests: XCTestCase {
         XCTAssertLessThanOrEqual(limited.unicodeScalars.count, 80)
     }
 
+    func testSpacesAroundTheNameDontCount() {
+        // The server trims surrounding spaces before counting.
+        let eighty = String(repeating: "a", count: 80)
+        XCTAssertEqual(CategoryLimits.nameLength("  \(eighty)  "), 80)
+        XCTAssertEqual(CategoryLimits.limitedName("  \(eighty)  "), "  \(eighty)  ")
+        XCTAssertEqual(CategoryLimits.limitedName("  \(eighty)b "), "  \(eighty)")
+        XCTAssertTrue(CategoryLimits.isNameAtLimit(" \(eighty) "))
+        XCTAssertFalse(CategoryLimits.isNameAtLimit(String(repeating: " ", count: 90)))
+        // Spaces inside the name do count.
+        let spaced = String(repeating: "a b ", count: 21)
+        XCTAssertEqual(CategoryLimits.nameLength(CategoryLimits.limitedName(spaced)), 79)
+    }
+
     // MARK: - Restore response (POST /api/categories/<id>/restore)
 
     func testRestoreResponseDecodesBothServerShapes() throws {
         let restored = try JSONDecoder().decode(RestoreCategoryResponse.self, from: Data("""
-        {"status": "success", "category_id": 217, "restored_subcategory_count": 2}
+        {"status": "success", "category_id": 42, "restored_subcategory_count": 2}
         """.utf8))
-        XCTAssertEqual(restored.categoryId, 217)
+        XCTAssertEqual(restored.categoryId, 42)
         XCTAssertEqual(restored.restoredSubcategoryCount, 2)
         XCTAssertNil(restored.alreadyActive)
 
-        // Captured from the live server for a category that was already active.
+        // The reply when the category was already active.
         let noop = try JSONDecoder().decode(RestoreCategoryResponse.self, from: Data("""
-        {"already_active": true, "category_id": 217, "restored_subcategory_count": 0, "status": "success"}
+        {"already_active": true, "category_id": 42, "restored_subcategory_count": 0, "status": "success"}
         """.utf8))
         XCTAssertEqual(noop.alreadyActive, true)
         XCTAssertEqual(noop.restoredSubcategoryCount, 0)

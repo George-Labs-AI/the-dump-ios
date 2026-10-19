@@ -12,7 +12,11 @@ final class DataExportTests: XCTestCase {
         components.month = month
         components.day = day
         components.hour = 12
-        return Calendar(identifier: .gregorian).date(from: components)!
+        guard let date = Calendar(identifier: .gregorian).date(from: components) else {
+            XCTFail("Invalid test date \(year)-\(month)-\(day)")
+            return .distantPast
+        }
+        return date
     }
 
     override func tearDown() {

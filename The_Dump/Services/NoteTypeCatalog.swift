@@ -4,13 +4,12 @@ import Combine
 /// The note types a note can be given: the one list behind the note-detail
 /// type picker and the bulk "Change type" action.
 ///
-/// `builtIn` is a copy of NOTE_TYPES in the web server's
-/// helpers/normalization_helpers.py (same spelling, same order), so the
-/// pickers work offline and against a server that doesn't have
-/// GET /api/note_types yet. `refresh()` swaps in the server's list when that
-/// call succeeds; any failure (a 404, no network, an unexpected body) quietly
-/// keeps the list already shown. A list from the server is kept in memory
-/// for the rest of the app run.
+/// `builtIn` is a copy of the web server's list of note types (same
+/// spelling, same order), so the pickers work offline and against a server
+/// that doesn't have GET /api/note_types yet. `refresh()` swaps in the
+/// server's list when that call succeeds; any failure (a 404, no network, an
+/// unexpected body) quietly keeps the list already shown. A list from the
+/// server is kept in memory for the rest of the app run.
 ///
 /// Nothing calls `refresh()` at launch: the screens that show a type picker
 /// call it when the picker appears. It is cheap to call repeatedly.
@@ -35,7 +34,7 @@ final class NoteTypeCatalog: ObservableObject {
         "Reminder",
         "Brainstorm",
         "Content Idea",
-        "Draft",
+        "Draft"
     ]
 
     @Published private(set) var types: [String] = NoteTypeCatalog.builtIn

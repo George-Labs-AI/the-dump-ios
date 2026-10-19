@@ -57,21 +57,22 @@ final class ServerOverrideTests: XCTestCase {
             "https://user:pass@example.com",
             "https://example.com/api",
             "https://example.com?x=1",
-            "https://example.com#top",
+            "https://example.com#top"
         ]
         for value in rejected {
             XCTAssertNil(ServerOverride.validatedBaseURL(value), "\(String(describing: value)) should be rejected")
         }
     }
 
-    func testAppUsesLaunchArgumentAndSharesItWithExtension() {
+    func testAppUsesLaunchArgumentAndSharesItWithExtension() throws {
         standard.set("https://candidate.example.com", forKey: ServerOverride.key)
 
         let app = ServerOverride.resolvedBaseURL(defaultURL: fallback, standard: standard, shared: shared, isExtension: false)
         XCTAssertEqual(app, "https://candidate.example.com")
         XCTAssertEqual(shared.string(forKey: ServerOverride.key), "https://candidate.example.com")
 
-        let ext = ServerOverride.resolvedBaseURL(defaultURL: fallback, standard: UserDefaults(suiteName: suiteName + ".ext")!, shared: shared, isExtension: true)
+        let extensionDefaults = try XCTUnwrap(UserDefaults(suiteName: suiteName + ".ext"))
+        let ext = ServerOverride.resolvedBaseURL(defaultURL: fallback, standard: extensionDefaults, shared: shared, isExtension: true)
         XCTAssertEqual(ext, "https://candidate.example.com")
         UserDefaults.standard.removePersistentDomain(forName: suiteName + ".ext")
     }
