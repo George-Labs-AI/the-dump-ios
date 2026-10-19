@@ -128,7 +128,7 @@ final class RoutineCreateRequestsTests: XCTestCase {
         XCTAssertEqual(limited, String(repeating: "a", count: 117))
     }
 
-    // MARK: - Responses (shapes captured from the live server)
+    // MARK: - Responses (the shapes the server returns)
 
     func testScopeOptionsDecode() throws {
         let decoded = try decode(RoutineScopeOptionsResponse.self, """
