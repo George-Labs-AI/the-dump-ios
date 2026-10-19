@@ -324,7 +324,18 @@ struct ContentView: View {
         let accepted = urls.filter { CaptureFileTypes.rejection(forFilename: $0.lastPathComponent) == nil }
         guard !accepted.isEmpty else { return }
 
+        // Picked files are security-scoped. Start access for every file now,
+        // while the picker's grant is fresh, and hold it until the uploads
+        // are done: files upload one at a time, so a later file can wait a
+        // long while before its own upload starts.
+        let accessStarted = accepted.map { $0.startAccessingSecurityScopedResource() }
+
         Task {
+            defer {
+                for (url, started) in zip(accepted, accessStarted) where started {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
             guard appState.userEmail != nil, await appState.idToken != nil else {
                 // Both alerts share one slot, so say both things at once
                 // rather than replacing the list of files turned away.

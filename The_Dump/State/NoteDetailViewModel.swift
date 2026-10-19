@@ -172,12 +172,17 @@ final class NoteDetailViewModel: ObservableObject {
                 title: updated.title ?? changes.title ?? currentNote.title,
                 note_content: updated.note_content ?? changes.entries ?? currentNote.note_content,
                 note_content_modified: updated.note_content_modified ?? currentNote.note_content_modified,
-                category_id: updated.category_id ?? currentNote.category_id,
-                category_name: updated.category_name ?? currentNote.category_name,
-                sub_cat_names: updated.sub_cat_names ?? currentNote.sub_cat_names,
+                // Fields the reply leaves out (an emptied sub-category list
+                // can come back as null) fall back to what was just sent,
+                // then to the note as it was.
+                category_id: updated.category_id ?? changes.categoryId ?? currentNote.category_id,
+                category_name: updated.category_name
+                    ?? (changes.categoryId != nil ? draft.categoryName : nil)
+                    ?? currentNote.category_name,
+                sub_cat_names: updated.sub_cat_names ?? changes.subCategories ?? currentNote.sub_cat_names,
                 tags: currentNote.tags,
                 mime_type: updated.mime_type ?? currentNote.mime_type,
-                note_type: updated.note_type ?? currentNote.note_type,
+                note_type: updated.note_type ?? changes.type ?? currentNote.note_type,
                 author: currentNote.author,
                 has_asset: currentNote.has_asset
             ))
