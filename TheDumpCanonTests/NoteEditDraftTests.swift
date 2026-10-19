@@ -12,12 +12,12 @@ final class NoteEditDraftTests: XCTestCase {
         categories: [
             NoteCategoryChoice(id: 216, name: "Work", label: "Work"),
             NoteCategoryChoice(id: 217, name: "Personal", label: "Personal"),
-            NoteCategoryChoice(id: 218, name: "Recipes", label: "Recipes"),
+            NoteCategoryChoice(id: 218, name: "Recipes", label: "Recipes")
         ],
         subCategoriesByCategory: [
             "work": ["meetings", "project ideas"],
             "personal": ["finances", "health", "meetings"],
-            "recipes": ["desserts", "dinners"],
+            "recipes": ["desserts", "dinners"]
         ]
     )
 
@@ -33,12 +33,10 @@ final class NoteEditDraftTests: XCTestCase {
         )
     }
 
-    private func choice(_ id: Int) -> NoteCategoryChoice {
-        options.category(withID: id)!
-    }
-
     private func move(_ draft: inout NoteEditDraft, to id: Int) {
-        let target = choice(id)
+        guard let target = options.category(withID: id) else {
+            return XCTFail("No category \(id) in the test options")
+        }
         draft.selectCategory(target, availableSubCategories: options.subCategories(forCategoryNamed: target.name))
     }
 

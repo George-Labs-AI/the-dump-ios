@@ -13,7 +13,7 @@ final class NoteTypeCatalogTests: XCTestCase {
         XCTAssertEqual(NoteTypeCatalog.builtIn, [
             "Scratch Capture", "To-Do", "Checklist", "Shopping List", "Media List",
             "Recipe", "Contact", "Resume", "Schedule", "Reference", "Log",
-            "Reflection", "Inspiration", "Reminder", "Brainstorm", "Content Idea", "Draft",
+            "Reflection", "Inspiration", "Reminder", "Brainstorm", "Content Idea", "Draft"
         ])
         XCTAssertEqual(NoteTypeCatalog.builtIn.count, 17)
     }

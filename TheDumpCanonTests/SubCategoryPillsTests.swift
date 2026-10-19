@@ -10,7 +10,7 @@ final class SubCategoryPillsTests: XCTestCase {
         categories: ["personal", "work"],
         subcategoriesByCategory: [
             "personal": ["finances", "health"],
-            "work": ["meetings", "project ideas"],
+            "work": ["meetings", "project ideas"]
         ]
     )
 
@@ -34,7 +34,7 @@ final class SubCategoryPillsTests: XCTestCase {
         )
         XCTAssertEqual(pills, [
             SubCategoryPill(name: "meetings", count: 4),
-            SubCategoryPill(name: "project ideas", count: 0),
+            SubCategoryPill(name: "project ideas", count: 0)
         ])
     }
 

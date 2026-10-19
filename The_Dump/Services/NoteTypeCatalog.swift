@@ -35,7 +35,7 @@ final class NoteTypeCatalog: ObservableObject {
         "Reminder",
         "Brainstorm",
         "Content Idea",
-        "Draft",
+        "Draft"
     ]
 
     @Published private(set) var types: [String] = NoteTypeCatalog.builtIn

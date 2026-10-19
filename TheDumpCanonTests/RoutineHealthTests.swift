@@ -17,7 +17,7 @@ final class RoutineHealthTests: XCTestCase {
             "UNKNOWN": "Waiting for first report",
             "FAILED": "Failed",
             "SILENT": "Not running",
-            "PAUSED": "Paused",
+            "PAUSED": "Paused"
         ]
         XCTAssertEqual(RoutineHealth.allCases.count, expected.count)
         for (code, words) in expected {
@@ -28,7 +28,13 @@ final class RoutineHealthTests: XCTestCase {
     // MARK: - Full label, worded like the web's status chip
 
     private let ended = "2026-10-18T12:00:00Z"
-    private var endedDate: Date { ISO8601DateFormatter().date(from: ended)! }
+    private var endedDate: Date {
+        guard let date = ISO8601DateFormatter().date(from: ended) else {
+            XCTFail("Unreadable test time \(ended)")
+            return .distantPast
+        }
+        return date
+    }
 
     private func label(_ code: String, asOf: String? = nil, silentFor: Int? = nil,
                        after seconds: TimeInterval = 42 * 60) -> String? {
