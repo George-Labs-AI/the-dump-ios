@@ -77,15 +77,15 @@ final class CategoryRequestsTests: XCTestCase {
 
     func testRestoreResponseDecodesBothServerShapes() throws {
         let restored = try JSONDecoder().decode(RestoreCategoryResponse.self, from: Data("""
-        {"status": "success", "category_id": 217, "restored_subcategory_count": 2}
+        {"status": "success", "category_id": 42, "restored_subcategory_count": 2}
         """.utf8))
-        XCTAssertEqual(restored.categoryId, 217)
+        XCTAssertEqual(restored.categoryId, 42)
         XCTAssertEqual(restored.restoredSubcategoryCount, 2)
         XCTAssertNil(restored.alreadyActive)
 
-        // Captured from the live server for a category that was already active.
+        // The reply when the category was already active.
         let noop = try JSONDecoder().decode(RestoreCategoryResponse.self, from: Data("""
-        {"already_active": true, "category_id": 217, "restored_subcategory_count": 0, "status": "success"}
+        {"already_active": true, "category_id": 42, "restored_subcategory_count": 0, "status": "success"}
         """.utf8))
         XCTAssertEqual(noop.alreadyActive, true)
         XCTAssertEqual(noop.restoredSubcategoryCount, 0)

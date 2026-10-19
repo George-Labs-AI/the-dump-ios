@@ -28,8 +28,8 @@ struct StartRecategorizeRequest: Encodable {
     let scope: RecategorizeScope
     let categoryId: Int?
     /// Set only when the category is archived right after this re-sort, so
-    /// the backend never moves a note back into it — the same body the web's
-    /// category_manager.js sends. Nil keys are left out of the JSON.
+    /// the backend never moves a note back into it — the same body the web
+    /// app sends. Nil keys are left out of the JSON.
     let archiving: Bool?
     let excludeCategoryIds: [Int]?
 
