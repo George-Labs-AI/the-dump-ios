@@ -60,6 +60,19 @@ final class CategoryRequestsTests: XCTestCase {
         XCTAssertLessThanOrEqual(limited.unicodeScalars.count, 80)
     }
 
+    func testSpacesAroundTheNameDontCount() {
+        // The server trims surrounding spaces before counting.
+        let eighty = String(repeating: "a", count: 80)
+        XCTAssertEqual(CategoryLimits.nameLength("  \(eighty)  "), 80)
+        XCTAssertEqual(CategoryLimits.limitedName("  \(eighty)  "), "  \(eighty)  ")
+        XCTAssertEqual(CategoryLimits.limitedName("  \(eighty)b "), "  \(eighty)")
+        XCTAssertTrue(CategoryLimits.isNameAtLimit(" \(eighty) "))
+        XCTAssertFalse(CategoryLimits.isNameAtLimit(String(repeating: " ", count: 90)))
+        // Spaces inside the name do count.
+        let spaced = String(repeating: "a b ", count: 21)
+        XCTAssertEqual(CategoryLimits.nameLength(CategoryLimits.limitedName(spaced)), 79)
+    }
+
     // MARK: - Restore response (POST /api/categories/<id>/restore)
 
     func testRestoreResponseDecodesBothServerShapes() throws {

@@ -220,13 +220,21 @@ enum CategoryLimits {
     /// a 400). The web's Settings field uses the same number.
     static let maxNameLength: Int = 80
 
-    /// `text` cut back to `maxNameLength`, counted in Unicode code points as
-    /// the server's Python `len()` counts them. Never splits a character, so
-    /// an emoji at the limit is dropped whole.
+    /// The length the server checks: Unicode code points (what Python's
+    /// `len()` counts) after trimming spaces around the name.
+    static func nameLength(_ text: String) -> Int {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).unicodeScalars.count
+    }
+
+    /// `text` cut back so that `nameLength` is at most `maxNameLength`.
+    /// Spaces around the name don't count, and a character is never split,
+    /// so an emoji at the limit is dropped whole.
     static func limitedName(_ text: String) -> String {
-        var kept = ""
+        guard nameLength(text) > maxNameLength else { return text }
+        let leading = text.prefix { $0.isWhitespace }
+        var kept = String(leading)
         var count = 0
-        for character in text {
+        for character in text.dropFirst(leading.count) {
             count += character.unicodeScalars.count
             if count > maxNameLength { break }
             kept.append(character)
@@ -235,6 +243,6 @@ enum CategoryLimits {
     }
 
     static func isNameAtLimit(_ text: String) -> Bool {
-        text.unicodeScalars.count >= maxNameLength
+        nameLength(text) >= maxNameLength
     }
 }
