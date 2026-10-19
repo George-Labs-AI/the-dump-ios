@@ -6,7 +6,7 @@ import os.log
 class SubscriptionService {
     static let shared = SubscriptionService()
 
-    private let baseURL = "https://thedump.ai"
+    private let baseURL = SharedConstants.baseURL
 
     private init() {}
 

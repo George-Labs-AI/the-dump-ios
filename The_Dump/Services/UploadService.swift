@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 class UploadService {
     static let shared = UploadService()
     
-    private let backendBaseURL = "https://thedump.ai"
+    private let backendBaseURL = SharedConstants.baseURL
     private let uploadEndpoint = "/api/mobile/upload_file"
 
     /// Shared persisted store of in-flight uploads (note-status contract).
