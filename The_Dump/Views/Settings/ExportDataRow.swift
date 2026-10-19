@@ -8,8 +8,6 @@ struct ExportDataRow: View {
     @State private var isExporting = false
     @State private var exportFile: ExportFile?
     @State private var errorMessage: String?
-    /// The file handed to the share sheet, deleted once the sheet closes.
-    @State private var sharedURL: URL?
 
     var body: some View {
         Button {
@@ -25,7 +23,7 @@ struct ExportDataRow: View {
             }
         }
         .disabled(isExporting)
-        .sheet(item: $exportFile, onDismiss: removeSharedFile) { file in
+        .sheet(item: $exportFile) { file in
             ActivityView(items: [file.url]) {
                 exportFile = nil
             }
@@ -48,18 +46,10 @@ struct ExportDataRow: View {
         do {
             let data = try await NotesService.shared.exportData()
             let url = try DataExport.saveToTemporaryFile(data)
-            sharedURL = url
             exportFile = ExportFile(url: url)
         } catch {
             errorMessage = error.localizedDescription
         }
-    }
-
-    private func removeSharedFile() {
-        if let sharedURL {
-            DataExport.removeTemporaryFile(at: sharedURL)
-        }
-        sharedURL = nil
     }
 }
 
@@ -68,7 +58,8 @@ private struct ExportFile: Identifiable {
     var id: URL { url }
 }
 
-/// The system share sheet. `onFinish` runs when the person shares or cancels.
+/// The system share sheet. `onFinish` runs once the chosen destination has
+/// finished, or the person cancels, so the empty sheet closes too.
 private struct ActivityView: UIViewControllerRepresentable {
     let items: [Any]
     let onFinish: () -> Void
