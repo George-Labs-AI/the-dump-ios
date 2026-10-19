@@ -296,9 +296,14 @@ struct CategoryResponse: Codable {
     let dateAdded: String
     let lastModifiedDate: String
 
+    /// The category's emoji; nil when none has been chosen.
+    let emoji: String?
+    /// Whether the server sent the `emoji` key at all, as opposed to sending
+    /// it as null. A server from before emoji were saved leaves it out, and
+    /// the app doesn't try to move emoji from this phone to one of those.
+    let sendsEmoji: Bool
     // Optional forward-compatible fields. Server doesn't return these yet;
     // when it does, decoders pick them up automatically.
-    let emoji: String?
     let archived: Bool?
     let archivedAt: String?
     let inProcessCount: Int?
@@ -314,6 +319,25 @@ struct CategoryResponse: Codable {
         case archivedAt = "archived_at"
         case inProcessCount = "in_process_count"
         case subCatCount = "sub_cat_count"
+    }
+}
+
+extension CategoryResponse {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        categoryId = try container.decode(Int.self, forKey: .categoryId)
+        name = try container.decode(String.self, forKey: .name)
+        definition = try container.decode(String.self, forKey: .definition)
+        keywords = try container.decode([String].self, forKey: .keywords)
+        source = try container.decode(String.self, forKey: .source)
+        dateAdded = try container.decode(String.self, forKey: .dateAdded)
+        lastModifiedDate = try container.decode(String.self, forKey: .lastModifiedDate)
+        emoji = try container.decodeIfPresent(String.self, forKey: .emoji)
+        sendsEmoji = container.contains(.emoji)
+        archived = try container.decodeIfPresent(Bool.self, forKey: .archived)
+        archivedAt = try container.decodeIfPresent(String.self, forKey: .archivedAt)
+        inProcessCount = try container.decodeIfPresent(Int.self, forKey: .inProcessCount)
+        subCatCount = try container.decodeIfPresent(Int.self, forKey: .subCatCount)
     }
 }
 
@@ -335,11 +359,26 @@ struct CategoryUpdateRequest: Encodable {
     let categoryName: String?
     let categoryDescription: String?
     let keywords: [String]?
+    /// A new emoji, or "" to clear it. Nil leaves the emoji as it is.
+    let emoji: String?
+
+    init(
+        categoryName: String? = nil,
+        categoryDescription: String? = nil,
+        keywords: [String]? = nil,
+        emoji: String? = nil
+    ) {
+        self.categoryName = categoryName
+        self.categoryDescription = categoryDescription
+        self.keywords = keywords
+        self.emoji = emoji
+    }
 
     enum CodingKeys: String, CodingKey {
         case categoryName = "category_name"
         case categoryDescription = "category_description"
         case keywords
+        case emoji
     }
 }
 
@@ -351,6 +390,8 @@ struct UpdatedCategory: Codable {
     /// Always false since the server stopped embedding categories on save;
     /// kept because this client requires the key.
     let embeddingRefreshed: Bool
+    /// The category's emoji after the save; nil when it has none.
+    let emoji: String?
 
     enum CodingKeys: String, CodingKey {
         case categoryId = "category_id"
@@ -358,6 +399,7 @@ struct UpdatedCategory: Codable {
         case categoryDescription = "category_description"
         case keywords
         case embeddingRefreshed = "embedding_refreshed"
+        case emoji
     }
 }
 

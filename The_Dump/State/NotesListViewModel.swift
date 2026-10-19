@@ -36,6 +36,7 @@ final class NotesListViewModel: ObservableObject {
     private var nextCursorId: String?
     private var nextOffset: Int = 0
     private var deletedNoteObserver: NSObjectProtocol?
+    private var subCategoryObserver: NSObjectProtocol?
     /// Set when a reload is asked for while one is running (a search typed,
     /// a pill tapped or a bulk action finished): whether it should also
     /// reload the sub-categories. It runs as soon as the running one ends,
@@ -89,12 +90,39 @@ final class NotesListViewModel: ObservableObject {
                 }
             }
         }
+
+        // A sub-category renamed or deleted in Settings leaves this
+        // category's pills and loaded notes showing its old name.
+        subCategoryObserver = NotificationCenter.default.addObserver(
+            forName: .subCategoriesDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let changed = SubCategoryChange.from(notification) else { return }
+            Task { @MainActor [weak self] in
+                guard let self, changed.categoryId == categoryId else { return }
+                await subCategoriesDidChange(changed.change)
+            }
+        }
     }
 
     deinit {
         if let deletedNoteObserver {
             NotificationCenter.default.removeObserver(deletedNoteObserver)
         }
+        if let subCategoryObserver {
+            NotificationCenter.default.removeObserver(subCategoryObserver)
+        }
+    }
+
+    /// A sub-category of this category changed in Settings: follow a renamed
+    /// filter to its new name, drop a deleted one, forget names collected
+    /// before the change, and reload the notes and pills.
+    func subCategoriesDidChange(_ change: SubCategoryChange) async {
+        selectedSubCategory = change.selection(after: selectedSubCategory)
+        addedSubCategories = []
+        subCategoryNamesOnNotes = []
+        await refresh()
     }
 
     /// Ask the server for this category's sub-categories (the category map)

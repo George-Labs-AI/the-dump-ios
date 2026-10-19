@@ -173,7 +173,7 @@ struct NewCategoryView: View {
             do {
                 let response = try await NotesService.shared.addCategories([category])
                 if let newCategory = response.categories.first {
-                    CategoryEmojiStore.setEmoji(emoji, for: newCategory.categoryId)
+                    await saveEmoji(for: newCategory.categoryId)
                 }
                 await MainActor.run {
                     isSubmitting = false
@@ -185,6 +185,22 @@ struct NewCategoryView: View {
                     errorMessage = error.localizedDescription
                 }
             }
+        }
+    }
+
+    /// Creating a category doesn't take an emoji, so it is saved right after.
+    /// 📁 is what the app shows without one, so it isn't sent. If the save
+    /// fails the category still exists, so the sheet closes as usual and the
+    /// emoji waits on this phone; the category list sends it when it loads.
+    private func saveEmoji(for categoryId: Int) async {
+        guard !emoji.isEmpty, emoji != CategoryEmoji.placeholder else { return }
+        do {
+            _ = try await NotesService.shared.updateCategory(
+                id: categoryId,
+                update: CategoryUpdateRequest(emoji: emoji)
+            )
+        } catch {
+            CategoryEmojiStore().set(emoji, for: categoryId)
         }
     }
 }
