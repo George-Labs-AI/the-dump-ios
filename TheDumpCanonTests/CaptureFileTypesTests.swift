@@ -1,9 +1,8 @@
 import XCTest
 @testable import The_Dump
 
-/// The File button must accept exactly what the web uploader accepts
-/// (validateFileTypes in the web app's static/index.js), and turn videos and
-/// zips away with a message instead of uploading them.
+/// The File button must accept exactly what the web uploader accepts, and
+/// turn videos and zips away with a message instead of uploading them.
 final class CaptureFileTypesTests: XCTestCase {
 
     func testAllowedListMatchesTheWeb() {

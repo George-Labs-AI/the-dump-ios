@@ -2,11 +2,10 @@ import Foundation
 
 // Which picked files the capture screen's File button uploads.
 //
-// The allowed list is the web uploader's (validateFileTypes in the web app's
-// static/index.js), so both platforms accept exactly the same files. Anything
-// else is turned away before upload with a message, instead of uploading and
-// then showing up as a failed note. Foundation only, so it can be unit-tested
-// without the app's services.
+// The allowed list is the web uploader's, so both platforms accept exactly
+// the same files. Anything else is turned away before upload with a message,
+// instead of uploading and then showing up as a failed note. Foundation only,
+// so it can be unit-tested without the app's services.
 
 /// Why a picked file was turned away. Videos and zips get named outright
 /// because they are what people most often try (the capture screen's hint

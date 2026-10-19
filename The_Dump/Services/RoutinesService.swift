@@ -1,7 +1,6 @@
 import Foundation
 
-// Client for the Routines JSON API on the Flask frontend
-// (The_Dump_Front_End/routes/routines_routes.py). Mirrors the request /
+// Client for the Routines JSON API on the web server. Mirrors the request /
 // error-handling pattern in NotesService. Read paths only fetch metadata
 // until a single document is opened — GET /documents (all bodies) is
 // deliberately not used because one index document is ~217K chars.

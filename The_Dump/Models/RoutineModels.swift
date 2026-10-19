@@ -1,9 +1,8 @@
 import Foundation
 
-// Models for the Routines API served by the Flask frontend
-// (The_Dump_Front_End/routes/routines_routes.py). Only the fields the UI
-// reads are declared — Decodable ignores unknown keys, and `scope` is JSONB
-// on the server so it is deliberately left out.
+// Models for the Routines API served by the web server. Only the fields the
+// UI reads are declared — Decodable ignores unknown keys, and `scope` is
+// free-form JSON on the server so it is deliberately left out.
 
 // MARK: - Responses
 

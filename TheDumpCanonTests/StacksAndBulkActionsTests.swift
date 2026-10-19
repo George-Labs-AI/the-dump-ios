@@ -2,7 +2,7 @@ import XCTest
 @testable import The_Dump
 
 /// Stacks and the select-mode bulk actions. The JSON here is shaped like the
-/// web server's real answers (checked against the live server).
+/// web server's replies.
 @MainActor
 final class StacksAndBulkActionsTests: XCTestCase {
     private func decode<T: Decodable>(_ type: T.Type, _ json: String) throws -> T {
@@ -75,8 +75,8 @@ final class StacksAndBulkActionsTests: XCTestCase {
         XCTAssertEqual(response.notes.map(\.isStack), [false, false])
     }
 
-    // failed_ids is left undecoded on purpose: the live server lists every
-    // id there even when all of them succeeded.
+    // failed_ids is left undecoded on purpose: after a bulk action the app
+    // reloads the list rather than reading it.
     func testActionResponsesDecode() async throws {
         let stacked = try decode(StackNotesResponse.self, """
         {"message": "Stacked 2 notes.", "stack_id": "s1", "stacked_count": 2}
