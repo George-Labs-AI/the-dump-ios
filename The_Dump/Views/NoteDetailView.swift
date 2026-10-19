@@ -260,6 +260,9 @@ struct NoteDetailView: View {
                     .foregroundColor(Theme.accent)
             }
         }
+        // A successful save replaces the draft with the server's copy, so
+        // anything typed while saving would be lost.
+        .disabled(viewModel.isSaving)
     }
 
     private func fieldLabel(_ text: String) -> some View {
