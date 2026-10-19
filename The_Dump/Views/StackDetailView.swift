@@ -91,11 +91,17 @@ struct StackDetailView: View {
             }
         }
         // Reload each time the screen shows again, so a note deleted or
-        // changed from its own screen is reflected here.
+        // changed from its own screen is reflected here, and tell the list
+        // behind when the stack lost notes or is gone (its row may have
+        // stood for a note that was just deleted).
         .onAppear {
             Task {
+                let before = viewModel.notes.map(\.id)
                 await viewModel.load()
-                if viewModel.isGone { onChanged() }
+                let after = viewModel.notes.map(\.id)
+                if viewModel.isGone || (!before.isEmpty && before != after) {
+                    onChanged()
+                }
             }
         }
         .alert("Unstack these notes?", isPresented: $showUnstackConfirmation) {
