@@ -4,8 +4,26 @@ enum SharedConstants {
     /// App Group identifier shared between the main app and the share extension.
     static let appGroupID = "group.George-Labs.The-Dump-App-Two"
 
-    /// Backend base URL.
-    static let baseURL = "https://thedump.ai"
+    /// Production web server.
+    static let defaultBaseURL = "https://thedump.ai"
+
+    /// The web server every API request goes to, in the app and in the share
+    /// extension. Release builds always use `defaultBaseURL`; a Debug build
+    /// can be pointed elsewhere with `-DumpServerURL <url>` (see
+    /// `ServerOverride`). Legal and privacy links don't use this: they always
+    /// open thedump.ai.
+    static let baseURL: String = {
+#if DEBUG
+        return ServerOverride.resolvedBaseURL(
+            defaultURL: SharedConstants.defaultBaseURL,
+            standard: .standard,
+            shared: UserDefaults(suiteName: SharedConstants.appGroupID),
+            isExtension: Bundle.main.bundleURL.pathExtension == "appex"
+        )
+#else
+        return SharedConstants.defaultBaseURL
+#endif
+    }()
 
     /// Ingest endpoint path (text and links).
     static let ingestEndpoint = "/api/ingest"

@@ -6,8 +6,9 @@ import os.log
 class NotesService {
     static let shared = NotesService()
     
-    // ⚠️ Update this URL to match your deployment or local dev environment
-    private let baseURL = "https://thedump.ai"
+    // thedump.ai in Release; a Debug build can point elsewhere with
+    // -DumpServerURL (see ServerOverride).
+    private let baseURL = SharedConstants.baseURL
 
     // The recategorize job pipeline currently lives on a separate Cloud Run
     // service. Routed via createRequest's baseURLOverride parameter.

@@ -26,7 +26,7 @@ final class NoteStatusService {
     /// How long polling runs at the fast cadence before backing off.
     static let backoffAfter: TimeInterval = 5 * 60
 
-    private let baseURL = "https://thedump.ai"
+    private let baseURL = SharedConstants.baseURL
     private let store: PendingNotesStore
 
     private var pollTask: Task<Void, Never>?
