@@ -208,6 +208,13 @@ extension EditNoteResponseNote {
     }
 }
 
+// MARK: - Note Types
+
+// Matches the response from GET /api/note_types
+struct NoteTypesResponse: Decodable {
+    let note_types: [String]
+}
+
 // MARK: - Delete Note
 
 struct DeleteNoteRequest: Codable {

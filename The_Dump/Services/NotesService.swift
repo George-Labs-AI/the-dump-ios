@@ -152,7 +152,42 @@ class NotesService {
             throw APIError.networkError(underlying: error)
         }
     }
-    
+
+    // Fetch the server's list of note types. Callers go through
+    // NoteTypeCatalog, which falls back to its built-in list on any error.
+    func fetchNoteTypes() async throws -> [String] {
+        let request = try await createRequest(endpoint: "/api/note_types")
+
+        do {
+#if DEBUG
+            debugLogRequest(request, label: "note_types")
+#endif
+            let (data, response) = try await URLSession.shared.data(for: request)
+#if DEBUG
+            debugLogResponse(data: data, response: response, label: "note_types")
+#endif
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.networkError(underlying: URLError(.badServerResponse))
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                throw APIError.httpError(statusCode: httpResponse.statusCode, message: "Failed to fetch note types")
+            }
+
+            return try JSONDecoder().decode(NoteTypesResponse.self, from: data).note_types
+        } catch let error as APIError {
+            throw error
+        } catch let error as DecodingError {
+#if DEBUG
+            print("[NotesService][note_types] Decode failed: \(error)")
+#endif
+            throw APIError.decodingFailed(underlying: error)
+        } catch {
+            throw APIError.networkError(underlying: error)
+        }
+    }
+
     // Fetch the list of notes (with pagination & filtering)
     func fetchNotes(
         limit: Int = 30,
