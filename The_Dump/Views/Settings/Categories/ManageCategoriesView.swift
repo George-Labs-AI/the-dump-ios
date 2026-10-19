@@ -143,7 +143,7 @@ private struct CategoryRow: View {
 
     var body: some View {
         HStack(spacing: Theme.spacingSMPlus) {
-            Text(CategoryEmojiStore.emoji(for: item.id))
+            Text(item.displayEmoji)
                 .font(.system(size: 22))
                 .frame(width: 32, height: 32)
                 .background(Theme.surface2)
