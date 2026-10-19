@@ -220,8 +220,8 @@ final class NoteDetailViewModel: ObservableObject {
     var assetIconName: String { Self.originalButtonIcon(for: note) }
 
     /// Whether to show the original-file button. Same rule as the web's
-    /// Original buttons (static/notes.js): every note the server says has an
-    /// original file (has_asset), whatever its kind, and no others. Servers
+    /// Original buttons: every note the server says has an original file
+    /// (has_asset), whatever its kind, and no others. Servers
     /// that don't send has_asset fall back to the old guess from the media
     /// type. A file missing from storage still answers "No original file
     /// available for this note."
@@ -235,16 +235,22 @@ final class NoteDetailViewModel: ObservableObject {
         return false
     }
 
-    /// SF Symbol name for the original asset button based on mime type and note type.
-    /// Same kinds as the web's card button: photo, recording, document, and a
-    /// paperclip for anything else (typed and shared text).
+    /// SF Symbol name for the original asset button. Same kinds as the web's
+    /// card button: photo, recording, document, and a paperclip for anything
+    /// else (typed and shared text). The app's older words for photos and
+    /// recordings ("image", "photo", "voice" as the media or note type) are
+    /// still recognised as well.
     static func originalButtonIcon(for note: NoteDetail?) -> String {
         let mt = note?.mime_type?.lowercased() ?? ""
         let nt = note?.note_type?.lowercased() ?? ""
         if mt.hasPrefix("image") || mt.hasPrefix("photo") || nt == "photo" { return "photo.on.rectangle" }
         if mt.hasPrefix("audio") || mt.hasPrefix("voice") || nt == "voice" { return "waveform" }
-        if mt == "document" { return "doc" }
-        return "paperclip"
+        switch OriginalFileKind(mimeType: note?.mime_type) {
+        case .image: return "photo.on.rectangle"
+        case .voice: return "waveform"
+        case .document: return "doc"
+        case .text: return "paperclip"
+        }
     }
 
     /// Fetch the original asset signed URL on demand.
@@ -266,5 +272,32 @@ final class NoteDetailViewModel: ObservableObject {
         }
 
         isLoadingAsset = false
+    }
+}
+
+/// The kind of a note's original file, worked out from its media type the
+/// way the web does. The server stores either a real media type
+/// ("image/png", "application/pdf") or a bare file extension ("heic",
+/// "pdf"), so both forms are matched.
+enum OriginalFileKind: Equatable {
+    case image
+    case voice
+    case document
+    case text
+
+    init(mimeType: String?) {
+        let mime = (mimeType ?? "").lowercased()
+        func mentions(_ names: [String]) -> Bool { names.contains { mime.contains($0) } }
+        if mime.hasPrefix("image/") || mentions(["heic", "heif", "jpg", "jpeg", "png", "gif", "tiff", "webp"]) {
+            self = .image
+        } else if mime.hasPrefix("audio/") || mentions(["m4a", "mp3", "wav", "aac", "ogg", "flac", "opus"]) {
+            self = .voice
+        } else if mime.hasPrefix("application/")
+                    || (mime.hasPrefix("text/") && mime != "text/plain")
+                    || mentions(["pdf", "doc", "xls", "ppt", "rtf", "csv"]) {
+            self = .document
+        } else {
+            self = .text
+        }
     }
 }

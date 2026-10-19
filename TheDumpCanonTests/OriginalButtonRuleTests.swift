@@ -39,4 +39,28 @@ final class OriginalButtonRuleTests: XCTestCase {
         XCTAssertEqual(NoteDetailViewModel.originalButtonIcon(for: try note(mime: "document", hasAsset: true)), "doc")
         XCTAssertEqual(NoteDetailViewModel.originalButtonIcon(for: try note(mime: "text", hasAsset: true)), "paperclip")
     }
+
+    // The server stores real media types for some files and bare extensions
+    // for others; both get the web's icon.
+    func testIconReadsRealMediaTypesAndBareExtensions() throws {
+        let expected: [String: String] = [
+            "image/jpeg": "photo.on.rectangle", "heic": "photo.on.rectangle", "PNG": "photo.on.rectangle",
+            "audio/mp4": "waveform", "m4a": "waveform", "wav": "waveform",
+            "application/pdf": "doc", "pdf": "doc", "docx": "doc", "text/csv": "doc",
+            "text/plain": "paperclip", "": "paperclip"
+        ]
+        for (mime, icon) in expected {
+            XCTAssertEqual(NoteDetailViewModel.originalButtonIcon(for: try note(mime: mime, hasAsset: true)), icon, mime)
+        }
+    }
+
+    func testFileKindMatchesTheWebsMapping() {
+        XCTAssertEqual(OriginalFileKind(mimeType: "image/webp"), .image)
+        XCTAssertEqual(OriginalFileKind(mimeType: "jpg"), .image)
+        XCTAssertEqual(OriginalFileKind(mimeType: "audio/mpeg"), .voice)
+        XCTAssertEqual(OriginalFileKind(mimeType: "application/vnd.ms-excel"), .document)
+        XCTAssertEqual(OriginalFileKind(mimeType: "text/markdown"), .document)
+        XCTAssertEqual(OriginalFileKind(mimeType: "text/plain"), .text)
+        XCTAssertEqual(OriginalFileKind(mimeType: nil), .text)
+    }
 }
