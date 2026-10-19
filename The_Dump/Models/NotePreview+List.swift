@@ -41,8 +41,14 @@ extension Array where Element == NotePreview {
     /// The rows a list keeps after the note `noteId` was deleted from its own
     /// screen. A row that stands for a stack carries its newest note's id,
     /// but the stack still holds its other notes, so that row stays until the
-    /// list reloads (the stack screen asks for that once it sees a note gone).
+    /// list reloads.
     func removingDeletedNote(_ noteId: String) -> [NotePreview] {
         filter { $0.id != noteId || $0.isStack }
+    }
+
+    /// Whether the note `noteId` is the one a stack row stands for, so that
+    /// deleting it means the list must reload to show the stack's next note.
+    func hasStackRow(standingFor noteId: String) -> Bool {
+        contains { $0.id == noteId && $0.isStack }
     }
 }

@@ -72,7 +72,13 @@ final class NotesListViewModel: ObservableObject {
             guard let noteId = notification.userInfo?["noteId"] as? String else { return }
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                let stoodForAStack = notes.hasStackRow(standingFor: noteId)
                 notes = notes.removingDeletedNote(noteId)
+                // The stack still holds its other notes: reload so its row
+                // shows the next one and the right count.
+                if stoodForAStack {
+                    await refresh()
+                }
             }
         }
     }

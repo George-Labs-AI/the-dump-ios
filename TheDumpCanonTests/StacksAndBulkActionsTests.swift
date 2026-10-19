@@ -69,6 +69,11 @@ final class StacksAndBulkActionsTests: XCTestCase {
         XCTAssertEqual(list.notes.removingDeletedNote("n2").map(\.id), ["n1", "n3"])
         XCTAssertEqual(list.notes.removingDeletedNote("n1").map(\.id), ["n1", "n2", "n3"])
         XCTAssertEqual(list.notes.removingDeletedNote("elsewhere").map(\.id), ["n1", "n2", "n3"])
+
+        // Only the note a stack row stands for makes the list reload.
+        XCTAssertTrue(list.notes.hasStackRow(standingFor: "n1"))
+        XCTAssertFalse(list.notes.hasStackRow(standingFor: "n2"))
+        XCTAssertFalse(list.notes.hasStackRow(standingFor: "elsewhere"))
     }
 
     // A stack row keeps its identity when its newest note changes, so a stack
