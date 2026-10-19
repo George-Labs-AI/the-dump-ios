@@ -80,7 +80,8 @@ final class NoteDetailViewModel: ObservableObject {
                 tags: currentNote.tags,
                 mime_type: updated.mime_type ?? currentNote.mime_type,
                 note_type: updated.note_type ?? currentNote.note_type,
-                author: currentNote.author
+                author: currentNote.author,
+                has_asset: currentNote.has_asset
             )
 
             isSaving = false
