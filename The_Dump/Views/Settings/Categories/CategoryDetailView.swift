@@ -231,6 +231,12 @@ struct CategoryDetailView: View {
                         .foregroundColor(.red)
                 }
 
+                // Archiving a category archives its sub-categories with it,
+                // and restoring the category brings them back.
+                if !archived {
+                    SubCategoriesSection(categoryId: categoryId) { didChange = true }
+                }
+
                 // Danger zone
                 dangerZone(archived: archived, locked: locked)
 
