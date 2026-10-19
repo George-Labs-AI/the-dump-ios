@@ -26,8 +26,7 @@ final class BrowseViewModel: ObservableObject {
     @Published private(set) var dateGroupRows: [FolderRow] = []
     @Published private(set) var mimeTypeRows: [FolderRow] = []
     @Published private(set) var recentCount: Int = 0
-    /// Routines the user has enabled. Zero hides the Routines row entirely —
-    /// "the data is the feature flag", same rule as the web nav.
+    /// Routines the user has enabled, shown as the Routines row's count.
     @Published private(set) var routineCount: Int = 0
     @Published private(set) var routineOpenAskCount: Int = 0
     private var routineSummaryTask: Task<Void, Never>?
@@ -82,7 +81,7 @@ final class BrowseViewModel: ObservableObject {
                 self.routineCount = routines.count
                 self.routineOpenAskCount = routines.reduce(0) { $0 + ($1.openAskCount ?? 0) }
             } catch {
-                // Keep previous values; the row stays hidden for users without routines.
+                // Keep previous values so the row's count never flickers.
             }
         }
     }

@@ -1,10 +1,11 @@
 import SwiftUI
 
-// All of the user's routines. Reached from the Routines row in Browse,
-// which only appears when the user has at least one enabled routine.
+// All of the user's routines, and the way to create one. Reached from the
+// Routines row in Browse, which is always shown.
 
 struct RoutinesListView: View {
     @StateObject private var viewModel = RoutinesListViewModel()
+    @State private var showCreate = false
 
     var body: some View {
         ZStack {
@@ -32,13 +33,18 @@ struct RoutinesListView: View {
                         Image(systemName: "arrow.triangle.2.circlepath")
                             .font(.system(size: 48))
                             .foregroundColor(Theme.textSecondary.opacity(0.5))
-                        Text("No routines yet")
+                        Text("Make something useful from your notes.")
                             .font(.system(size: Theme.fontSizeLG, weight: .semibold))
                             .foregroundColor(Theme.textPrimary)
-                        Text("Routines keep living documents up to date from your notes.")
+                            .multilineTextAlignment(.center)
+                        Text("Create a routine, choose its notes, and connect your own runner to maintain a brief, a tracker, or a plan. The Dump stores your inputs and results. You provide the code and schedule.")
                             .font(.system(size: Theme.fontSizeSM))
                             .foregroundColor(Theme.textSecondary)
                             .multilineTextAlignment(.center)
+                        Button("Create routine") {
+                            showCreate = true
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
                     }
                     .padding(Theme.spacingLG)
                 } else {
@@ -70,8 +76,26 @@ struct RoutinesListView: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbarBackground(Theme.background, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showCreate = true
+                } label: {
+                    Image(systemName: "plus")
+                        .foregroundColor(Theme.textSecondary)
+                }
+                .accessibilityLabel("Create routine")
+            }
+        }
+        .sheet(isPresented: $showCreate) {
+            RoutineCreateFlowView { _ in
+                Task { await viewModel.load() }
+            }
+        }
+        // Runs again on every return from a routine, so a pause or resume
+        // made there shows here too.
         .task {
-            await viewModel.loadIfNeeded()
+            await viewModel.load()
         }
     }
 }
