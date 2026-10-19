@@ -1,5 +1,19 @@
 import Foundation
 
+extension CategoryMapResponse {
+    /// The active sub-categories of `categoryName`, matched ignoring case and
+    /// surrounding spaces (the server keys the map by lower-cased name).
+    /// Empty for an unknown or archived category.
+    func subCategories(forCategory categoryName: String) -> [String] {
+        subcategoriesByCategory?[Self.key(categoryName)] ?? []
+    }
+
+    /// A name in the form the server uses for keys.
+    static func key(_ name: String) -> String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+}
+
 /// One sub-category filter pill above a category's notes.
 struct SubCategoryPill: Identifiable, Equatable {
     /// Shown on the pill and sent as sub_cat_name when it is tapped. The

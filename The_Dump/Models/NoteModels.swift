@@ -225,6 +225,21 @@ extension EditNoteResponseNote {
     }
 }
 
+// MARK: - Category Map
+
+// Matches the response from GET /api/category_map. Both lists are keyed and
+// spelled in lower case ("work": ["meetings", "project ideas"]); only active
+// categories and sub-categories are included.
+struct CategoryMapResponse: Decodable {
+    let categories: [String]?
+    let subcategoriesByCategory: [String: [String]]?
+
+    enum CodingKeys: String, CodingKey {
+        case categories
+        case subcategoriesByCategory = "subcategories_by_category"
+    }
+}
+
 // MARK: - Note Types
 
 // Matches the response from GET /api/note_types

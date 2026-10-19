@@ -21,9 +21,11 @@ final class SubCategoryPillsTests: XCTestCase {
         """.utf8))
         XCTAssertEqual(decoded.categories, ["personal", "work"])
         XCTAssertEqual(decoded.subCategories(forCategory: "Recipes"), ["desserts"])
+        XCTAssertEqual(decoded.subCategories(forCategory: "work"), [])
 
         let empty = try JSONDecoder().decode(CategoryMapResponse.self, from: Data("{}".utf8))
-        XCTAssertEqual(empty, CategoryMapResponse(categories: [], subcategoriesByCategory: [:]))
+        XCTAssertNil(empty.categories)
+        XCTAssertEqual(empty.subCategories(forCategory: "work"), [])
     }
 
     func testEmptySubCategoriesShowWithZero() async {

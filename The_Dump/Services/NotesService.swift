@@ -119,6 +119,41 @@ class NotesService {
         }
     }
 
+    // Fetch each active category's sub-categories (lower-case names)
+    func fetchCategoryMap() async throws -> CategoryMapResponse {
+        let request = try await createRequest(endpoint: "/api/category_map")
+
+        do {
+#if DEBUG
+            debugLogRequest(request, label: "category_map")
+#endif
+            let (data, response) = try await URLSession.shared.data(for: request)
+#if DEBUG
+            debugLogResponse(data: data, response: response, label: "category_map")
+#endif
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.networkError(underlying: URLError(.badServerResponse))
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+                throw APIError.from(statusCode: httpResponse.statusCode, errorResponse: errorResponse)
+            }
+
+            return try JSONDecoder().decode(CategoryMapResponse.self, from: data)
+        } catch let error as APIError {
+            throw error
+        } catch let error as DecodingError {
+#if DEBUG
+            print("[NotesService][category_map] Decode failed: \(error)")
+#endif
+            throw APIError.decodingFailed(underlying: error)
+        } catch {
+            throw APIError.networkError(underlying: error)
+        }
+    }
+
     // Fetch the sidebar counts
     func fetchCounts() async throws -> NoteCountsResponse {
         let request = try await createRequest(endpoint: "/api/note_counts")
