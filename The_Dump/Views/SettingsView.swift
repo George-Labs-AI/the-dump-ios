@@ -114,7 +114,7 @@ struct SettingsView: View {
                         // The support page lists the support email, which
                         // reaches the team's inbox, plus the FAQ.
                         Button {
-                            if let url = URL(string: "https://thedump.ai/support") {
+                            if let url = URL(string: "\(SharedConstants.defaultBaseURL)/support") {
                                 UIApplication.shared.open(url)
                             }
                         } label: {

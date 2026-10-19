@@ -143,7 +143,7 @@ struct SubscriptionSettingsSection: View {
                 } else if viewModel.subscriptionProvider == .stripe {
                     // Bought on the web, so it can only be changed there.
                     Button {
-                        if let url = URL(string: "https://thedump.ai/manage-subscription") {
+                        if let url = URL(string: "\(SharedConstants.defaultBaseURL)/manage-subscription") {
                             UIApplication.shared.open(url)
                         }
                     } label: {
