@@ -10,15 +10,19 @@ struct RoutineHealthLabel: View {
     var body: some View {
         switch RoutineStatusDisplay(status: status) {
         case .health(let health):
-            chip(health.label, color: color(for: health))
+            chip(health.label, color: color(for: health), accessibilityLabel: "Status: \(health.label)")
         case .unavailable:
-            chip(RoutineStatusDisplay.unavailableLabel, color: Theme.textSecondary)
+            chip(
+                RoutineStatusDisplay.unavailableLabel,
+                color: Theme.textSecondary,
+                accessibilityLabel: RoutineStatusDisplay.unavailableLabel
+            )
         case .hidden:
             EmptyView()
         }
     }
 
-    private func chip(_ label: String, color: Color) -> some View {
+    private func chip(_ label: String, color: Color, accessibilityLabel: String) -> some View {
         Text(label)
             .font(.system(size: 10, weight: .semibold))
             .foregroundColor(color)
@@ -26,7 +30,7 @@ struct RoutineHealthLabel: View {
             .padding(.vertical, 3)
             .background(color.opacity(0.12))
             .clipShape(Capsule())
-            .accessibilityLabel("Status: \(label)")
+            .accessibilityLabel(accessibilityLabel)
     }
 
     private func color(for health: RoutineHealth) -> Color {

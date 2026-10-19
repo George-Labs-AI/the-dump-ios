@@ -18,12 +18,12 @@ final class RoutineCreateRequestsTests: XCTestCase {
     private let options = RoutineScopeOptionsResponse(
         categories: [
             RoutineScopeCategory(categoryID: 10, name: "Work"),
-            RoutineScopeCategory(categoryID: 11, name: "Personal"),
+            RoutineScopeCategory(categoryID: 11, name: "Personal")
         ],
         subcategories: [
             RoutineScopeSubcategory(subCategoryID: 20, categoryID: 10, name: "Meetings"),
             RoutineScopeSubcategory(subCategoryID: 21, categoryID: 10, name: "Project Ideas"),
-            RoutineScopeSubcategory(subCategoryID: 22, categoryID: 11, name: "Health"),
+            RoutineScopeSubcategory(subCategoryID: 22, categoryID: 11, name: "Health")
         ]
     )
 

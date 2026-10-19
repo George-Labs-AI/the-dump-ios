@@ -3,9 +3,9 @@ import XCTest
 
 /// The create flow's rules: Create works only once the preview for the
 /// current choice has loaded, a retry of the same body reuses its request
-/// ID, and server messages reach the screen as they are.
-// async on purpose: releasing a main-actor object at the end of a
-// synchronous test crashes under Xcode 26.
+/// ID, and server messages reach the screen as they are. Every test is
+/// async on purpose: releasing a main-actor object at the end of a
+/// synchronous test crashes under Xcode 26.
 @MainActor
 final class RoutineCreateViewModelTests: XCTestCase {
     private struct ServerError: Error {}
