@@ -236,6 +236,7 @@ struct RoutineStatus: Decodable, Equatable {
     let asOf: String?
     /// Whole hours since the routine was last heard from.
     let silentForHours: Int?
+    /// Whether the owner has paused the routine.
     let paused: Bool?
 
     enum CodingKeys: String, CodingKey {
@@ -273,42 +274,23 @@ struct RoutineStatus: Decodable, Equatable {
     }
 }
 
-/// What the status line shows: the health in the web chip's words ("Up to
-/// date · 42m ago"), "Status unavailable" when the server sent no status at
-/// all (as the web does), or nothing for a code this app doesn't know.
+/// What the status line shows: the health in plain words, "Status
+/// unavailable" when the server sent no status at all (as the web does), or
+/// nothing for a code this app doesn't know.
 enum RoutineStatusDisplay: Equatable {
-    case health(RoutineHealth, text: String)
+    case health(RoutineHealth)
     case unavailable
     case hidden
 
     static let unavailableLabel = "Status unavailable"
 
-    init(status: RoutineStatus?, now: Date = Date()) {
+    init(status: RoutineStatus?) {
         if let health = RoutineHealth(status: status) {
-            self = .health(health, text: RoutineHealth.displayText(for: status, now: now) ?? health.label)
+            self = .health(health)
         } else if status == nil {
             self = .unavailable
         } else {
             self = .hidden
-        }
-    }
-
-    /// The words on the chip; nil when nothing is shown.
-    var text: String? {
-        switch self {
-        case .health(_, let text): return text
-        case .unavailable: return Self.unavailableLabel
-        case .hidden: return nil
-        }
-    }
-
-    /// What VoiceOver reads. "Status unavailable" already says what it is,
-    /// so it isn't read as "Status: Status unavailable".
-    var accessibilityLabel: String? {
-        switch self {
-        case .health(_, let text): return "Status: \(text)"
-        case .unavailable: return Self.unavailableLabel
-        case .hidden: return nil
         }
     }
 }

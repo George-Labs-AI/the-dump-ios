@@ -8,9 +8,18 @@ struct RoutineHealthLabel: View {
     let status: RoutineStatus?
 
     var body: some View {
-        let display = RoutineStatusDisplay(status: status)
-        if let text = display.text, let spokenLabel = display.accessibilityLabel {
-            chip(text, color: color(for: display), accessibilityLabel: spokenLabel)
+        switch RoutineStatusDisplay(status: status) {
+        case .health(let health):
+            let text = RoutineHealth.displayText(for: status) ?? health.label
+            chip(text, color: color(for: health), accessibilityLabel: "Status: \(text)")
+        case .unavailable:
+            chip(
+                RoutineStatusDisplay.unavailableLabel,
+                color: Theme.textSecondary,
+                accessibilityLabel: RoutineStatusDisplay.unavailableLabel
+            )
+        case .hidden:
+            EmptyView()
         }
     }
 
@@ -25,8 +34,7 @@ struct RoutineHealthLabel: View {
             .accessibilityLabel(accessibilityLabel)
     }
 
-    private func color(for display: RoutineStatusDisplay) -> Color {
-        guard case .health(let health, _) = display else { return Theme.textSecondary }
+    private func color(for health: RoutineHealth) -> Color {
         switch health {
         case .ok, .nothingToDo:
             return Theme.success

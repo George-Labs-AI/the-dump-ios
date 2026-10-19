@@ -128,7 +128,7 @@ final class RoutineCreateRequestsTests: XCTestCase {
         XCTAssertEqual(limited, String(repeating: "a", count: 117))
     }
 
-    // MARK: - Responses (shaped like the server's replies)
+    // MARK: - Responses (the shapes the server returns)
 
     func testScopeOptionsDecode() throws {
         let decoded = try decode(RoutineScopeOptionsResponse.self, """
@@ -221,10 +221,7 @@ final class RoutineCreateRequestsTests: XCTestCase {
     func testMissingStatusSaysUnavailable() {
         XCTAssertEqual(RoutineStatusDisplay(status: nil), .unavailable)
         XCTAssertEqual(RoutineStatusDisplay.unavailableLabel, "Status unavailable")
-        XCTAssertEqual(
-            RoutineStatusDisplay(status: RoutineStatus(verdict: "SILENT")),
-            .health(.silent, text: "Not running · no reports yet")
-        )
+        XCTAssertEqual(RoutineStatusDisplay(status: RoutineStatus(verdict: "SILENT")), .health(.silent))
         // A status the app can't read still hides rather than showing a code.
         XCTAssertEqual(RoutineStatusDisplay(status: RoutineStatus(verdict: "NEW_CODE")), .hidden)
         XCTAssertEqual(RoutineStatusDisplay(status: RoutineStatus(verdict: nil)), .hidden)

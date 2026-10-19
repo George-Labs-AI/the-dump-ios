@@ -94,38 +94,33 @@ final class RoutineHealthTests: XCTestCase {
 
     // MARK: - What the chip shows, including "Status unavailable"
 
-    private func display(_ status: RoutineStatus?, after seconds: TimeInterval = 3 * 3600) -> RoutineStatusDisplay {
-        RoutineStatusDisplay(status: status, now: endedDate.addingTimeInterval(seconds))
+    private func chipText(_ status: RoutineStatus?, after seconds: TimeInterval = 3 * 3600) -> String? {
+        RoutineHealth.displayText(for: status, now: endedDate.addingTimeInterval(seconds))
     }
 
     func testChipUsesTheWebWordingWhenAStatusArrives() {
-        let unclear = display(RoutineStatus(verdict: "UNKNOWN", asOf: ended))
-        XCTAssertEqual(unclear, .health(.unknown, text: "Result unclear · 3h ago"))
-        XCTAssertEqual(unclear.text, "Result unclear · 3h ago")
-        XCTAssertEqual(unclear.accessibilityLabel, "Status: Result unclear · 3h ago")
+        let unclear = RoutineStatus(verdict: "UNKNOWN", asOf: ended)
+        XCTAssertEqual(RoutineStatusDisplay(status: unclear), .health(.unknown))
+        XCTAssertEqual(chipText(unclear), "Result unclear · 3h ago")
 
-        let waiting = display(RoutineStatus(verdict: "UNKNOWN"))
-        XCTAssertEqual(waiting.text, "Waiting for first report")
-        XCTAssertEqual(waiting.accessibilityLabel, "Status: Waiting for first report")
+        let waiting = RoutineStatus(verdict: "UNKNOWN")
+        XCTAssertEqual(RoutineStatusDisplay(status: waiting), .health(.unknown))
+        XCTAssertEqual(chipText(waiting), "Waiting for first report")
 
-        XCTAssertEqual(display(RoutineStatus(verdict: "OK", asOf: ended)).text, "Up to date · 3h ago")
-        XCTAssertEqual(display(RoutineStatus(verdict: "SILENT", asOf: ended, silentForHours: 29)).text,
+        XCTAssertEqual(chipText(RoutineStatus(verdict: "OK", asOf: ended)), "Up to date · 3h ago")
+        XCTAssertEqual(chipText(RoutineStatus(verdict: "SILENT", asOf: ended, silentForHours: 29)),
                        "Not running · no report for 29h")
-        XCTAssertEqual(display(RoutineStatus(verdict: "PAUSED", asOf: ended, paused: true)).text, "Paused")
+        XCTAssertEqual(chipText(RoutineStatus(verdict: "PAUSED", asOf: ended, paused: true)), "Paused")
     }
 
     func testChipSaysStatusUnavailableOnlyWhenTheStatusIsNull() {
-        let unavailable = display(nil)
-        XCTAssertEqual(unavailable, .unavailable)
-        XCTAssertEqual(unavailable.text, "Status unavailable")
-        // VoiceOver reads it once, not "Status: Status unavailable".
-        XCTAssertEqual(unavailable.accessibilityLabel, "Status unavailable")
+        XCTAssertEqual(RoutineStatusDisplay(status: nil), .unavailable)
+        XCTAssertEqual(RoutineStatusDisplay.unavailableLabel, "Status unavailable")
 
         // A status the app can't read still hides rather than showing a code.
         for odd in [RoutineStatus(verdict: "NEW_CODE", asOf: ended), RoutineStatus(verdict: nil)] {
-            XCTAssertEqual(display(odd), .hidden)
-            XCTAssertNil(display(odd).text)
-            XCTAssertNil(display(odd).accessibilityLabel)
+            XCTAssertEqual(RoutineStatusDisplay(status: odd), .hidden)
+            XCTAssertNil(chipText(odd))
         }
     }
 
