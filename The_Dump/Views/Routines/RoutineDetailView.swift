@@ -70,16 +70,60 @@ struct RoutineDetailView: View {
         }
     }
 
+    /// Health, Pause / Resume and the way back to the runner instructions.
+    /// As on the web, Pause / Resume only appears when the server sent a
+    /// status, because without one the app can't tell which state it is in.
     @ViewBuilder
     private var statusSection: some View {
-        if RoutineHealth(status: viewModel.routine?.status) != nil {
+        if let routine = viewModel.routine {
             Section {
-                HStack {
-                    Text("Status")
-                        .font(.system(size: Theme.fontSizeSM))
-                        .foregroundColor(Theme.textSecondary)
-                    Spacer()
-                    RoutineHealthLabel(status: viewModel.routine?.status)
+                if RoutineStatusDisplay(status: routine.status) != .hidden {
+                    HStack {
+                        Text("Status")
+                            .font(.system(size: Theme.fontSizeSM))
+                            .foregroundColor(Theme.textSecondary)
+                        Spacer()
+                        RoutineHealthLabel(status: routine.status)
+                    }
+                }
+
+                if let status = routine.status {
+                    Button {
+                        Task { await viewModel.setPaused(!status.isPaused) }
+                    } label: {
+                        HStack(spacing: Theme.spacingSM) {
+                            Image(systemName: status.isPaused ? "play.circle" : "pause.circle")
+                            Text(status.isPaused ? "Resume routine" : "Pause routine")
+                            Spacer()
+                            if viewModel.isUpdatingPause {
+                                ProgressView()
+                            }
+                        }
+                        .font(.system(size: Theme.fontSizeSM, weight: .medium))
+                        .foregroundColor(Theme.accent)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(viewModel.isUpdatingPause)
+
+                    if let pauseError = viewModel.pauseErrorMessage {
+                        Text("Couldn't update: \(pauseError)")
+                            .font(.system(size: Theme.fontSizeXS))
+                            .foregroundColor(.red)
+                    }
+                }
+
+                NavigationLink {
+                    RoutineConnectView(routine: RoutineConnectView.Routine(routine))
+                } label: {
+                    Text("Connect your runner")
+                        .font(.system(size: Theme.fontSizeSM, weight: .medium))
+                        .foregroundColor(Theme.textPrimary)
+                }
+            } footer: {
+                if routine.status != nil {
+                    Text("While a routine is paused, your runner is asked to skip its runs and The Dump stops warning you that it isn't running.")
+                        .font(.system(size: Theme.fontSizeXS))
+                        .foregroundColor(Theme.textTertiary)
                 }
             }
             .listRowBackground(Theme.surface)
