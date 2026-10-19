@@ -111,6 +111,24 @@ struct SettingsView: View {
                         }
                         .listRowBackground(Theme.surface)
 
+                        // The support page lists the support email, which
+                        // reaches the team's inbox, plus the FAQ.
+                        Button {
+                            if let url = URL(string: "https://thedump.ai/support") {
+                                UIApplication.shared.open(url)
+                            }
+                        } label: {
+                            HStack {
+                                Text("Contact support")
+                                    .foregroundColor(Theme.textPrimary)
+                                Spacer()
+                                Image(systemName: "arrow.up.right")
+                                    .font(.system(size: Theme.fontSizeXS, weight: .semibold))
+                                    .foregroundColor(Theme.textTertiary)
+                            }
+                        }
+                        .listRowBackground(Theme.surface)
+
                         NavigationLink {
                             LegalView.privacyPolicy
                         } label: {
