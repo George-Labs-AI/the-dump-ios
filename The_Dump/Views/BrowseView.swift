@@ -75,6 +75,7 @@ struct BrowseView: View {
             && viewModel.archivedCategoryRows.isEmpty
             && viewModel.dateGroupRows.isEmpty
             && viewModel.mimeTypeRows.isEmpty
+            && viewModel.noteTypeRows.isEmpty
     }
 
     private var folderList: some View {
@@ -86,6 +87,7 @@ struct BrowseView: View {
             activeCategoriesSection
             dateGroupSection
             mimeTypeSection
+            noteTypeSection
             archivedCategoriesSection
         }
     }
@@ -205,6 +207,27 @@ struct BrowseView: View {
             Text("File Types")
                 .sectionLabel()
                 .foregroundColor(Theme.textSecondary)
+        }
+    }
+
+    /// Note types the user's notes have (Recipe, To-Do, …), each with its count.
+    @ViewBuilder
+    private var noteTypeSection: some View {
+        if !viewModel.noteTypeRows.isEmpty {
+            Section {
+                ForEach(viewModel.noteTypeRows) { row in
+                    NavigationLink {
+                        BrowseFolderDestinationView(kind: .noteType, name: row.name, count: row.count, categoryId: nil)
+                    } label: {
+                        BrowseFolderRowView(icon: "🏷️", title: row.name, count: row.count)
+                    }
+                    .listRowBackground(Theme.surface)
+                }
+            } header: {
+                Text("Types")
+                    .sectionLabel()
+                    .foregroundColor(Theme.textSecondary)
+            }
         }
     }
 
@@ -363,6 +386,13 @@ private struct SearchResultRowView: View {
                 Text(category)
                     .font(.system(size: Theme.fontSizeXS))
                     .foregroundColor(Theme.textSecondary)
+            }
+
+            if let author = note.displayAuthor {
+                Text("from \(author)")
+                    .font(.system(size: Theme.fontSizeXS))
+                    .foregroundColor(Theme.textSecondary)
+                    .lineLimit(1)
             }
         }
         .padding(.vertical, Theme.spacingSM)
