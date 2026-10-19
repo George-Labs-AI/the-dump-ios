@@ -228,29 +228,43 @@ struct RoutineSummary: Identifiable, Decodable, Equatable {
     }
 }
 
-/// The runner status the server attaches to every routine
-/// (helpers/routine_scorecard_helpers.py `derive_status`). Only the verdict
-/// code and the paused flag are read. The whole object is null when the
-/// server can't work it out.
+/// The runner status the server attaches to every routine. The whole object
+/// is null when the server can't work it out.
 struct RoutineStatus: Decodable, Equatable {
     let verdict: String?
+    /// When the latest report finished. Empty or missing when no report has
+    /// arrived yet.
+    let asOf: String?
+    /// Whole hours since the routine was last heard from.
+    let silentForHours: Int?
+    /// Whether the owner has paused the routine.
     let paused: Bool?
 
     enum CodingKeys: String, CodingKey {
         case verdict
+        case asOf = "as_of"
+        case silentForHours = "silent_for_hours"
         case paused
     }
 
-    init(verdict: String?, paused: Bool? = nil) {
+    init(verdict: String?, asOf: String? = nil, silentForHours: Int? = nil, paused: Bool? = nil) {
         self.verdict = verdict
+        self.asOf = asOf
+        self.silentForHours = silentForHours
         self.paused = paused
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        // An odd verdict must hide the label, not fail the whole routines list.
+        // An odd value must hide or shorten the label, not fail the whole routines list.
         verdict = try? container.decodeIfPresent(String.self, forKey: .verdict)
+        asOf = try? container.decodeIfPresent(String.self, forKey: .asOf)
+        silentForHours = try? container.decodeIfPresent(Int.self, forKey: .silentForHours)
         paused = try? container.decodeIfPresent(Bool.self, forKey: .paused)
+    }
+
+    var hasReport: Bool {
+        !(asOf ?? "").trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     /// Whether the owner has paused the routine. The server reports a
@@ -309,6 +323,46 @@ enum RoutineHealth: String, CaseIterable {
         case .silent: return "Not running"
         case .paused: return "Paused"
         }
+    }
+
+    /// The text of the status label, worded exactly like the web's status
+    /// chip so both apps say the same thing about the same routine: the plain
+    /// words, then how long ago the latest report came in ("Up to date · 42m
+    /// ago"). A runner can itself report UNKNOWN; "Waiting for first report"
+    /// is used only when no report exists, otherwise it reads "Result
+    /// unclear". Nil when there is no status or the code is unknown.
+    static func displayText(for status: RoutineStatus?, now: Date = Date()) -> String? {
+        guard let status, let health = RoutineHealth(status: status) else { return nil }
+        switch health {
+        case .paused:
+            return health.label
+        case .unknown where !status.hasReport:
+            return health.label
+        case .silent:
+            if status.hasReport {
+                return "\(health.label) · no report for \(status.silentForHours ?? 0)h"
+            }
+            return "\(health.label) · no reports yet"
+        default:
+            let word = health == .unknown ? "Result unclear" : health.label
+            guard let reported = reportDate(status.asOf) else { return word }
+            return "\(word) · \(timeAgo(from: reported, to: now))"
+        }
+    }
+
+    /// "42m ago", "5h ago" (up to 2 days), then "3d ago", as on the web.
+    static func timeAgo(from date: Date, to now: Date) -> String {
+        let seconds = max(0, Int(now.timeIntervalSince(date)))
+        if seconds < 3600 { return "\(seconds / 60)m ago" }
+        if seconds < 48 * 3600 { return "\(seconds / 3600)h ago" }
+        return "\(seconds / 86400)d ago"
+    }
+
+    /// The report time is the runner's own timestamp. One without a time
+    /// zone is read as UTC, as the server does.
+    private static func reportDate(_ iso: String?) -> Date? {
+        guard let iso = iso?.trimmingCharacters(in: .whitespaces), !iso.isEmpty else { return nil }
+        return RoutineDateParser.date(from: iso) ?? RoutineDateParser.date(from: iso + "Z")
     }
 }
 

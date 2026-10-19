@@ -1,16 +1,17 @@
 import SwiftUI
 
-/// The routine runner's health in plain words ("Up to date", "Not running"…),
-/// coloured like the web's status chip. Says "Status unavailable" when the
-/// server sent no status, as the web does, and draws nothing for a code
-/// this app doesn't know.
+/// The routine runner's health in plain words ("Up to date · 42m ago",
+/// "Not running"…), worded and coloured like the web's status chip. Says
+/// "Status unavailable" when the server sent no status, as the web does,
+/// and draws nothing for a code this app doesn't know.
 struct RoutineHealthLabel: View {
     let status: RoutineStatus?
 
     var body: some View {
         switch RoutineStatusDisplay(status: status) {
         case .health(let health):
-            chip(health.label, color: color(for: health), accessibilityLabel: "Status: \(health.label)")
+            let text = RoutineHealth.displayText(for: status) ?? health.label
+            chip(text, color: color(for: health), accessibilityLabel: "Status: \(text)")
         case .unavailable:
             chip(
                 RoutineStatusDisplay.unavailableLabel,
@@ -51,6 +52,11 @@ struct RoutineHealthLabel: View {
     VStack(alignment: .leading, spacing: Theme.spacingSM) {
         ForEach(RoutineHealth.allCases, id: \.self) { health in
             RoutineHealthLabel(status: RoutineStatus(verdict: health.rawValue))
+            RoutineHealthLabel(status: RoutineStatus(
+                verdict: health.rawValue,
+                asOf: ISO8601DateFormatter().string(from: Date().addingTimeInterval(-42 * 60)),
+                silentForHours: 29
+            ))
         }
         RoutineHealthLabel(status: nil)
     }
