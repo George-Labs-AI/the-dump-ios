@@ -250,7 +250,8 @@ struct RecategorizeChoiceView: View {
                 case .recategorize:
                     let response = try await NotesService.shared.startRecategorize(
                         scope: .category,
-                        categoryId: categoryId
+                        categoryId: categoryId,
+                        archiving: trigger == .archiveTapped
                     )
                     queuedRecategorize = true
                     recategorizationTracker.startTracking(

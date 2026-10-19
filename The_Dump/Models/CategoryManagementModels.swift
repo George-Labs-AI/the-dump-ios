@@ -27,10 +27,29 @@ enum RecategorizeScope: String, Codable, CaseIterable, Identifiable {
 struct StartRecategorizeRequest: Encodable {
     let scope: RecategorizeScope
     let categoryId: Int?
+    /// Set only when the category is archived right after this re-sort, so
+    /// the backend never moves a note back into it — the same body the web's
+    /// category_manager.js sends. Nil keys are left out of the JSON.
+    let archiving: Bool?
+    let excludeCategoryIds: [Int]?
+
+    init(scope: RecategorizeScope, categoryId: Int?, archiving: Bool = false) {
+        self.scope = scope
+        self.categoryId = categoryId
+        if archiving, let categoryId {
+            self.archiving = true
+            self.excludeCategoryIds = [categoryId]
+        } else {
+            self.archiving = nil
+            self.excludeCategoryIds = nil
+        }
+    }
 
     enum CodingKeys: String, CodingKey {
         case scope
         case categoryId = "category_id"
+        case archiving
+        case excludeCategoryIds = "exclude_category_ids"
     }
 }
 

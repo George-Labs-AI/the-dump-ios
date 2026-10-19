@@ -548,13 +548,19 @@ class NotesService {
     }
 
     // Start a recategorize job. Returns the job_id to poll.
-    func startRecategorize(scope: RecategorizeScope, categoryId: Int? = nil) async throws -> StartRecategorizeResponse {
+    // Pass `archiving: true` when the category is archived right after, so no
+    // note is re-sorted back into it.
+    func startRecategorize(scope: RecategorizeScope, categoryId: Int? = nil, archiving: Bool = false) async throws -> StartRecategorizeResponse {
         if scope == .category, categoryId == nil {
             throw APIError.badRequest(message: "category_id is required when scope is \"category\"")
         }
 
         var request = try await createRequest(endpoint: "/api/recategorize", method: "POST", baseURLOverride: recategorizeBaseURL)
-        let body = StartRecategorizeRequest(scope: scope, categoryId: scope == .category ? categoryId : nil)
+        let body = StartRecategorizeRequest(
+            scope: scope,
+            categoryId: scope == .category ? categoryId : nil,
+            archiving: archiving
+        )
 
         do {
             request.httpBody = try JSONEncoder().encode(body)
