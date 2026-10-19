@@ -116,6 +116,9 @@ struct NoteDetail: Identifiable, Codable {
     let note_type: String?
     /// Who sent an emailed note; nil (or blank) for the account owner's own notes.
     let author: String?
+    /// Whether the note has an original file (photo, recording, document)
+    /// to open. Nil from servers that don't send it.
+    let has_asset: Bool?
     
     var id: String { organized_note_id }
 }
@@ -165,6 +168,7 @@ extension NoteDetail {
         mime_type = try c.decodeIfPresent(String.self, forKey: .mime_type)
         note_type = try c.decodeIfPresent(String.self, forKey: .note_type)
         author = try c.decodeIfPresent(String.self, forKey: .author)
+        has_asset = try c.decodeIfPresent(Bool.self, forKey: .has_asset)
     }
 }
 

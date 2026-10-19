@@ -369,43 +369,17 @@ class NotesService {
         type: String? = nil,
         tags: [String]? = nil
     ) async throws -> EditNoteResponseNote {
-        let cleanedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cleanedType = type?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cleanedSubCategories = subCategories?
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        let cleanedTags = tags?
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        if let entries, entries.utf8.count > 500 * 1024 {
-            throw APIError.badRequest(message: "Content too large (max 500KB)")
-        }
-
-        let hasUpdate =
-            entries != nil ||
-            cleanedTitle != nil ||
-            categoryId != nil ||
-            cleanedSubCategories != nil ||
-            cleanedType != nil ||
-            cleanedTags != nil
-
-        guard hasUpdate else {
-            throw APIError.badRequest(message: "At least one field must be provided for update")
-        }
-
-        if let cleanedSubCategories, cleanedSubCategories.count > 3 {
-            throw APIError.badRequest(message: "Maximum of 3 sub-categories allowed")
-        }
+        let body = try Self.editNoteBody(
+            noteId: noteId,
+            entries: entries,
+            title: title,
+            categoryId: categoryId,
+            subCategories: subCategories,
+            type: type,
+            tags: tags
+        )
 
         var request = try await createRequest(endpoint: "/api/edit_note", method: "POST")
-        var body = EditNoteRequest(noteId: noteId)
-        body.entries = entries
-        body.title = cleanedTitle
-        body.categoryId = categoryId
-        body.subCategories = cleanedSubCategories
-        body.type = cleanedType
-        body.tags = cleanedTags
 
         do {
             request.httpBody = try JSONEncoder().encode(body)
@@ -442,6 +416,56 @@ class NotesService {
         } catch {
             throw APIError.networkError(underlying: error)
         }
+    }
+
+    // The /api/edit_note body. Fields left nil are left out of the JSON, and
+    // the server leaves them unchanged.
+    static func editNoteBody(
+        noteId: String,
+        entries: String? = nil,
+        title: String? = nil,
+        categoryId: Int? = nil,
+        subCategories: [String]? = nil,
+        type: String? = nil,
+        tags: [String]? = nil
+    ) throws -> EditNoteRequest {
+        let cleanedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanedType = type?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanedSubCategories = subCategories?
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let cleanedTags = tags?
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        if let entries, entries.utf8.count > 500 * 1024 {
+            throw APIError.badRequest(message: "Content too large (max 500KB)")
+        }
+
+        let hasUpdate =
+            entries != nil ||
+            cleanedTitle != nil ||
+            categoryId != nil ||
+            cleanedSubCategories != nil ||
+            cleanedType != nil ||
+            cleanedTags != nil
+
+        guard hasUpdate else {
+            throw APIError.badRequest(message: "At least one field must be provided for update")
+        }
+
+        if let cleanedSubCategories, cleanedSubCategories.count > 3 {
+            throw APIError.badRequest(message: "Maximum of 3 sub-categories allowed")
+        }
+
+        var body = EditNoteRequest(noteId: noteId)
+        body.entries = entries
+        body.title = cleanedTitle
+        body.categoryId = categoryId
+        body.subCategories = cleanedSubCategories
+        body.type = cleanedType
+        body.tags = cleanedTags
+        return body
     }
 
     // Add user categories (used during onboarding to seed the user's category list)
