@@ -287,7 +287,9 @@ struct SearchResultsView: View {
     init(initialQuery: String) {
         self.initialQuery = initialQuery
         self._searchText = State(initialValue: initialQuery)
-        let vm = NotesListViewModel(filter: .all)
+        // Its rows open single notes, so stacks are never collapsed here,
+        // even when the search box is cleared.
+        let vm = NotesListViewModel(filter: .all, collapsesStacks: false)
         vm.searchQuery = initialQuery
         self._viewModel = StateObject(wrappedValue: vm)
     }

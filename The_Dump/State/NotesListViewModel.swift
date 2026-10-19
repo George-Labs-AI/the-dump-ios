@@ -29,6 +29,9 @@ final class NotesListViewModel: ObservableObject {
     @Published private(set) var isPerformingBulkAction: Bool = false
 
     private let filter: Filter
+    /// Whether browsing shows each stack as one row. Browse's search results
+    /// turn this off, because their rows only open single notes.
+    private let collapsesStacks: Bool
     private var nextCursorTime: String?
     private var nextCursorId: String?
     private var nextOffset: Int = 0
@@ -64,8 +67,9 @@ final class NotesListViewModel: ObservableObject {
         return nil
     }
 
-    init(filter: Filter) {
+    init(filter: Filter, collapsesStacks: Bool = true) {
         self.filter = filter
+        self.collapsesStacks = collapsesStacks
 
         // A note deleted from its own screen leaves every list showing it.
         deletedNoteObserver = NotificationCenter.default.addObserver(
@@ -370,7 +374,7 @@ final class NotesListViewModel: ObservableObject {
         let off: Int?   = q == nil ? nil        : offset
         // Browse mode shows each stack as one row; search results always
         // list notes one by one (the server ignores stacks=1 with q anyway).
-        let stacks = q == nil
+        let stacks = collapsesStacks && q == nil
 
         switch filter {
         case .all:
