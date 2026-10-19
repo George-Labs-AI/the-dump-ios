@@ -87,6 +87,23 @@ struct RecategorizeJobStatus: Decodable {
     }
 }
 
+// MARK: - Restore (POST /api/categories/{id}/restore)
+
+struct RestoreCategoryResponse: Decodable {
+    let status: String
+    let categoryId: Int
+    let restoredSubcategoryCount: Int
+    /// Only present when restoring a category that is already active (idempotent no-op).
+    let alreadyActive: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case categoryId = "category_id"
+        case restoredSubcategoryCount = "restored_subcategory_count"
+        case alreadyActive = "already_active"
+    }
+}
+
 // MARK: - Delete / archive (not implemented server-side yet)
 
 enum DeleteCategoryDisposition: Equatable {
