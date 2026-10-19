@@ -29,9 +29,45 @@ final class NoteDetailViewModel: ObservableObject {
     @Published var deleteErrorMessage: String?
 
     private let noteID: String
+    private var subCategoryObserver: NSObjectProtocol?
 
     init(noteID: String) {
         self.noteID = noteID
+
+        // A sub-category renamed or deleted in Settings changes the names
+        // stored on this note.
+        subCategoryObserver = NotificationCenter.default.addObserver(
+            forName: .subCategoriesDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let changed = SubCategoryChange.from(notification) else { return }
+            Task { @MainActor [weak self] in
+                await self?.subCategoriesDidChange(inCategory: changed.categoryId)
+            }
+        }
+    }
+
+    deinit {
+        if let subCategoryObserver {
+            NotificationCenter.default.removeObserver(subCategoryObserver)
+        }
+    }
+
+    /// A sub-category of `categoryId` changed in Settings. If this note is in
+    /// that category, show its current sub-categories without clearing the
+    /// screen. While editing, only the choices are reloaded, so the user's
+    /// unsaved changes stay.
+    func subCategoriesDidChange(inCategory categoryId: Int) async {
+        guard let note, note.category_id == categoryId else { return }
+        if isEditing {
+            await loadEditOptions()
+            return
+        }
+        guard !isLoading, !isSaving,
+              let loaded = try? await NotesService.shared.fetchFullNote(ids: [noteID]).first,
+              !isEditing else { return }
+        await show(loaded)
     }
 
     func loadIfNeeded() async {
