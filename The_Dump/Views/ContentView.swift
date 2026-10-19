@@ -686,8 +686,6 @@ struct PendingNoteRow: View {
                 onOpen()
             }
         }
-        .accessibilityAddTraits(record.lifecycleStatus == .organized ? .isButton : [])
-        .accessibilityHint(record.lifecycleStatus == .organized ? "Opens the note" : "")
     }
 
     private var iconForKind: String {
