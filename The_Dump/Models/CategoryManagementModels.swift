@@ -213,15 +213,16 @@ enum CategoryEmoji {
 
     /// `text` as the server will save it, or nil when the server would refuse
     /// it. As on the server, spaces around it are trimmed, and what is left
-    /// must have no spaces inside, be at most `maxCodePoints` code points, and
-    /// contain a character outside plain ASCII, so a letter or a digit on its
-    /// own is refused.
+    /// must have no spaces or control characters inside, be at most
+    /// `maxCodePoints` code points, and contain a character outside plain
+    /// ASCII, so a letter or a digit on its own is refused.
     static func validated(_ text: String) -> String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let scalars = trimmed.unicodeScalars
         guard !trimmed.isEmpty,
               scalars.count <= maxCodePoints,
               !scalars.contains(where: { $0.properties.isWhitespace }),
+              !scalars.contains(where: { $0.properties.generalCategory == .control }),
               scalars.contains(where: { !$0.isASCII })
         else { return nil }
         return trimmed

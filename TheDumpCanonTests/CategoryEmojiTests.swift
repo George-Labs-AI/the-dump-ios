@@ -128,6 +128,8 @@ final class CategoryEmojiTests: XCTestCase {
         XCTAssertNil(CategoryEmoji.validated("a"), "plain ASCII is refused")
         XCTAssertNil(CategoryEmoji.validated("7"))
         XCTAssertNil(CategoryEmoji.validated("🍕 🍝"), "no spaces inside")
+        XCTAssertNil(CategoryEmoji.validated("🍕\u{0}"), "no control characters")
+        XCTAssertNil(CategoryEmoji.validated("\u{80}"), "not even outside ASCII")
 
         // One emoji can be several code points; up to 16 are accepted.
         let family = "👨‍👩‍👧‍👦"
