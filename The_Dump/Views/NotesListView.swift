@@ -606,8 +606,9 @@ struct NoteListRowView: View {
     }
     
     private func formattedDate(_ iso: String) -> String? {
-        let formatter = ISO8601DateFormatter()
-        guard let date = formatter.date(from: iso) else { return nil }
+        // The list sends fractional seconds, which ISO8601DateFormatter's
+        // default options reject; NoteDates reads every form the server uses.
+        guard let date = NoteDates.parse(iso) else { return nil }
         
         let out = DateFormatter()
         out.locale = .current
