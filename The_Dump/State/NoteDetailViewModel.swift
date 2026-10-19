@@ -228,12 +228,15 @@ final class NoteDetailViewModel: ObservableObject {
     }
 
     /// SF Symbol name for the original asset button based on mime type and note type.
+    /// Same kinds as the web's card button: photo, recording, document, and a
+    /// paperclip for anything else (typed and shared text).
     var assetIconName: String {
         let mt = note?.mime_type?.lowercased() ?? ""
         let nt = note?.note_type?.lowercased() ?? ""
         if mt.hasPrefix("image") || mt.hasPrefix("photo") || nt == "photo" { return "photo.on.rectangle" }
         if mt.hasPrefix("audio") || mt.hasPrefix("voice") || nt == "voice" { return "waveform" }
-        return "doc"
+        if mt == "document" { return "doc" }
+        return "paperclip"
     }
 
     /// Fetch the original asset signed URL on demand.
