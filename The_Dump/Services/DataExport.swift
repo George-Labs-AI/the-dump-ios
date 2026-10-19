@@ -14,10 +14,13 @@ enum DataExport {
     }
 
     /// Writes `data` to the app's temporary folder, replacing an earlier
-    /// export from the same day, and returns the file's location.
+    /// export from the same day, and returns the file's location. It keeps
+    /// the default file protection rather than "complete": a share to
+    /// AirDrop or Mail can outlast a screen lock, and a completely protected
+    /// file becomes unreadable the moment the phone locks.
     static func saveToTemporaryFile(_ data: Data, on date: Date = Date()) throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName(on: date))
-        try data.write(to: url, options: [.atomic, .completeFileProtection])
+        try data.write(to: url, options: .atomic)
         return url
     }
 
