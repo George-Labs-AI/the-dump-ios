@@ -141,13 +141,23 @@ struct SubscriptionSettingsSection: View {
                     .foregroundColor(Theme.accent)
                     .listRowBackground(Theme.surface)
                 } else if viewModel.subscriptionProvider == .stripe {
-                    HStack {
-                        Text("Manage Subscription")
-                            .foregroundColor(Theme.textSecondary)
-                        Spacer()
-                        Text("Manage on web")
-                            .font(.system(size: Theme.fontSizeXS))
-                            .foregroundColor(Theme.textSecondary)
+                    // Bought on the web, so it can only be changed there.
+                    Button {
+                        if let url = URL(string: "https://thedump.ai/manage-subscription") {
+                            UIApplication.shared.open(url)
+                        }
+                    } label: {
+                        HStack {
+                            Text("Manage Subscription")
+                                .foregroundColor(Theme.accent)
+                            Spacer()
+                            Text("Manage on web")
+                                .font(.system(size: Theme.fontSizeXS))
+                                .foregroundColor(Theme.textSecondary)
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: Theme.fontSizeXS, weight: .semibold))
+                                .foregroundColor(Theme.textTertiary)
+                        }
                     }
                     .listRowBackground(Theme.surface)
                 }
