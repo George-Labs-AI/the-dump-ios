@@ -24,6 +24,7 @@ final class NotesListViewModel: ObservableObject {
     private var nextCursorTime: String?
     private var nextCursorId: String?
     private var nextOffset: Int = 0
+    private var deletedNoteObserver: NSObjectProtocol?
 
     /// Returns the category display name if this filter is a category filter.
     var categoryName: String? {
@@ -42,6 +43,24 @@ final class NotesListViewModel: ObservableObject {
 
     init(filter: Filter) {
         self.filter = filter
+
+        // A note deleted from its own screen leaves every list showing it.
+        deletedNoteObserver = NotificationCenter.default.addObserver(
+            forName: .noteWasDeleted,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let noteId = notification.userInfo?["noteId"] as? String else { return }
+            Task { @MainActor [weak self] in
+                self?.notes.removeAll { $0.id == noteId }
+            }
+        }
+    }
+
+    deinit {
+        if let deletedNoteObserver {
+            NotificationCenter.default.removeObserver(deletedNoteObserver)
+        }
     }
 
     /// Load available subcategories from the notes in the current category.
