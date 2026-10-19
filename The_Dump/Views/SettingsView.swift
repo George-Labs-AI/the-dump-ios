@@ -27,6 +27,9 @@ struct SettingsView: View {
                                 .foregroundColor(Theme.textPrimary)
                         }
                         .listRowBackground(Theme.surface)
+
+                        ExportDataRow()
+                            .listRowBackground(Theme.surface)
                     } header: {
                         Text("Account")
                             .foregroundColor(Theme.textSecondary)

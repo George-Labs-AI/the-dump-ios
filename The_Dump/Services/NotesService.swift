@@ -861,6 +861,41 @@ class NotesService {
         }
     }
 
+    // Everything the account holds, as the JSON the web's "Export data" downloads.
+    // The body is checked to be a JSON object so an error page is never shared
+    // as someone's export.
+    func exportData() async throws -> Data {
+        let request = try await createRequest(endpoint: "/export-data")
+
+        do {
+#if DEBUG
+            debugLogRequest(request, label: "export_data")
+#endif
+            let (data, response) = try await URLSession.shared.data(for: request)
+#if DEBUG
+            debugLogResponse(data: data, response: response, label: "export_data")
+#endif
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.networkError(underlying: URLError(.badServerResponse))
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+                throw APIError.from(statusCode: httpResponse.statusCode, errorResponse: errorResponse)
+            }
+
+            guard (try? JSONSerialization.jsonObject(with: data)) is [String: Any] else {
+                throw APIError.decodingFailed(underlying: URLError(.cannotParseResponse))
+            }
+            return data
+        } catch let error as APIError {
+            throw error
+        } catch {
+            throw APIError.networkError(underlying: error)
+        }
+    }
+
     func deleteAccount() async throws {
         var request = try await createRequest(endpoint: "/api/delete_account", method: "POST")
 
