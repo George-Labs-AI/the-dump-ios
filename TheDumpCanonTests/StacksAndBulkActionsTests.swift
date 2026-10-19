@@ -54,6 +54,44 @@ final class StacksAndBulkActionsTests: XCTestCase {
         XCTAssertEqual(one.stackLabel, "1 of 3 notes")
     }
 
+    // A note deleted from its own screen leaves the lists, except a row that
+    // stands for a stack: the stack still holds its other notes.
+    func testDeletedNoteLeavesTheListButAStackRowStays() async throws {
+        let list = try decode(NoteListResponse.self, """
+        {"notes": [
+            {"organized_note_id": "n1", "preview": "p", "note_content_modified": "x",
+             "stack_id": "s1", "stack_size": 3, "stack_total": 3},
+            {"organized_note_id": "n2", "preview": "p", "note_content_modified": "x"},
+            {"organized_note_id": "n3", "preview": "p", "note_content_modified": "x"}
+         ],
+         "has_more": false}
+        """)
+        XCTAssertEqual(list.notes.removingDeletedNote("n2").map(\.id), ["n1", "n3"])
+        XCTAssertEqual(list.notes.removingDeletedNote("n1").map(\.id), ["n1", "n2", "n3"])
+        XCTAssertEqual(list.notes.removingDeletedNote("elsewhere").map(\.id), ["n1", "n2", "n3"])
+    }
+
+    // A stack row keeps its identity when its newest note changes, so a stack
+    // screen opened from it stays open when the list reloads.
+    func testStackRowIsIdentifiedByItsStack() async throws {
+        let before = try decode(NotePreview.self, """
+        {"organized_note_id": "n1", "preview": "p", "note_content_modified": "x",
+         "stack_id": "s1", "stack_size": 3, "stack_total": 3}
+        """)
+        let after = try decode(NotePreview.self, """
+        {"organized_note_id": "n2", "preview": "p", "note_content_modified": "x",
+         "stack_id": "s1", "stack_size": 2, "stack_total": 2}
+        """)
+        XCTAssertEqual(before.listRowID, after.listRowID)
+        XCTAssertNotEqual(before.listRowID, "s1")
+
+        // Plain notes, and a stack's members listed on their own, use the note id.
+        let member = try decode(NotePreview.self, """
+        {"organized_note_id": "n2", "preview": "p", "note_content_modified": "x", "stack_id": "s1"}
+        """)
+        XCTAssertEqual(member.listRowID, "n2")
+    }
+
     // Members from /api/stack/<id> carry stack_id but no counts: plain notes.
     func testStackResponseMembersAreNotStacks() async throws {
         let response = try decode(StackResponse.self, """

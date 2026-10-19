@@ -66,7 +66,8 @@ final class NotesListViewModel: ObservableObject {
         ) { [weak self] notification in
             guard let noteId = notification.userInfo?["noteId"] as? String else { return }
             Task { @MainActor [weak self] in
-                self?.notes.removeAll { $0.id == noteId }
+                guard let self else { return }
+                notes = notes.removingDeletedNote(noteId)
             }
         }
     }

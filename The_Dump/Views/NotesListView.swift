@@ -108,7 +108,7 @@ struct NotesListView: View {
                             .listRowInsets(EdgeInsets(top: Theme.spacingSM, leading: Theme.spacingMD, bottom: Theme.spacingSM, trailing: Theme.spacingSM))
                         }
 
-                        ForEach(viewModel.notes) { note in
+                        ForEach(viewModel.notes, id: \.listRowID) { note in
                             noteRow(note)
                                 .listRowBackground(Theme.surface)
                                 .onAppear {

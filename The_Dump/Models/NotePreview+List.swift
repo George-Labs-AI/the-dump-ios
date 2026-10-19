@@ -18,6 +18,15 @@ extension NotePreview {
         return (stack_total ?? stack_size ?? 1) > 1
     }
 
+    /// The row's identity in a list. A stack row carries its newest note's
+    /// id, which changes when that note is deleted or a newer one joins, so
+    /// the row is identified by its stack instead; otherwise reloading the
+    /// list would replace the row and close a stack screen opened from it.
+    var listRowID: String {
+        if isStack, let stack_id { return "stack-\(stack_id)" }
+        return organized_note_id
+    }
+
     /// "5 notes", or "2 of 5 notes" when the list's filters match only some
     /// of the stack. Nil for a plain note.
     var stackLabel: String? {
@@ -25,5 +34,15 @@ extension NotePreview {
         let total = stack_total ?? stack_size ?? 1
         let matching = stack_size ?? total
         return matching < total ? "\(matching) of \(total) notes" : "\(total) notes"
+    }
+}
+
+extension Array where Element == NotePreview {
+    /// The rows a list keeps after the note `noteId` was deleted from its own
+    /// screen. A row that stands for a stack carries its newest note's id,
+    /// but the stack still holds its other notes, so that row stays until the
+    /// list reloads (the stack screen asks for that once it sees a note gone).
+    func removingDeletedNote(_ noteId: String) -> [NotePreview] {
+        filter { $0.id != noteId || $0.isStack }
     }
 }
