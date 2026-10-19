@@ -355,7 +355,7 @@ struct CategoryDetailView: View {
                 .filter { $0.categoryId != categoryId }
                 .map { $0.name }
             activeCount = categories.categories.filter { !($0.archived ?? false) }.count
-            let resolvedEmoji = match.emoji ?? CategoryEmojiStore.emoji(for: categoryId)
+            let resolvedEmoji = CategoryEmoji.displayed(match.emoji)
             loadedEmoji = resolvedEmoji
             emoji = resolvedEmoji
             name = item.name
@@ -374,35 +374,37 @@ struct CategoryDetailView: View {
         let trimmedDef = definition.trimmingCharacters(in: .whitespacesAndNewlines)
         let parsedKeywords = parseKeywords(keywordsText)
 
+        let emojiChanged = emoji != loadedEmoji
         let update = CategoryUpdateRequest(
             categoryName: trimmedName != original.name ? trimmedName : nil,
             categoryDescription: trimmedDef != original.definition ? trimmedDef : nil,
-            keywords: parsedKeywords != original.keywords ? parsedKeywords : nil
+            keywords: parsedKeywords != original.keywords ? parsedKeywords : nil,
+            // An emptied field sends "", which clears the emoji.
+            emoji: emojiChanged ? emoji : nil
         )
-
-        // Local-only: persist emoji.
-        CategoryEmojiStore.setEmoji(emoji, for: categoryId)
-
-        // If only the emoji changed, skip the network round-trip and the
-        // recategorize/archive prompt — the meaning of the category is unchanged.
-        if update.categoryName == nil
-            && update.categoryDescription == nil
-            && update.keywords == nil {
-            didChange = true
-            await load()
-            return
-        }
+        let meaningChanged = update.categoryName != nil
+            || update.categoryDescription != nil
+            || update.keywords != nil
 
         isSaving = true
         saveError = nil
         do {
             _ = try await NotesService.shared.updateCategory(id: categoryId, update: update)
+            if emojiChanged {
+                // An older emoji still waiting on this phone to be sent must
+                // not replace the one just saved.
+                CategoryEmojiStore().remove(categoryId)
+            }
             didChange = true
             await load()
             isSaving = false
             // Definition changed — force the user to choose between
-            // re-running AI on past notes or archiving the category.
-            choiceTrigger = .edited
+            // re-running AI on past notes or archiving the category. An
+            // emoji-only change skips this: the meaning of the category is
+            // unchanged.
+            if meaningChanged {
+                choiceTrigger = .edited
+            }
             return
         } catch {
             saveError = error.localizedDescription
@@ -448,28 +450,41 @@ struct EmojiInputField: View {
     }
 }
 
-/// One-character emoji TextField with the styling and truncation rules used by
-/// both `EmojiInputField` and the inline emoji field in `CategoryDetailView`.
+/// One-emoji TextField with the styling and input rules used by both
+/// `EmojiInputField` and the inline emoji field in `CategoryDetailView`.
 /// Callers can attach `.focused(...)` to participate in their own focus state.
 struct EmojiTextField: View {
     @Binding var emoji: String
+    /// What the field shows. It differs from `emoji` only for the moment
+    /// between a keystroke and the check below.
+    @State private var text: String
+
+    init(emoji: Binding<String>) {
+        _emoji = emoji
+        _text = State(initialValue: emoji.wrappedValue)
+    }
 
     var body: some View {
-        TextField("📁", text: Binding(
-            get: { emoji },
-            set: { newValue in
-                // Keep at most one extended grapheme cluster. Take the
-                // *last* character so appending a new emoji replaces the
-                // old one rather than being silently dropped. Allow empty
-                // so the field can be cleared; read sites fall back to 📁.
-                emoji = newValue.isEmpty ? "" : String(newValue.suffix(1))
+        TextField("📁", text: $text)
+            .onChange(of: text) { _, newValue in
+                // Only typing is checked; an emoji loaded from the server is
+                // shown as it is.
+                guard newValue != emoji else { return }
+                // Keep one emoji the server accepts: the last character typed
+                // replaces the old one, an emptied field means no emoji (read
+                // sites show 📁), and anything else is undone.
+                let kept = CategoryEmoji.fieldValue(previous: emoji, edited: newValue)
+                emoji = kept
+                if kept != newValue { text = kept }
             }
-        ))
-        .font(.system(size: 28))
-        .multilineTextAlignment(.center)
-        .frame(width: 60, height: 60)
-        .background(Theme.surface)
-        .cornerRadius(Theme.cornerRadiusCatIcon)
+            .onChange(of: emoji) { _, newValue in
+                if text != newValue { text = newValue }
+            }
+            .font(.system(size: 28))
+            .multilineTextAlignment(.center)
+            .frame(width: 60, height: 60)
+            .background(Theme.surface)
+            .cornerRadius(Theme.cornerRadiusCatIcon)
     }
 }
 

@@ -146,8 +146,13 @@ struct CategoryListItem: Identifiable, Equatable, Hashable {
     let inProcessCount: Int
     let archived: Bool
     let archivedAt: String?
+    /// The emoji saved on the server, or nil when none has been chosen.
+    var emoji: String?
 
     var isLocked: Bool { inProcessCount > 0 }
+
+    /// What the app shows for this category: its emoji, or 📁 without one.
+    var displayEmoji: String { CategoryEmoji.displayed(emoji) }
 
     static func make(from response: CategoryResponse, noteCount: Int) -> CategoryListItem {
         CategoryListItem(
@@ -160,7 +165,8 @@ struct CategoryListItem: Identifiable, Equatable, Hashable {
             subCatCount: response.subCatCount ?? 0,
             inProcessCount: response.inProcessCount ?? 0,
             archived: response.archived ?? false,
-            archivedAt: response.archivedAt
+            archivedAt: response.archivedAt,
+            emoji: response.emoji
         )
     }
 }
@@ -186,26 +192,140 @@ enum CategoryCountStore {
     }
 }
 
-// MARK: - Emoji storage (local-only until backend adds an `emoji` field)
+// MARK: - Emoji
 
-enum CategoryEmojiStore {
-    private static let key = "categoryEmojis.v1"
-    private static let defaultEmoji = "📁"
+/// A category's emoji is saved on the server, so every phone and the web show
+/// the same one. These are the server's rules for it, so the app never sends
+/// an emoji the server would refuse.
+enum CategoryEmoji {
+    /// Shown for a category with no emoji chosen.
+    static let placeholder = "📁"
 
-    static func emoji(for categoryId: Int) -> String {
-        let dict = UserDefaults.standard.dictionary(forKey: key) as? [String: String] ?? [:]
-        return dict[String(categoryId)] ?? defaultEmoji
+    /// The longest emoji the server accepts, counted in Unicode code points.
+    /// One emoji can be several code points (skin tones, flags, families),
+    /// and 16 leaves room for any single one.
+    static let maxCodePoints = 16
+
+    static func displayed(_ emoji: String?) -> String {
+        guard let emoji, !emoji.isEmpty else { return placeholder }
+        return emoji
     }
 
-    static func setEmoji(_ emoji: String, for categoryId: Int) {
-        var dict = UserDefaults.standard.dictionary(forKey: key) as? [String: String] ?? [:]
-        let trimmed = emoji.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            dict.removeValue(forKey: String(categoryId))
-        } else {
-            dict[String(categoryId)] = trimmed
+    /// `text` as the server will save it, or nil when the server would refuse
+    /// it. As on the server, spaces around it are trimmed, and what is left
+    /// must have no spaces or control characters inside, be at most
+    /// `maxCodePoints` code points, and contain a character outside plain
+    /// ASCII, so a letter or a digit on its own is refused.
+    static func validated(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let scalars = trimmed.unicodeScalars
+        guard !trimmed.isEmpty,
+              scalars.count <= maxCodePoints,
+              !scalars.contains(where: { $0.properties.isWhitespace }),
+              !scalars.contains(where: { $0.properties.generalCategory == .control }),
+              scalars.contains(where: { !$0.isASCII })
+        else { return nil }
+        return trimmed
+    }
+
+    /// What the emoji field keeps after an edit, from what it held before and
+    /// what is in it now. The last character wins, so typing a new emoji
+    /// replaces the old one. An emptied field stays empty, which means no
+    /// emoji. A character the server would refuse, such as a letter or a
+    /// space, is ignored and the field keeps what it had.
+    static func fieldValue(previous: String, edited: String) -> String {
+        if edited.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "" }
+        return validated(String(edited.suffix(1))) ?? previous
+    }
+}
+
+/// Emoji chosen on this phone before emoji were saved on the server, by
+/// category ID. `CategoryEmojiMover` sends them to the server and empties it;
+/// the only thing that still adds to it is a new category whose emoji
+/// couldn't be sent, so that the next load sends it.
+nonisolated struct CategoryEmojiStore {
+    static let key = "categoryEmojis.v1"
+
+    let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
+    var entries: [Int: String] {
+        stored.reduce(into: [Int: String]()) { result, entry in
+            if let categoryId = Int(entry.key) { result[categoryId] = entry.value }
         }
-        UserDefaults.standard.set(dict, forKey: key)
+    }
+
+    func set(_ emoji: String, for categoryId: Int) {
+        var dict = stored
+        dict[String(categoryId)] = emoji
+        defaults.set(dict, forKey: Self.key)
+    }
+
+    /// Forgets one category's emoji, and the whole key once none are left.
+    func remove(_ categoryId: Int) {
+        var dict = stored
+        dict.removeValue(forKey: String(categoryId))
+        if dict.isEmpty {
+            defaults.removeObject(forKey: Self.key)
+        } else {
+            defaults.set(dict, forKey: Self.key)
+        }
+    }
+
+    private var stored: [String: String] {
+        defaults.dictionary(forKey: Self.key) as? [String: String] ?? [:]
+    }
+}
+
+/// Decides what happens to each emoji in `CategoryEmojiStore` once the
+/// server's list of categories has loaded.
+enum CategoryEmojiMove {
+    struct ServerCategory {
+        let id: Int
+        let emoji: String?
+        let archived: Bool
+    }
+
+    struct Plan: Equatable {
+        /// Emoji to save on the server, by category ID.
+        var send: [Int: String] = [:]
+        /// Categories whose stored emoji is forgotten without being sent.
+        var drop: Set<Int> = []
+    }
+
+    static func plan(local: [Int: String], server: [ServerCategory]) -> Plan {
+        let serverById = Dictionary(server.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var plan = Plan()
+        for (categoryId, localEmoji) in local {
+            // Not in this account's list, so it may belong to another account
+            // that used this phone before. Leave it for that account.
+            guard let category = serverById[categoryId] else { continue }
+
+            // The server's emoji wins, so one chosen on the web or on another
+            // phone is never overwritten.
+            if let serverEmoji = category.emoji, !serverEmoji.isEmpty {
+                plan.drop.insert(categoryId)
+                continue
+            }
+
+            // 📁 is what the app shows when there is no emoji, so it is never
+            // sent; an emoji the server would refuse can never move.
+            guard let emoji = CategoryEmoji.validated(localEmoji),
+                  emoji != CategoryEmoji.placeholder else {
+                plan.drop.insert(categoryId)
+                continue
+            }
+
+            // The server doesn't change archived categories. The emoji stays
+            // on the phone and moves if the category is restored.
+            if category.archived { continue }
+
+            plan.send[categoryId] = emoji
+        }
+        return plan
     }
 }
 

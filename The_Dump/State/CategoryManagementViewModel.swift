@@ -45,9 +45,30 @@ final class CategoryManagementViewModel: ObservableObject {
                 .filter { $0.archived }
                 .sorted { $0.name.lowercased() < $1.name.lowercased() }
             isLoading = false
+            moveEmojiFromThisPhone(categories: categoriesResponse.categories)
         } catch {
             errorMessage = error.localizedDescription
             isLoading = false
+        }
+    }
+
+    /// Sends emoji chosen on this phone before they were saved on the server,
+    /// without holding up the list, then shows the ones that moved.
+    private func moveEmojiFromThisPhone(categories: [CategoryResponse]) {
+        Task { [weak self] in
+            let moved = await CategoryEmojiMover.shared.run(categories: categories)
+            guard let self, !moved.isEmpty else { return }
+            self.active = Self.applying(moved, to: self.active)
+            self.archived = Self.applying(moved, to: self.archived)
+        }
+    }
+
+    private static func applying(_ emojis: [Int: String], to items: [CategoryListItem]) -> [CategoryListItem] {
+        items.map { item in
+            guard let emoji = emojis[item.id] else { return item }
+            var updated = item
+            updated.emoji = emoji
+            return updated
         }
     }
 }

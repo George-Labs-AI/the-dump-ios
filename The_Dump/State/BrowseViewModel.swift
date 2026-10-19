@@ -56,6 +56,10 @@ final class BrowseViewModel: ObservableObject {
             )
             categoryRows = categorySections.active
             archivedCategoryRows = categorySections.archived
+            // Browse is opened far more often than Settings, so emoji chosen
+            // on this phone before they were saved on the server reach the
+            // web without a visit to Settings. Runs in the background.
+            Task { await CategoryEmojiMover.shared.run(categories: categories.categories) }
             dateGroupRows = Self.sortedDateGroupRows(dict: counts.dateGroupCounts)
             mimeTypeRows = Self.sortedRows(dict: counts.mimeTypeCounts, kind: .mimeType)
             noteTypeRows = Self.sortedRows(dict: counts.noteTypeCounts, kind: .noteType)
