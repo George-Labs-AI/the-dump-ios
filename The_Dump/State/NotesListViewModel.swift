@@ -33,6 +33,11 @@ final class NotesListViewModel: ObservableObject {
     private var nextCursorId: String?
     private var nextOffset: Int = 0
     private var deletedNoteObserver: NSObjectProtocol?
+    /// Set when a reload is asked for while one is running (a search typed,
+    /// a pill tapped or a bulk action finished): whether it should also
+    /// reload the sub-categories. It runs as soon as the running one ends,
+    /// so the list always ends up matching the latest request.
+    private var pendingReloadSubCategories: Bool?
 
     // Inputs to the sub-category pills (see SubCategoryPills.build).
     private var categoryMap: CategoryMapResponse?
@@ -135,7 +140,10 @@ final class NotesListViewModel: ObservableObject {
     /// for the category's sub-categories and counts again; tapping a pill or
     /// typing a search doesn't need that.
     func refresh(reloadingSubCategories: Bool = true) async {
-        guard !isLoadingInitial else { return }
+        guard !isLoadingInitial else {
+            pendingReloadSubCategories = (pendingReloadSubCategories ?? false) || reloadingSubCategories
+            return
+        }
         isLoadingInitial = true
         isLoadingMore = false
         errorMessage = nil
@@ -157,6 +165,11 @@ final class NotesListViewModel: ObservableObject {
         selectedNoteIDs.formIntersection(visible)
 
         isLoadingInitial = false
+
+        if let reloadSubCategoriesAgain = pendingReloadSubCategories {
+            pendingReloadSubCategories = nil
+            await refresh(reloadingSubCategories: reloadSubCategoriesAgain)
+        }
     }
 
     private func loadFirstPage() async {
