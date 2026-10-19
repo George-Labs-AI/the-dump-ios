@@ -7,12 +7,14 @@ struct BrowseFolderDestinationView: View {
         case category
         case dateGroup
         case mimeType
+        case noteType
         
         var titlePrefix: String {
             switch self {
             case .category: return "Category"
             case .dateGroup: return "Date Group"
             case .mimeType: return "Mime Type"
+            case .noteType: return "Type"
             }
         }
     }
@@ -53,6 +55,8 @@ struct BrowseFolderDestinationView: View {
             }
         case .mimeType:
             NotesListView(title: name, filter: .mimeType(name))
+        case .noteType:
+            NotesListView(title: name, filter: .noteType(name))
         case .dateGroup:
             let (start, end) = DateGroupRangeBuilder.range(for: name)
             NotesListView(title: name, filter: .dateGroup(name: name, startTime: start, endTime: end))

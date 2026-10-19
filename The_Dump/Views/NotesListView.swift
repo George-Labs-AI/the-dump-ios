@@ -16,6 +16,12 @@ struct NotesListView: View {
     @State private var showDeleteConfirmation: Bool = false
     @State private var actionErrorMessage: String?
     @State private var isStartingRecategorize: Bool = false
+    @State private var showBulkDelete: Bool = false
+    @State private var showBulkCategoryPicker: Bool = false
+    @State private var showBulkTypePicker: Bool = false
+    /// How many notes the open bulk sheet acts on, fixed when it opens so the
+    /// sheet doesn't change while the action clears the selection.
+    @State private var bulkNoteCount: Int = 0
 
     init(
         title: String,
@@ -76,12 +82,12 @@ struct NotesListView: View {
                             Section {
                                 VStack(alignment: .leading, spacing: Theme.spacingSM) {
                                     SubCategoryFilterRow(
-                                        availableSubCategories: viewModel.availableSubCategories,
+                                        pills: viewModel.subCategoryPills,
                                         selectedSubCategory: $viewModel.selectedSubCategory,
                                         isArchivedCategory: categoryIsArchived,
                                         isRecategorizingArchivedCategory: isArchivedCategoryRecategorizing,
                                         onFilterChange: {
-                                            Task { await viewModel.refresh() }
+                                            Task { await viewModel.refresh(reloadingSubCategories: false) }
                                         },
                                         onAddTapped: {
                                             showAddSubCategory = true
@@ -103,23 +109,11 @@ struct NotesListView: View {
                         }
 
                         ForEach(viewModel.notes) { note in
-                            NavigationLink {
-                                NoteDetailView(noteID: note.id)
-                            } label: {
-                                NoteListRowView(note: note)
-                            }
-                            .listRowBackground(Theme.surface)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button(role: .destructive) {
-                                    noteToDelete = note
-                                    showDeleteConfirmation = true
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
+                            noteRow(note)
+                                .listRowBackground(Theme.surface)
+                                .onAppear {
+                                    Task { await viewModel.loadMoreIfNeeded(currentItem: note) }
                                 }
-                            }
-                            .onAppear {
-                                Task { await viewModel.loadMoreIfNeeded(currentItem: note) }
-                            }
                         }
                         
                         if viewModel.isLoadingMore {
@@ -140,10 +134,31 @@ struct NotesListView: View {
                 }
             }
         }
-        .navigationTitle(title)
+        .navigationTitle(viewModel.isSelecting ? selectionTitle : title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(Theme.background, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
+        .navigationBarBackButtonHidden(viewModel.isSelecting)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                if viewModel.isSelecting {
+                    Button("Done") {
+                        viewModel.stopSelecting()
+                    }
+                    .fontWeight(.semibold)
+                } else if !viewModel.notes.isEmpty {
+                    Button("Select") {
+                        viewModel.startSelecting()
+                    }
+                }
+            }
+            if viewModel.isSelecting {
+                ToolbarItemGroup(placement: .bottomBar) {
+                    bulkActionBar
+                }
+            }
+        }
+        .toolbar(viewModel.isSelecting ? .hidden : .automatic, for: .tabBar)
         .task {
             // Only load once per navigation
             if viewModel.notes.isEmpty {
@@ -166,7 +181,7 @@ struct NotesListView: View {
                 guard !Task.isCancelled else { return }
 
                 viewModel.searchQuery = newValue
-                await viewModel.refresh()
+                await viewModel.refresh(reloadingSubCategories: false)
             }
         }
         .alert("Delete Note", isPresented: $showDeleteConfirmation) {
@@ -189,6 +204,128 @@ struct NotesListView: View {
                 }
             }
         }
+        .sheet(isPresented: $showBulkDelete) {
+            BulkDeleteConfirmView(noteCount: bulkNoteCount) {
+                await viewModel.deleteSelected()
+            }
+        }
+        .sheet(isPresented: $showBulkCategoryPicker) {
+            BulkCategoryPickerView(
+                noteCount: bulkNoteCount,
+                currentCategoryId: viewModel.categoryId
+            ) { category in
+                await viewModel.moveSelected(toCategory: category)
+            }
+        }
+        .sheet(isPresented: $showBulkTypePicker) {
+            BulkTypePickerView(noteCount: bulkNoteCount) { type in
+                await viewModel.changeTypeOfSelected(to: type)
+            }
+        }
+    }
+
+    private var selectionTitle: String {
+        let count = viewModel.selectedNotes.count
+        return count == 1 ? "1 selected" : "\(count) selected"
+    }
+
+    /// A note row. In select mode tapping picks the note; a stack row can't
+    /// be picked (same as the web) and says why. Otherwise a stack opens its
+    /// notes and a note opens the note.
+    @ViewBuilder
+    private func noteRow(_ note: NotePreview) -> some View {
+        if viewModel.isSelecting {
+            let isSelected = viewModel.selectedNoteIDs.contains(note.id)
+            Button {
+                viewModel.toggleSelection(note)
+            } label: {
+                HStack(spacing: Theme.spacingSMPlus) {
+                    Image(systemName: note.isStack ? "circle.dashed" : (isSelected ? "checkmark.circle.fill" : "circle"))
+                        .font(.system(size: 20))
+                        .foregroundColor(isSelected ? Theme.accent : Theme.textSecondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        NoteListRowView(note: note)
+                        if note.isStack {
+                            Text("Open the stack to work with its notes.")
+                                .font(.system(size: 11))
+                                .foregroundColor(Theme.textSecondary)
+                        }
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(note.isStack)
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
+        } else if note.isStack, let stackId = note.stack_id {
+            NavigationLink {
+                StackDetailView(stackId: stackId) {
+                    Task { await viewModel.refresh() }
+                }
+            } label: {
+                NoteListRowView(note: note)
+            }
+            // Swipe-to-delete would delete only the note that stands for the
+            // stack, so a stack row offers Unstack instead.
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                Button {
+                    Task { await viewModel.unstack(stackId: stackId) }
+                } label: {
+                    Label("Unstack", systemImage: "square.stack.3d.up.slash")
+                }
+                .tint(Theme.textSecondary)
+            }
+        } else {
+            NavigationLink {
+                NoteDetailView(noteID: note.id)
+            } label: {
+                NoteListRowView(note: note)
+            }
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                Button(role: .destructive) {
+                    noteToDelete = note
+                    showDeleteConfirmation = true
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
+        }
+    }
+
+    /// Bottom bar in select mode. Stack needs 2 or more notes; the others 1.
+    @ViewBuilder
+    private var bulkActionBar: some View {
+        let count = viewModel.selectedNotes.count
+        let busy = viewModel.isPerformingBulkAction
+
+        Button("Stack") {
+            Task { await viewModel.stackSelected() }
+        }
+        .disabled(!viewModel.canStackSelection || busy)
+
+        Spacer()
+
+        Button("Category") {
+            bulkNoteCount = count
+            showBulkCategoryPicker = true
+        }
+        .disabled(count == 0 || busy)
+
+        Spacer()
+
+        Button("Type") {
+            bulkNoteCount = count
+            showBulkTypePicker = true
+        }
+        .disabled(count == 0 || busy)
+
+        Spacer()
+
+        Button("Delete", role: .destructive) {
+            bulkNoteCount = count
+            showBulkDelete = true
+        }
+        .disabled(count == 0 || busy)
     }
 
     private func startRecategorizingArchivedCategory() async {
@@ -220,7 +357,7 @@ struct NotesListView: View {
 // MARK: - Sub-Category Filter Row
 
 private struct SubCategoryFilterRow: View {
-    let availableSubCategories: [String]
+    let pills: [SubCategoryPill]
     @Binding var selectedSubCategory: String?
     let isArchivedCategory: Bool
     let isRecategorizingArchivedCategory: Bool
@@ -254,12 +391,13 @@ private struct SubCategoryFilterRow: View {
                         }
                     )
 
-                    ForEach(availableSubCategories, id: \.self) { subCat in
+                    ForEach(pills) { pill in
                         FilterPill(
-                            label: subCat,
-                            isActive: selectedSubCategory == subCat,
+                            label: pill.name,
+                            count: pill.count,
+                            isActive: selectedSubCategory == pill.name,
                             onTap: {
-                                selectedSubCategory = subCat
+                                selectedSubCategory = pill.name
                                 onFilterChange()
                             }
                         )
@@ -347,25 +485,34 @@ private struct SubCategoryFilterRow: View {
 
 private struct FilterPill: View {
     let label: String
+    var count: Int? = nil
     let isActive: Bool
     let onTap: () -> Void
 
     var body: some View {
         Button(action: onTap) {
-            Text(label)
-                .font(.system(size: Theme.fontSizeSM, weight: isActive ? .semibold : .regular))
-                .foregroundColor(isActive ? Theme.background : Theme.textPrimary)
-                .padding(.horizontal, Theme.spacingSMPlus)
-                .padding(.vertical, Theme.spacingSM)
-                .background(isActive ? Theme.textPrimary : Theme.surface2)
-                .clipShape(Capsule())
-                .lineLimit(1)
+            HStack(spacing: Theme.spacingXS) {
+                Text(label)
+                    .font(.system(size: Theme.fontSizeSM, weight: isActive ? .semibold : .regular))
+                if let count {
+                    Text("\(count)")
+                        .font(.system(size: Theme.fontSizeXS, weight: .semibold))
+                        .opacity(0.7)
+                }
+            }
+            .foregroundColor(isActive ? Theme.background : Theme.textPrimary)
+            .padding(.horizontal, Theme.spacingSMPlus)
+            .padding(.vertical, Theme.spacingSM)
+            .background(isActive ? Theme.textPrimary : Theme.surface2)
+            .clipShape(Capsule())
+            .lineLimit(1)
         }
         .buttonStyle(.plain)
     }
 }
 
-private struct NoteListRowView: View {
+/// One note in a list. Also used for the notes inside a stack.
+struct NoteListRowView: View {
     let note: NotePreview
     
     var body: some View {
@@ -377,6 +524,16 @@ private struct NoteListRowView: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(Theme.textPrimary)
                     .lineLimit(1)
+            }
+
+            if let stackLabel = note.stackLabel {
+                Label(stackLabel, systemImage: "square.stack.3d.up")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Theme.textSecondary)
+                    .padding(.horizontal, Theme.spacingSM)
+                    .padding(.vertical, 3)
+                    .background(Theme.surface2)
+                    .clipShape(Capsule())
             }
             
             let snippet = derivedSnippet()
@@ -398,6 +555,13 @@ private struct NoteListRowView: View {
                     Text(category)
                         .font(.system(size: 11))
                         .foregroundColor(Theme.textSecondary)
+                }
+
+                if let author = note.displayAuthor {
+                    Text("from \(author)")
+                        .font(.system(size: 11))
+                        .foregroundColor(Theme.textSecondary)
+                        .lineLimit(1)
                 }
             }
         }
@@ -442,8 +606,9 @@ private struct NoteListRowView: View {
     }
     
     private func formattedDate(_ iso: String) -> String? {
-        let formatter = ISO8601DateFormatter()
-        guard let date = formatter.date(from: iso) else { return nil }
+        // The list sends fractional seconds, which ISO8601DateFormatter's
+        // default options reject; NoteDates reads every form the server uses.
+        guard let date = NoteDates.parse(iso) else { return nil }
         
         let out = DateFormatter()
         out.locale = .current
