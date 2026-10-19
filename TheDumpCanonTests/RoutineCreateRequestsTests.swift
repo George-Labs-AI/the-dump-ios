@@ -122,6 +122,16 @@ final class RoutineCreateRequestsTests: XCTestCase {
         XCTAssertEqual(RoutineLimits.limited("Brief", to: 120), "Brief")
     }
 
+    func testSpacesAroundANameDontCountTowardItsLimit() {
+        let full = String(repeating: "a", count: 120)
+        XCTAssertEqual(RoutineLimits.limitedName("  " + full + " "), "  " + full + " ")
+        XCTAssertFalse(RoutineLimits.isNameAtLimit("  " + String(repeating: "a", count: 119) + "  "))
+        XCTAssertTrue(RoutineLimits.isNameAtLimit(full))
+        XCTAssertEqual(RoutineLimits.limitedName(" " + full + "b"), " " + full)
+        // The description is counted as it is, spaces included.
+        XCTAssertEqual(RoutineLimits.limited("  abc", to: 4), "  ab")
+    }
+
     func testLimitNeverSplitsAnEmoji() {
         let family = "👨‍👩‍👧" // one character, five code points
         let limited = RoutineLimits.limited(String(repeating: "a", count: 117) + family, to: 120)

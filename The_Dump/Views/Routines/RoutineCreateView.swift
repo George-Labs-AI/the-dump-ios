@@ -97,10 +97,10 @@ private struct RoutineDetailsStepView: View {
                             .submitLabel(.next)
                             .onSubmit { focusedField = .description }
                             .onChange(of: viewModel.name) { _, newValue in
-                                let limited = RoutineLimits.limited(newValue, to: RoutineLimits.maxNameLength)
+                                let limited = RoutineLimits.limitedName(newValue)
                                 if limited != newValue { viewModel.name = limited }
                             }
-                        if viewModel.name.unicodeScalars.count >= RoutineLimits.maxNameLength {
+                        if RoutineLimits.isNameAtLimit(viewModel.name) {
                             Text("Names can be up to \(RoutineLimits.maxNameLength) characters.")
                                 .font(.system(size: Theme.fontSizeXS))
                                 .foregroundColor(Theme.textTertiary)

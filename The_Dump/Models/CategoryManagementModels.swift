@@ -223,23 +223,14 @@ enum CategoryLimits {
     /// The length the server checks: Unicode code points (what Python's
     /// `len()` counts) after trimming spaces around the name.
     static func nameLength(_ text: String) -> Int {
-        text.trimmingCharacters(in: .whitespacesAndNewlines).unicodeScalars.count
+        TextLimits.nameLength(text)
     }
 
     /// `text` cut back so that `nameLength` is at most `maxNameLength`.
     /// Spaces around the name don't count, and a character is never split,
     /// so an emoji at the limit is dropped whole.
     static func limitedName(_ text: String) -> String {
-        guard nameLength(text) > maxNameLength else { return text }
-        let leading = text.prefix { $0.isWhitespace }
-        var kept = String(leading)
-        var count = 0
-        for character in text.dropFirst(leading.count) {
-            count += character.unicodeScalars.count
-            if count > maxNameLength { break }
-            kept.append(character)
-        }
-        return kept
+        TextLimits.limitedName(text, to: maxNameLength)
     }
 
     static func isNameAtLimit(_ text: String) -> Bool {

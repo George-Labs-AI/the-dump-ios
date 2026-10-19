@@ -186,16 +186,21 @@ enum RoutineLimits {
     static let maxNameLength = 120
     static let maxDescriptionLength = 4000
 
+    /// The name cut back to `maxNameLength`. The server trims spaces around
+    /// the name before checking its length, so they don't count.
+    static func limitedName(_ text: String) -> String {
+        TextLimits.limitedName(text, to: maxNameLength)
+    }
+
+    static func isNameAtLimit(_ text: String) -> Bool {
+        TextLimits.nameLength(text) >= maxNameLength
+    }
+
     /// `text` cut back to `limit` code points without splitting a character.
+    /// The description is counted as it is, spaces included, as the server
+    /// counts it.
     static func limited(_ text: String, to limit: Int) -> String {
-        var kept = ""
-        var count = 0
-        for character in text {
-            count += character.unicodeScalars.count
-            if count > limit { break }
-            kept.append(character)
-        }
-        return kept
+        TextLimits.limited(text, to: limit)
     }
 }
 
