@@ -49,9 +49,9 @@ struct ReCategorizingBanner: View {
 
     private var detailText: String {
         if let count = affectedCount {
-            return "Sorting \(count) note\(count == 1 ? "" : "s"). Up to 24h. Notes affected show a badge until done."
+            return "Sorting \(count) note\(count == 1 ? "" : "s"). Up to 24h."
         }
-        return "Sorting past notes. Up to 24h. Notes affected show a badge until done."
+        return "Sorting past notes. Up to 24h."
     }
 }
 
