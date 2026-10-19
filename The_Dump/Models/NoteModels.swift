@@ -108,6 +108,9 @@ struct NoteDetail: Identifiable, Codable {
     let note_type: String?
     /// Who sent an emailed note; nil (or blank) for the account owner's own notes.
     let author: String?
+    /// Whether the note has an original file (photo, recording, document)
+    /// to open. Nil from servers that don't send it.
+    let has_asset: Bool?
     
     var id: String { organized_note_id }
 }
@@ -154,6 +157,7 @@ extension NoteDetail {
         mime_type = try c.decodeIfPresent(String.self, forKey: .mime_type)
         note_type = try c.decodeIfPresent(String.self, forKey: .note_type)
         author = try c.decodeIfPresent(String.self, forKey: .author)
+        has_asset = try c.decodeIfPresent(Bool.self, forKey: .has_asset)
     }
 }
 
@@ -211,6 +215,21 @@ extension EditNoteResponseNote {
         sub_cat_names = try c.decodeSubCategoryNames(forKey: .sub_cat_names)
         note_type = try c.decodeIfPresent(String.self, forKey: .note_type)
         mime_type = try c.decodeIfPresent(String.self, forKey: .mime_type)
+    }
+}
+
+// MARK: - Category Map
+
+// Matches the response from GET /api/category_map. Both lists are keyed and
+// spelled in lower case ("work": ["meetings", "project ideas"]); only active
+// categories and sub-categories are included.
+struct CategoryMapResponse: Decodable {
+    let categories: [String]?
+    let subcategoriesByCategory: [String: [String]]?
+
+    enum CodingKeys: String, CodingKey {
+        case categories
+        case subcategoriesByCategory = "subcategories_by_category"
     }
 }
 
