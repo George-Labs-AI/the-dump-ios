@@ -126,32 +126,6 @@ struct ManageCategoriesView: View {
                         .foregroundColor(Theme.textSecondary)
                 }
             }
-
-            // Recently deleted
-            if !viewModel.recentlyDeleted.isEmpty {
-                Section {
-                    ForEach(viewModel.recentlyDeleted) { item in
-                        HStack {
-                            Text(CategoryEmojiStore.emoji(for: item.id))
-                            Text(item.name)
-                                .foregroundColor(Theme.textSecondary)
-                            Spacer()
-                            Text("\(item.noteCount) \(item.noteCount == 1 ? "note" : "notes")")
-                                .font(.system(size: Theme.fontSizeSM))
-                                .foregroundColor(Theme.textTertiary)
-                        }
-                        .listRowBackground(Theme.surface)
-                    }
-                } header: {
-                    Text("Recently deleted")
-                        .sectionLabel()
-                        .foregroundColor(Theme.textSecondary)
-                } footer: {
-                    Text("Deleted categories are kept for 30 days.")
-                        .font(.system(size: Theme.fontSizeXS))
-                        .foregroundColor(Theme.textTertiary)
-                }
-            }
         }
         .scrollContentBackground(.hidden)
         .listStyle(.insetGrouped)
