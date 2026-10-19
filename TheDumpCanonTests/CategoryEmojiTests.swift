@@ -290,6 +290,47 @@ final class CategoryEmojiTests: XCTestCase {
         XCTAssertEqual(store.entries, [1: "🍕", 2: "📁"], "nothing is dropped either")
     }
 
+    func testEmojiSavedInSettingsMeanwhileIsNotOverwritten() async throws {
+        let store = store()
+        store.set("🍕", for: 1)
+        store.set("🍝", for: 2)
+        var sent: [Int: String] = [:]
+        let mover = CategoryEmojiMover(store: store) { categoryId, emoji in
+            sent[categoryId] = emoji
+            // Settings saves category 2 while category 1 is being sent and
+            // forgets the phone's copy of it.
+            if categoryId == 1 { store.remove(2) }
+        }
+
+        let moved = await mover.run(categories: [try category(id: 1), try category(id: 2)])
+
+        XCTAssertEqual(sent, [1: "🍕"], "category 2's older emoji is not sent")
+        XCTAssertEqual(moved, [1: "🍕"])
+    }
+
+    func testASecondCallerGetsTheRunningMovesResult() async throws {
+        let store = store()
+        store.set("🍕", for: 1)
+        var release: CheckedContinuation<Void, Never>?
+        var sendCount = 0
+        let mover = CategoryEmojiMover(store: store) { _, _ in
+            sendCount += 1
+            await withCheckedContinuation { release = $0 }
+        }
+        let categories = [try category(id: 1)]
+
+        async let first = mover.run(categories: categories)
+        while release == nil { await Task.yield() }
+        async let second = mover.run(categories: categories)
+        await Task.yield()
+        release?.resume()
+
+        let (firstMoved, secondMoved) = await (first, second)
+        XCTAssertEqual(firstMoved, [1: "🍕"])
+        XCTAssertEqual(secondMoved, [1: "🍕"], "the second caller shares the result")
+        XCTAssertEqual(sendCount, 1, "the emoji is sent once")
+    }
+
     func testArchivedCategoryMovesOnceRestored() async throws {
         let store = store()
         store.set("🍕", for: 1)

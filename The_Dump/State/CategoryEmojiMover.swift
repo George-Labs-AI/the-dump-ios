@@ -10,7 +10,9 @@ final class CategoryEmojiMover {
 
     private let store: CategoryEmojiStore
     private let save: (_ categoryId: Int, _ emoji: String) async throws -> Void
-    private var isRunning = false
+    /// The move in progress. A second caller (Browse and Settings both start
+    /// one) waits for it and gets the same result rather than an empty one.
+    private var current: Task<[Int: String], Never>?
 
     init(
         store: CategoryEmojiStore = CategoryEmojiStore(),
@@ -29,15 +31,23 @@ final class CategoryEmojiMover {
     /// ID, so the caller can show them without loading again.
     @discardableResult
     func run(categories: [CategoryResponse]) async -> [Int: String] {
+        if let current {
+            return await current.value
+        }
         // A server from before emoji were saved leaves the key out and would
         // refuse the change, so nothing is sent to it and nothing is dropped.
-        guard !isRunning, !categories.isEmpty, categories.allSatisfy(\.sendsEmoji) else { return [:] }
+        guard !categories.isEmpty, categories.allSatisfy(\.sendsEmoji) else { return [:] }
         let local = store.entries
         guard !local.isEmpty else { return [:] }
 
-        isRunning = true
-        defer { isRunning = false }
+        let task = Task { await self.move(local: local, categories: categories) }
+        current = task
+        let moved = await task.value
+        current = nil
+        return moved
+    }
 
+    private func move(local: [Int: String], categories: [CategoryResponse]) async -> [Int: String] {
         let plan = CategoryEmojiMove.plan(
             local: local,
             server: categories.map {
@@ -50,6 +60,9 @@ final class CategoryEmojiMover {
 
         var moved: [Int: String] = [:]
         for (categoryId, emoji) in plan.send.sorted(by: { $0.key < $1.key }) {
+            // Saving in Settings meanwhile forgets the phone's copy; then the
+            // emoji just saved there is newer and must not be overwritten.
+            guard store.entries[categoryId] == emoji else { continue }
             do {
                 try await save(categoryId, emoji)
                 store.remove(categoryId)
