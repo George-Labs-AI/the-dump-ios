@@ -59,13 +59,18 @@ final class NotesListViewModel: ObservableObject {
     }
 
     /// Ask the server for this category's sub-categories (the category map)
-    /// and their note counts. Either can fail on its own; the pills then fall
-    /// back to what the loaded notes show, so a failure never hides the notes.
+    /// and their note counts. Either can fail on its own and then keeps what
+    /// an earlier load got; with nothing loaded yet the pills fall back to the
+    /// names on the loaded notes, so a failure never hides the notes.
     private func loadSubCategoryData() async {
         async let mapTask = NotesService.shared.fetchCategoryMap()
         async let countsTask = NotesService.shared.fetchCounts()
-        categoryMap = try? await mapTask
-        subCategoryCounts = (try? await countsTask)?.subCategoryCounts
+        if let map = try? await mapTask {
+            categoryMap = map
+        }
+        if let counts = try? await countsTask {
+            subCategoryCounts = counts.subCategoryCounts
+        }
     }
 
     /// Rebuild the pills from the category map, the counts and the names on
@@ -226,8 +231,8 @@ final class NotesListViewModel: ObservableObject {
         }
     }
 
-    /// Picks in list order, leaving out any stack row (List selection can't
-    /// pick one, but this keeps the requests safe regardless).
+    /// Picks in list order, leaving out any stack row (toggleSelection never
+    /// picks one, but this keeps the requests safe regardless).
     var selectedNotes: [NotePreview] {
         notes.filter { selectedNoteIDs.contains($0.id) && !$0.isStack }
     }
