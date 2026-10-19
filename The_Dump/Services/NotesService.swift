@@ -202,7 +202,8 @@ class NotesService {
         tz: String? = nil,
         q: String? = nil,
         noteType: String? = nil,
-        offset: Int? = nil
+        offset: Int? = nil,
+        stacks: Bool = false
     ) async throws -> NoteListResponse {
         // Build query parameters
         guard var components = URLComponents(string: "\(baseURL)/api/pull_notes") else {
@@ -232,6 +233,10 @@ class NotesService {
         addQueryItem("note_type", noteType)
         if let offset {
             queryItems.append(URLQueryItem(name: "offset", value: "\(offset)"))
+        }
+        // One row per stack instead of one per note (browse lists only).
+        if stacks {
+            queryItems.append(URLQueryItem(name: "stacks", value: "1"))
         }
 
         components.queryItems = queryItems
