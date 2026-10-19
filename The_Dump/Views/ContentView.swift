@@ -317,7 +317,8 @@ struct ContentView: View {
     /// the whole pick is visible, then uploads one at a time (each file is
     /// read fully into memory, up to 100MB) and becomes its own note.
     private func handleSelectedFiles(_ urls: [URL]) {
-        if let notice = CaptureFileTypes.skippedNotice(forFilenames: urls.map(\.lastPathComponent)) {
+        let notice = CaptureFileTypes.skippedNotice(forFilenames: urls.map(\.lastPathComponent))
+        if let notice {
             showError(notice.message, title: notice.title)
         }
         let accepted = urls.filter { CaptureFileTypes.rejection(forFilename: $0.lastPathComponent) == nil }
@@ -325,7 +326,13 @@ struct ContentView: View {
 
         Task {
             guard appState.userEmail != nil, await appState.idToken != nil else {
-                showError(Self.cannotUploadMessage)
+                // Both alerts share one slot, so say both things at once
+                // rather than replacing the list of files turned away.
+                if let notice {
+                    showError("\(notice.message)\n\n\(Self.cannotUploadMessage)", title: notice.title)
+                } else {
+                    showError(Self.cannotUploadMessage)
+                }
                 return
             }
 
