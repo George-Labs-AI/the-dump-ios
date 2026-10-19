@@ -35,7 +35,11 @@ final class RoutineConnectViewModel: ObservableObject {
         do {
             instructions = try await fetchInstructions(slug)
         } catch {
-            errorMessage = RoutineErrorText.message(for: error)
+            // Leaving the screen cancels the request; that is not a failure
+            // to show, and coming back loads the instructions again.
+            if !Task.isCancelled {
+                errorMessage = RoutineErrorText.message(for: error)
+            }
         }
 
         isLoading = false

@@ -175,6 +175,39 @@ final class RoutineCreateViewModelTests: XCTestCase {
         await viewModel.create()
         XCTAssertEqual(viewModel.createError, "Name must be between 1 and 120 characters.")
         XCTAssertTrue(viewModel.canCreate, "the user can try again")
+
+        // Going back and changing the routine clears the old message.
+        viewModel.name = "Weekly brief"
+        XCTAssertNotNil(viewModel.createError, "nothing changed yet")
+        viewModel.name = "Weekly digest"
+        XCTAssertNil(viewModel.createError)
+    }
+
+    func testLeavingTheScreenWhileLoadingIsNotShownAsAFailure() async {
+        let options = self.options
+        let viewModel = RoutineCreateViewModel(client: RoutineCreateClient(
+            scopeOptions: {
+                try await Task.sleep(nanoseconds: 30_000_000_000)
+                return options
+            },
+            preview: { _ in RoutinePreviewResponse(count: 0, notes: []) },
+            create: { _ in throw ServerError() }
+        ))
+        let optionsLoad = Task { await viewModel.loadOptions() }
+        optionsLoad.cancel()
+        await optionsLoad.value
+        XCTAssertNil(viewModel.optionsError)
+        XCTAssertFalse(viewModel.isLoadingOptions)
+
+        let connect = RoutineConnectViewModel(slug: "weekly-brief-1") { _ in
+            try await Task.sleep(nanoseconds: 30_000_000_000)
+            return "never"
+        }
+        let instructionsLoad = Task { await connect.load() }
+        instructionsLoad.cancel()
+        await instructionsLoad.value
+        XCTAssertNil(connect.errorMessage)
+        XCTAssertFalse(connect.isLoading)
     }
 
     func testOptionsFailureCanBeRetried() async {

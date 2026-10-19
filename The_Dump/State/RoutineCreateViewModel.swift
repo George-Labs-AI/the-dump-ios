@@ -27,9 +27,17 @@ final class RoutineCreateViewModel: ObservableObject {
         case failed(String)
     }
 
-    @Published var name: String = ""
-    @Published var description: String = ""
-    @Published var selection = RoutineScopeSelection()
+    // A create error is about the body that was sent, so changing the body
+    // clears it.
+    @Published var name: String = "" {
+        didSet { if name != oldValue { createError = nil } }
+    }
+    @Published var description: String = "" {
+        didSet { if description != oldValue { createError = nil } }
+    }
+    @Published var selection = RoutineScopeSelection() {
+        didSet { if selection != oldValue { createError = nil } }
+    }
 
     @Published private(set) var options: RoutineScopeOptionsResponse?
     @Published private(set) var isLoadingOptions: Bool = false
@@ -94,7 +102,11 @@ final class RoutineCreateViewModel: ObservableObject {
         do {
             options = try await client.scopeOptions()
         } catch {
-            optionsError = RoutineErrorText.message(for: error)
+            // Leaving the screen cancels the request; that is not a failure
+            // to show, and coming back loads the categories again.
+            if !Task.isCancelled {
+                optionsError = RoutineErrorText.message(for: error)
+            }
         }
         isLoadingOptions = false
     }
