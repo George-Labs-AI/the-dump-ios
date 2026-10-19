@@ -82,6 +82,8 @@ struct RoutineDetailView: View {
                         Text("Status")
                             .font(.system(size: Theme.fontSizeSM))
                             .foregroundColor(Theme.textSecondary)
+                            // The chip's own spoken label already starts with "Status".
+                            .accessibilityHidden(true)
                         Spacer()
                         RoutineHealthLabel(status: routine.status)
                     }
