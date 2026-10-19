@@ -1,13 +1,19 @@
 import SwiftUI
 
 /// The Sub-categories part of a category's Settings screen: each active
-/// sub-category with its note count (tap to edit or delete), then an
-/// Archived group with Restore. Hidden when the server doesn't offer these
-/// routes yet.
+/// sub-category with its note count (tap to edit or delete; touch and hold
+/// for Edit and Delete, the web's row buttons), then an Archived group with
+/// Restore. Hidden when the server doesn't offer these routes yet.
 struct SubCategoriesSection: View {
+    private struct ActionError {
+        let title: String
+        let message: String
+    }
+
     @StateObject private var viewModel: SubCategoryManagementViewModel
     @State private var editing: SubCategoryItem?
-    @State private var restoreError: String?
+    @State private var deleting: SubCategoryItem?
+    @State private var actionError: ActionError?
 
     /// `onChanged` runs after every saved change, so the category list can
     /// refresh its sub-category counts.
@@ -33,13 +39,28 @@ struct SubCategoriesSection: View {
         .navigationDestination(item: $editing) { item in
             SubCategoryDetailView(viewModel: viewModel, subCatId: item.subCatId)
         }
-        .alert("Couldn't restore", isPresented: Binding(
-            get: { restoreError != nil },
-            set: { if !$0 { restoreError = nil } }
+        .alert(SubCategoryWording.deleteButton, isPresented: Binding(
+            get: { deleting != nil },
+            set: { if !$0 { deleting = nil } }
+        ), presenting: deleting) { item in
+            Button("Cancel", role: .cancel) {}
+            Button(SubCategoryWording.deleteButton, role: .destructive) {
+                Task {
+                    if let message = await viewModel.delete(item) {
+                        actionError = ActionError(title: "Couldn't delete", message: message)
+                    }
+                }
+            }
+        } message: { item in
+            Text(SubCategoryWording.deleteMessage(for: item))
+        }
+        .alert(actionError?.title ?? "", isPresented: Binding(
+            get: { actionError != nil },
+            set: { if !$0 { actionError = nil } }
         )) {
-            Button("OK", role: .cancel) { restoreError = nil }
+            Button("OK", role: .cancel) { actionError = nil }
         } message: {
-            Text(restoreError ?? "")
+            Text(actionError?.message ?? "")
         }
     }
 
@@ -97,6 +118,10 @@ struct SubCategoriesSection: View {
                     ActiveSubCategoryRow(item: item)
                 }
                 .disabled(viewModel.isBusy(item))
+                .contextMenu {
+                    Button("Edit") { editing = item }
+                    Button("Delete", role: .destructive) { deleting = item }
+                }
             }
         }
 
@@ -109,7 +134,9 @@ struct SubCategoriesSection: View {
             rows(viewModel.archived) { item in
                 ArchivedSubCategoryRow(item: item, isBusy: viewModel.isBusy(item)) {
                     Task {
-                        restoreError = await viewModel.restore(item)
+                        if let message = await viewModel.restore(item) {
+                            actionError = ActionError(title: "Couldn't restore", message: message)
+                        }
                     }
                 }
             }

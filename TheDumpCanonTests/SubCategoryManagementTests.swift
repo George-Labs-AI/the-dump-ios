@@ -27,7 +27,7 @@ final class SubCategoryManagementTests: XCTestCase {
     ) -> SubCategoryItem {
         SubCategoryItem(
             subCatId: id, categoryId: 19, name: name, description: description, keywords: keywords,
-            noteCount: noteCount, archived: archived, archivedAt: archived ? "2026-10-19T10:00:00Z" : nil,
+            noteCount: noteCount, archived: archived, archivedAt: archived ? "2026-10-01T09:30:00" : nil,
             routines: routines
         )
     }
@@ -84,8 +84,10 @@ final class SubCategoryManagementTests: XCTestCase {
     }
 
     func testArchivedAtAloneMeansArchived() throws {
-        let decoded = try decode(SubCategoryItem.self, #"{"sub_cat_id": 1, "name": "a", "archived_at": "2026-10-19"}"#)
+        // The server sends the categories' format: no time zone.
+        let decoded = try decode(SubCategoryItem.self, #"{"sub_cat_id": 1, "name": "a", "archived_at": "2026-10-01T09:30:00"}"#)
         XCTAssertTrue(decoded.archived)
+        XCTAssertEqual(decoded.archivedAt, "2026-10-01T09:30:00")
         let explicit = try decode(SubCategoryItem.self, #"{"sub_cat_id": 1, "name": "a", "archived": true}"#)
         XCTAssertTrue(explicit.archived)
     }

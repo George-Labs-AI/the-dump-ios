@@ -60,6 +60,17 @@ struct AddSubCategoryView: View {
                                 .autocorrectionDisabled()
                                 .textInputAutocapitalization(.never)
                                 .focused($focusedField, equals: .name)
+                                .onChange(of: subCategoryName) { _, newValue in
+                                    // The server refuses names over 80 characters.
+                                    let limited = CategoryLimits.limitedName(newValue)
+                                    if limited != newValue { subCategoryName = limited }
+                                }
+
+                            if CategoryLimits.isNameAtLimit(subCategoryName) {
+                                Text(SubCategoryWording.nameTooLong(CategoryLimits.maxNameLength))
+                                    .font(.system(size: Theme.fontSizeXS))
+                                    .foregroundColor(Theme.textTertiary)
+                            }
                         }
 
                         // Description (optional)
@@ -200,7 +211,8 @@ struct AddSubCategoryView: View {
                 }
             } catch {
                 await MainActor.run {
-                    errorMessage = error.localizedDescription
+                    // The server's own words for a name already taken.
+                    errorMessage = SubCategoryWording.message(for: error, fallback: error.localizedDescription)
                     isLoading = false
                 }
             }
