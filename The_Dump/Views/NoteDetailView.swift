@@ -6,12 +6,14 @@ import Combine
 struct NoteDetailView: View {
     private let noteID: String
     @StateObject private var viewModel: NoteDetailViewModel
+    @ObservedObject private var noteTypes = NoteTypeCatalog.shared
+    @Environment(\.dismiss) private var dismiss
     @State private var showMetadataSheet = false
     @State private var showOriginalAsset = false
     @State private var showAssetError = false
-    @State private var isEditing = false
-    @State private var draftTitle = ""
-    @State private var draftContent = ""
+    @State private var showDeleteConfirmation = false
+    @State private var linkedNoteID = ""
+    @State private var showLinkedNote = false
 
     init(noteID: String) {
         self.noteID = noteID
@@ -47,50 +49,31 @@ struct NoteDetailView: View {
                             // Compact metadata header
                             NoteMetadataHeader(note: note)
 
-                            if isEditing {
-                                VStack(alignment: .leading, spacing: Theme.spacingSM) {
-                                    Text("Title")
-                                        .font(.system(size: Theme.fontSizeSM, weight: .semibold))
-                                        .foregroundColor(Theme.textSecondary)
-
-                                    TextField("Title", text: $draftTitle)
-                                        .textInputAutocapitalization(.sentences)
-                                        .disableAutocorrection(false)
-                                        .padding(.vertical, Theme.spacingXS)
-
-                                    if draftTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                        Text("Title is required.")
-                                            .font(.system(size: Theme.fontSizeXS))
-                                            .foregroundColor(Theme.accent)
-                                    }
-
-                                    Text("Content")
-                                        .font(.system(size: Theme.fontSizeSM, weight: .semibold))
-                                        .foregroundColor(Theme.textSecondary)
-
-                                    TextEditor(text: $draftContent)
-                                        .font(.system(size: Theme.fontSizeMD))
-                                        .foregroundColor(Theme.textPrimary)
-                                        .frame(minHeight: 220)
-                                        .padding(.vertical, Theme.spacingXS)
-                                        .background(Color.clear)
-                                        .scrollContentBackground(.hidden)
-                                }
+                            if viewModel.isEditing {
+                                editForm
                             } else {
-                                // Main content
-                                Text(note.note_content)
-                                    .font(.system(size: Theme.fontSizeMD))
-                                    .foregroundColor(Theme.textPrimary)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .textSelection(.enabled)
+                                // Main content, formatted. Editing stays plain text.
+                                LazyVStack(alignment: .leading, spacing: Theme.spacingSMPlus) {
+                                    ForEach(viewModel.bodyBlocks) { indexed in
+                                        MarkdownBlockView(block: indexed.block)
+                                    }
+                                }
                             }
 
                         }
                         .padding(Theme.spacingLG)
                     }
-                    .onAppear {
-                        hydrateDraft(from: note)
-                    }
+                    // Links in the body: only http(s) leaves the app, and a
+                    // note link opens that note here.
+                    .environment(\.openURL, OpenURLAction { url in
+                        if let linkedID = MarkdownBlockParser.noteID(from: url) {
+                            linkedNoteID = linkedID
+                            showLinkedNote = true
+                            return .handled
+                        }
+                        let scheme = url.scheme?.lowercased() ?? ""
+                        return (scheme == "http" || scheme == "https") ? .systemAction : .discarded
+                    })
                 } else {
                     Text("No content.")
                         .font(.system(size: Theme.fontSizeSM))
@@ -103,7 +86,7 @@ struct NoteDetailView: View {
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                if viewModel.note != nil && !isEditing && viewModel.hasOriginalAsset {
+                if viewModel.note != nil && !viewModel.isEditing && viewModel.hasOriginalAsset {
                     Button {
                         Task { await viewModel.fetchOriginalAsset() }
                     } label: {
@@ -116,47 +99,61 @@ struct NoteDetailView: View {
                         }
                     }
                     .disabled(viewModel.isLoadingAsset)
+                    .accessibilityLabel("View original")
                 }
             }
 
             ToolbarItem(placement: .topBarTrailing) {
-                if viewModel.note != nil && !isEditing {
+                if viewModel.note != nil && !viewModel.isEditing {
                     Button {
                         showMetadataSheet = true
                     } label: {
                         Image(systemName: "info.circle")
                             .foregroundColor(Theme.textSecondary)
                     }
+                    .accessibilityLabel("Note info")
+                }
+            }
+
+            ToolbarItem(placement: .topBarTrailing) {
+                if viewModel.note != nil && !viewModel.isEditing {
+                    Button {
+                        showDeleteConfirmation = true
+                    } label: {
+                        if viewModel.isDeleting {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "trash")
+                                .foregroundColor(Theme.textSecondary)
+                        }
+                    }
+                    .disabled(viewModel.isDeleting)
+                    .accessibilityLabel("Delete note")
                 }
             }
 
             ToolbarItemGroup(placement: .topBarTrailing) {
                 if viewModel.note != nil {
-                    if isEditing {
+                    if viewModel.isEditing {
                         Button("Cancel") {
-                            cancelEdits()
+                            viewModel.cancelEditing()
                         }
                         .foregroundColor(Theme.textSecondary)
+                        .disabled(viewModel.isSaving)
 
                         Button(viewModel.isSaving ? "Saving..." : "Save") {
-                            Task {
-                                let trimmedTitle = draftTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-                                let saved = await viewModel.saveEdits(
-                                    title: trimmedTitle,
-                                    content: draftContent
-                                )
-                                if saved {
-                                    isEditing = false
-                                }
-                            }
+                            Task { _ = await viewModel.saveEdits() }
                         }
                         .foregroundColor(Theme.accent)
-                        .disabled(!canSave || viewModel.isSaving)
+                        .disabled(!viewModel.draft.canSave || viewModel.isSaving)
                     } else {
                         Button("Edit") {
-                            toggleEditMode()
+                            viewModel.beginEditing()
+                            Task { await viewModel.loadEditOptions() }
                         }
                         .foregroundColor(Theme.accent)
+                        .disabled(viewModel.isDeleting)
                     }
                 }
             }
@@ -170,6 +167,9 @@ struct NoteDetailView: View {
             if let asset = viewModel.assetResponse {
                 OriginalAssetView(asset: asset)
             }
+        }
+        .navigationDestination(isPresented: $showLinkedNote) {
+            NoteDetailView(noteID: linkedNoteID)
         }
         .onChange(of: viewModel.assetResponse) { _, newValue in
             if newValue != nil {
@@ -188,52 +188,172 @@ struct NoteDetailView: View {
         } message: {
             Text(viewModel.assetErrorMessage ?? "")
         }
+        .alert("Delete Note", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                Task {
+                    if await viewModel.deleteNote() {
+                        dismiss()
+                    }
+                }
+            }
+        } message: {
+            Text("Are you sure you want to delete this note? This action cannot be undone.")
+        }
+        .alert(
+            "Couldn't Delete Note",
+            isPresented: Binding(
+                get: { viewModel.deleteErrorMessage != nil },
+                set: { if !$0 { viewModel.deleteErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(viewModel.deleteErrorMessage ?? "")
+        }
         .task {
             await viewModel.loadIfNeeded()
         }
         .navigationTitle(navTitle)
     }
 
-    private var canSave: Bool {
-        guard let note = viewModel.note else { return false }
-        let trimmedTitle = draftTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedContent = draftContent.trimmingCharacters(in: .whitespacesAndNewlines)
-        let originalTitle = (note.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let originalContent = note.note_content.trimmingCharacters(in: .whitespacesAndNewlines)
+    // MARK: - Edit form
 
-        let contentChanged = trimmedContent != originalContent
-        let titleChanged = trimmedTitle != originalTitle
-        let hasChanges = contentChanged || titleChanged
+    private var editForm: some View {
+        VStack(alignment: .leading, spacing: Theme.spacingSM) {
+            if let error = viewModel.errorMessage {
+                Text(error)
+                    .font(.system(size: Theme.fontSizeSM))
+                    .foregroundColor(Theme.accent)
+            }
 
-        let contentSizeOK = trimmedContent.utf8.count <= 500 * 1024
-        let titleValid = !trimmedTitle.isEmpty
-        return hasChanges && contentSizeOK && titleValid
-    }
+            fieldLabel("Title")
 
-    private func hydrateDraft(from note: NoteDetail) {
-        if !isEditing {
-            draftTitle = note.title ?? ""
-            draftContent = note.note_content
+            TextField("Title", text: $viewModel.draft.title)
+                .textInputAutocapitalization(.sentences)
+                .disableAutocorrection(false)
+                .padding(.vertical, Theme.spacingXS)
+
+            if !viewModel.draft.isTitleValid {
+                Text("Title is required.")
+                    .font(.system(size: Theme.fontSizeXS))
+                    .foregroundColor(Theme.accent)
+            }
+
+            categoryPicker
+            subCategoryPicker
+            typePicker
+
+            fieldLabel("Content")
+
+            TextEditor(text: $viewModel.draft.content)
+                .font(.system(size: Theme.fontSizeMD))
+                .foregroundColor(Theme.textPrimary)
+                .frame(minHeight: 220)
+                .padding(.vertical, Theme.spacingXS)
+                .background(Color.clear)
+                .scrollContentBackground(.hidden)
+
+            if !viewModel.draft.isContentSizeOK {
+                Text("This note is too long to save (500 KB at most).")
+                    .font(.system(size: Theme.fontSizeXS))
+                    .foregroundColor(Theme.accent)
+            }
         }
     }
 
-    private func toggleEditMode() {
-        guard let note = viewModel.note else { return }
-        if isEditing {
-            cancelEdits()
-        } else {
-            draftTitle = note.title ?? ""
-            draftContent = note.note_content
-            isEditing = true
+    private func fieldLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: Theme.fontSizeSM, weight: .semibold))
+            .foregroundColor(Theme.textSecondary)
+    }
+
+    private var categoryPicker: some View {
+        VStack(alignment: .leading, spacing: Theme.spacingXS) {
+            HStack(spacing: Theme.spacingSM) {
+                fieldLabel("Category")
+                if viewModel.isLoadingEditOptions {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+                Spacer()
+                Picker(
+                    "Category",
+                    selection: Binding(
+                        get: { viewModel.draft.categoryId },
+                        set: { viewModel.selectCategory(id: $0) }
+                    )
+                ) {
+                    ForEach(viewModel.categoryChoices, id: \.key) { choice in
+                        Text(choice.label).tag(choice.id)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .tint(Theme.textPrimary)
+            }
+
+            if let error = viewModel.editOptionsError {
+                HStack(spacing: Theme.spacingSM) {
+                    Text(error)
+                        .font(.system(size: Theme.fontSizeXS))
+                        .foregroundColor(Theme.accent)
+                    Button("Retry") {
+                        Task { await viewModel.loadEditOptions() }
+                    }
+                    .font(.system(size: Theme.fontSizeXS, weight: .semibold))
+                    .foregroundColor(Theme.accent)
+                }
+            }
         }
     }
 
-    private func cancelEdits() {
-        if let note = viewModel.note {
-            draftTitle = note.title ?? ""
-            draftContent = note.note_content
+    private var subCategoryPicker: some View {
+        let choices = viewModel.subCategoryChoices
+        let draft = viewModel.draft
+
+        return VStack(alignment: .leading, spacing: Theme.spacingSM) {
+            fieldLabel("Sub-categories")
+
+            if choices.isEmpty {
+                Text(viewModel.isLoadingEditOptions ? "Loading…" : "This category has no sub-categories.")
+                    .font(.system(size: Theme.fontSizeXS))
+                    .foregroundColor(Theme.textSecondary)
+            } else {
+                FlowLayout(spacing: Theme.spacingSM) {
+                    ForEach(choices, id: \.self) { name in
+                        let isSelected = draft.isSubCategorySelected(name)
+                        SubCategoryChip(
+                            text: name,
+                            isSelected: isSelected,
+                            isEnabled: isSelected || draft.canAddSubCategory
+                        ) {
+                            viewModel.toggleSubCategory(name)
+                        }
+                    }
+                }
+
+                Text("Choose up to \(NoteEditDraft.maxSubCategories).")
+                    .font(.system(size: Theme.fontSizeXS))
+                    .foregroundColor(Theme.textSecondary)
+            }
         }
-        isEditing = false
+        .padding(.vertical, Theme.spacingXS)
+    }
+
+    private var typePicker: some View {
+        HStack(spacing: Theme.spacingSM) {
+            fieldLabel("Type")
+            Spacer()
+            Picker("Type", selection: $viewModel.draft.noteType) {
+                ForEach(viewModel.draft.typeChoices(from: noteTypes.types), id: \.value) { choice in
+                    Text(choice.label).tag(choice.value)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .tint(Theme.textPrimary)
+        }
     }
 
     private func displayTitle(for note: NoteDetail) -> String {
@@ -250,30 +370,68 @@ struct NoteDetailView: View {
     }
 }
 
+// MARK: - Sub-category chip
+
+private struct SubCategoryChip: View {
+    let text: String
+    let isSelected: Bool
+    let isEnabled: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: Theme.spacingXS) {
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                Text(text)
+                    .font(.system(size: Theme.fontSizeSM, weight: isSelected ? .semibold : .regular))
+                    .lineLimit(1)
+            }
+            .foregroundColor(isSelected ? Theme.background : Theme.textPrimary)
+            .padding(.horizontal, Theme.spacingSMPlus)
+            .padding(.vertical, Theme.spacingSM)
+            .background(isSelected ? Theme.textPrimary : Theme.surface2)
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.4)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
 // MARK: - Compact Metadata Header (inline, subtle)
 
 private struct NoteMetadataHeader: View {
     let note: NoteDetail
 
     var body: some View {
-        HStack(spacing: Theme.spacingSM) {
-            // Category pill
-            if let category = note.category_name, !category.isEmpty {
-                MetadataPill(text: category, icon: "folder")
+        VStack(alignment: .leading, spacing: Theme.spacingSM) {
+            HStack(spacing: Theme.spacingSM) {
+                // Category pill
+                if let category = note.category_name, !category.isEmpty {
+                    MetadataPill(text: category, icon: "folder")
+                }
+
+                // Date
+                if let dateString = formattedDate(note.note_content_modified) {
+                    MetadataPill(text: dateString, icon: "clock")
+                }
+
+                Spacer()
             }
 
-            // Date
-            if let dateString = formattedDate(note.note_content_modified) {
-                MetadataPill(text: dateString, icon: "clock")
+            // Sender of an emailed note; the owner's own notes have none.
+            if let author = note.author?.trimmingCharacters(in: .whitespacesAndNewlines), !author.isEmpty {
+                MetadataPill(text: "from \(author)", icon: "envelope")
             }
-
-            Spacer()
         }
     }
 
-    private func formattedDate(_ iso: String) -> String? {
-        let formatter = ISO8601DateFormatter()
-        guard let date = formatter.date(from: iso) else { return nil }
+    private func formattedDate(_ raw: String) -> String? {
+        guard let date = NoteDates.parse(raw) else { return nil }
 
         let relative = RelativeDateTimeFormatter()
         relative.unitsStyle = .short
@@ -291,6 +449,8 @@ private struct MetadataPill: View {
                 .font(.system(size: 10))
             Text(text)
                 .font(.system(size: Theme.fontSizeXS))
+                .lineLimit(1)
+                .truncationMode(.middle)
         }
         .foregroundColor(Theme.textSecondary)
         .padding(.horizontal, Theme.spacingSM)
@@ -332,20 +492,12 @@ private struct NoteMetadataSheet: View {
                         .listRowBackground(Theme.surface)
                     }
 
-                    // Tags
-                    if let tags = note.tags, !tags.isEmpty {
-                        Section("Tags") {
-                            FlowLayout(spacing: 8) {
-                                ForEach(tags, id: \.self) { tag in
-                                    TagChip(text: tag)
-                                }
-                            }
-                        }
-                        .listRowBackground(Theme.surface)
-                    }
-
                     // Details
                     Section("Details") {
+                        if let author = note.author?.trimmingCharacters(in: .whitespacesAndNewlines), !author.isEmpty {
+                            MetadataRow(label: "From", value: author)
+                        }
+
                         if let mimeType = note.mime_type, !mimeType.isEmpty {
                             MetadataRow(label: "Type", value: friendlyMimeType(mimeType))
                         }
@@ -387,9 +539,8 @@ private struct NoteMetadataSheet: View {
         }
     }
 
-    private func formattedFullDate(_ iso: String) -> String? {
-        let formatter = ISO8601DateFormatter()
-        guard let date = formatter.date(from: iso) else { return nil }
+    private func formattedFullDate(_ raw: String) -> String? {
+        guard let date = NoteDates.parse(raw) else { return nil }
 
         let out = DateFormatter()
         out.locale = .current
@@ -416,21 +567,7 @@ private struct MetadataRow: View {
     }
 }
 
-private struct TagChip: View {
-    let text: String
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: Theme.fontSizeSM))
-            .foregroundColor(Theme.textPrimary)
-            .padding(.horizontal, Theme.spacingSMPlus)
-            .padding(.vertical, 6)
-            .background(Theme.surface2)
-            .cornerRadius(Theme.cornerRadiusXS)
-    }
-}
-
-// Simple flow layout for tags
+// Simple flow layout for chips (also used by onboarding)
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
 
