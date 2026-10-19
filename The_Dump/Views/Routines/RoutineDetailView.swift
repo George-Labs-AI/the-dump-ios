@@ -73,6 +73,8 @@ struct RoutineDetailView: View {
     /// Health, Pause / Resume and the way back to the runner instructions.
     /// As on the web, Pause / Resume only appears when the server sent a
     /// status, because without one the app can't tell which state it is in.
+    /// It is also left out for a status code the app can't read, which shows
+    /// no status chip, so there is never a Pause button without a status.
     @ViewBuilder
     private var statusSection: some View {
         if let routine = viewModel.routine {
@@ -89,7 +91,7 @@ struct RoutineDetailView: View {
                     }
                 }
 
-                if let status = routine.status {
+                if let status = routine.status, RoutineStatusDisplay(status: status) != .hidden {
                     Button {
                         Task { await viewModel.setPaused(!status.isPaused) }
                     } label: {
@@ -105,7 +107,9 @@ struct RoutineDetailView: View {
                         .foregroundColor(Theme.accent)
                     }
                     .buttonStyle(.plain)
-                    .disabled(viewModel.isUpdatingPause)
+                    // A reload finishing after the change would bring back
+                    // the old status, so wait for it.
+                    .disabled(viewModel.isUpdatingPause || viewModel.isLoading)
 
                     if let pauseError = viewModel.pauseErrorMessage {
                         Text("Couldn't update: \(pauseError)")
@@ -122,7 +126,7 @@ struct RoutineDetailView: View {
                         .foregroundColor(Theme.textPrimary)
                 }
             } footer: {
-                if routine.status != nil {
+                if let status = routine.status, RoutineStatusDisplay(status: status) != .hidden {
                     Text("While a routine is paused, your runner is asked to skip its runs and The Dump stops warning you that it isn't running.")
                         .font(.system(size: Theme.fontSizeXS))
                         .foregroundColor(Theme.textTertiary)
