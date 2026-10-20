@@ -8,6 +8,9 @@ struct OnboardingFirstNoteScreen: View {
     let onLeave: () -> Void
     @Environment(\.openURL) private var openURL
     @State private var showChangePicker = false
+    /// Screen 5c: while the first note is being typed, the stats and the
+    /// category list make room for the keyboard; the headline stays.
+    @State private var isTypingFirstNote = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -25,8 +28,9 @@ struct OnboardingFirstNoteScreen: View {
             }
             footer
                 .padding(.horizontal, OnboardingStyle.gutter)
-                .padding(.bottom, 40)
+                .padding(.bottom, isTypingFirstNote ? 12 : 40)
         }
+        .animation(.easeInOut(duration: 0.25), value: isTypingFirstNote)
         .task(id: viewModel.progress.firstNote?.fileUuid) {
             await viewModel.pollFirstNote()
         }
@@ -52,20 +56,24 @@ struct OnboardingFirstNoteScreen: View {
             }
             .padding(.top, 48)
 
-            HStack(alignment: .top, spacing: 8) {
-                stat(viewModel.savedCategoryCount, "Categories")
-                stat(viewModel.savedNameCount, "Names it knows")
-                stat(0, "Folders to manage", highlighted: true)
-            }
-            .padding(.top, 40)
+            if !isTypingFirstNote {
+                HStack(alignment: .top, spacing: 8) {
+                    stat(viewModel.savedCategoryCount, "Categories")
+                    stat(viewModel.savedNameCount, "Names it knows")
+                    stat(0, "Folders to manage", highlighted: true)
+                }
+                .padding(.top, 40)
+                .transition(.opacity)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Your categories").onboardingLabel()
-                Text(viewModel.savedCategoryLine)
-                    .onboardingBody(OnboardingStyle.text)
-                    .lineSpacing(7)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Your categories").onboardingLabel()
+                    Text(viewModel.savedCategoryLine)
+                        .onboardingBody(OnboardingStyle.text)
+                        .lineSpacing(7)
+                }
+                .padding(.top, 36)
+                .transition(.opacity)
             }
-            .padding(.top, 36)
         }
     }
 
@@ -221,14 +229,7 @@ struct OnboardingFirstNoteScreen: View {
     @ViewBuilder
     private var footer: some View {
         if viewModel.step == .done {
-            VStack(spacing: 16) {
-                Text("Type, talk, or add a photo or file.")
-                    .onboardingCaption()
-                    .multilineTextAlignment(.center)
-                OnboardingCaptureBar(viewModel: viewModel)
-                Button("Go to my Dump →", action: onLeave)
-                    .buttonStyle(OnboardingLinkStyle(color: OnboardingStyle.text, font: OnboardingStyle.captionMedium))
-            }
+            OnboardingCaptureBar(viewModel: viewModel, isTyping: $isTypingFirstNote, onLeave: onLeave)
         } else if viewModel.progress.firstNote?.status == .failed {
             // 6c: one way forward, no retry; the categories are saved.
             Button("Go to my Dump", action: onLeave)
@@ -281,14 +282,17 @@ struct OnboardingFirstNoteScreen: View {
     }
 }
 
-// MARK: - Screen 5's capture bar
+// MARK: - Screen 5's capture bar (5, 5b, 5c)
 
-/// "+" adds a photo or file, the label opens the keyboard, and the mic
-/// records. Any of them saves the first note and moves to screen 6.
+/// "+" adds a photo or file, the label opens the keyboard (5c), and the mic
+/// records right in the bar (5b). Any of them saves the first note and
+/// moves to screen 6. The hint above the bar and the link under it change
+/// with the bar.
 struct OnboardingCaptureBar: View {
     @ObservedObject var viewModel: OnboardingV2ViewModel
+    @Binding var isTyping: Bool
+    let onLeave: () -> Void
     @StateObject private var recorder = AudioRecorderService()
-    @State private var isTyping = false
     @State private var text = ""
     @State private var showSourceDialog = false
     @State private var showCamera = false
@@ -299,33 +303,30 @@ struct OnboardingCaptureBar: View {
     @State private var micDenied = false
     @FocusState private var isFocused: Bool
 
-    var body: some View {
-        VStack(spacing: 8) {
-            Group {
-                if recorder.state == .recording {
-                    recordingBar
-                } else if viewModel.isSavingFirstNote {
-                    savingBar
-                } else if isTyping {
-                    typingBar
-                } else {
-                    restingBar
-                }
-            }
-            .frame(minHeight: 56)
-            .background {
-                if recorder.state == .recording || viewModel.isSavingFirstNote || isTyping {
-                    RoundedRectangle(cornerRadius: 28).fill(OnboardingStyle.surface)
-                }
-            }
+    private var isRecording: Bool { recorder.state == .recording }
+    private var hasText: Bool { !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
+    var body: some View {
+        VStack(spacing: 16) {
+            if let hint {
+                Text(hint)
+                    .onboardingCaption()
+                    .multilineTextAlignment(.center)
+            }
+            bar
+                .frame(minHeight: 56)
+                .background(RoundedRectangle(cornerRadius: 28).fill(OnboardingStyle.text))
             if micDenied {
                 Text("The Dump can’t use your microphone. Type instead, or turn the mic on in Settings.")
                     .onboardingCaption()
+                    .multilineTextAlignment(.center)
             }
             if let error = viewModel.firstNoteError {
-                Text(error).onboardingCaption(OnboardingStyle.danger)
+                Text(error)
+                    .onboardingCaption(OnboardingStyle.danger)
+                    .multilineTextAlignment(.center)
             }
+            link
         }
         .confirmationDialog("Add a photo or file", isPresented: $showSourceDialog) {
             if UIImagePickerController.isSourceTypeAvailable(.camera) {
@@ -357,14 +358,50 @@ struct OnboardingCaptureBar: View {
             }
         }
         .onChange(of: recorder.duration) { _, duration in
-            if recorder.state == .recording, duration >= viewModel.recordingLimits.hardStopSeconds {
+            if isRecording, duration >= viewModel.recordingLimits.hardStopSeconds {
                 stopRecording()
+            }
+        }
+        .onChange(of: isFocused) { _, focused in
+            // Tapping outside the box closes the keyboard and returns to 5,
+            // keeping what was typed.
+            if !focused && !viewModel.isSavingFirstNote {
+                isTyping = false
             }
         }
     }
 
-    /// As drawn on screen 5: a white pill with "+" and "Start dumping" on
-    /// the left and a black mic on the right.
+    private var hint: String? {
+        if isRecording { return "Listening. Tap stop when you’re done." }
+        if isTyping || viewModel.isSavingFirstNote { return nil }
+        return "Type, talk, or add a photo or file."
+    }
+
+    @ViewBuilder
+    private var link: some View {
+        if isRecording {
+            Button("Cancel") { recorder.discardRecording() }
+                .buttonStyle(OnboardingLinkStyle(color: OnboardingStyle.text, font: OnboardingStyle.captionMedium))
+        } else if !isTyping {
+            Button("Go to my Dump →", action: onLeave)
+                .buttonStyle(OnboardingLinkStyle(color: OnboardingStyle.text, font: OnboardingStyle.captionMedium))
+        }
+    }
+
+    @ViewBuilder
+    private var bar: some View {
+        if isRecording {
+            recordingBar
+        } else if viewModel.isSavingFirstNote {
+            savingBar
+        } else if isTyping {
+            typingBar
+        } else {
+            restingBar
+        }
+    }
+
+    /// Screen 5: "+" and "Start dumping" on the left, a black mic on the right.
     private var restingBar: some View {
         HStack(spacing: 12) {
             Button {
@@ -383,110 +420,134 @@ struct OnboardingCaptureBar: View {
             Button {
                 viewModel.clearFirstNoteError()
                 isTyping = true
+                isFocused = true
             } label: {
-                Text("Start dumping")
+                Text(hasText ? text : "Start dumping")
                     .font(OnboardingStyle.button)
                     .foregroundColor(OnboardingStyle.background)
+                    .lineLimit(1)
                     .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityHint("Type a note")
 
-            Button(action: startRecording) {
-                Image(systemName: "mic")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(OnboardingStyle.text)
+            micButton
+        }
+        .padding(.horizontal, 8)
+    }
+
+    /// Screen 5c: a text box that grows to a few lines; the mic turns into a
+    /// send arrow once there is any text.
+    private var typingBar: some View {
+        HStack(alignment: .bottom, spacing: 12) {
+            TextField("", text: $text, prompt: Text("Start dumping").foregroundColor(OnboardingStyle.secondary), axis: .vertical)
+                .font(.system(size: 17))
+                .foregroundColor(OnboardingStyle.background)
+                .tint(OnboardingStyle.background)
+                .lineSpacing(3)
+                .lineLimit(1...5)
+                .focused($isFocused)
+                .padding(.vertical, 8)
+                .onAppear { isFocused = true }
+                .accessibilityLabel("Your first note")
+            if hasText {
+                Button(action: sendText) {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(OnboardingStyle.text)
+                        .frame(width: 40, height: 40)
+                        .background(Circle().fill(OnboardingStyle.background))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Save note")
+            } else {
+                micButton
+            }
+        }
+        .padding(.vertical, 8)
+        .padding(.leading, 20)
+        .padding(.trailing, 8)
+    }
+
+    /// Screen 5b: a red dot, the time and live level bars, with the mic
+    /// turned into a stop button. Stop saves the note; Cancel (under the
+    /// bar) throws the recording away.
+    private var recordingBar: some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(OnboardingStyle.danger)
+                .frame(width: 8, height: 8)
+                .padding(.leading, 12)
+                .accessibilityHidden(true)
+            Text(OnboardingRecordingPrompt.clock(recorder.duration))
+                .font(OnboardingStyle.button)
+                .monospacedDigit()
+                .foregroundColor(OnboardingStyle.background)
+                .accessibilityLabel("Recording, \(OnboardingRecordingPrompt.clock(recorder.duration))")
+            OnboardingLevelBars(level: recorder.level, style: .captureBar)
+            Spacer(minLength: 0)
+            Button(action: stopRecording) {
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(OnboardingStyle.text)
+                    .frame(width: 14, height: 14)
                     .frame(width: 40, height: 40)
                     .background(Circle().fill(OnboardingStyle.background))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Record a note")
-        }
-        .padding(.horizontal, 8)
-        .background(Capsule().fill(OnboardingStyle.text))
-    }
-
-    private var typingBar: some View {
-        HStack(alignment: .bottom, spacing: 8) {
-            TextField("", text: $text, prompt: Text("Start dumping").foregroundColor(OnboardingStyle.placeholder), axis: .vertical)
-                .font(OnboardingStyle.body)
-                .foregroundColor(OnboardingStyle.text)
-                .lineLimit(1...6)
-                .focused($isFocused)
-                .padding(.leading, 20)
-                .padding(.vertical, 17)
-                .onAppear { isFocused = true }
-            Button {
-                let note = text
-                isFocused = false
-                Task {
-                    await viewModel.submitFirstText(note)
-                    if viewModel.firstNoteError == nil {
-                        text = ""
-                        isTyping = false
-                    }
-                }
-            } label: {
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(OnboardingStyle.background)
-                    .frame(width: 36, height: 36)
-                    .background(Circle().fill(OnboardingStyle.text))
-            }
-            .buttonStyle(.plain)
-            .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            .padding(10)
-            .accessibilityLabel("Save note")
-        }
-    }
-
-    private var recordingBar: some View {
-        HStack(spacing: 12) {
-            Text(OnboardingRecordingPrompt.clock(recorder.duration))
-                .font(OnboardingStyle.bodyMedium)
-                .monospacedDigit()
-                .foregroundColor(OnboardingStyle.text)
-                .padding(.leading, 20)
-            OnboardingLevelBars(level: recorder.level, barCount: 8)
-            Spacer()
-            Button("Cancel") {
-                recorder.discardRecording()
-            }
-            .buttonStyle(OnboardingLinkStyle())
-            Button(action: stopRecording) {
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(OnboardingStyle.background)
-                    .frame(width: 12, height: 12)
-                    .frame(width: 36, height: 36)
-                    .background(Circle().fill(OnboardingStyle.text))
-            }
-            .buttonStyle(.plain)
-            .padding(10)
             .accessibilityLabel("Stop and save")
         }
+        .padding(.horizontal, 8)
     }
 
     private var savingBar: some View {
         HStack(spacing: 10) {
-            ProgressView().tint(OnboardingStyle.secondary)
-            Text("Saving…").onboardingCaption()
+            ProgressView().tint(OnboardingStyle.background)
+            Text("Saving…")
+                .font(OnboardingStyle.button)
+                .foregroundColor(OnboardingStyle.background)
             Spacer()
         }
         .padding(.horizontal, 20)
     }
 
+    private var micButton: some View {
+        Button(action: startRecording) {
+            Image(systemName: "mic")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(OnboardingStyle.text)
+                .frame(width: 40, height: 40)
+                .background(Circle().fill(OnboardingStyle.background))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Record a note")
+    }
+
+    private func sendText() {
+        let note = text
+        Task {
+            await viewModel.submitFirstText(note)
+            if viewModel.firstNoteError == nil {
+                text = ""
+                isTyping = false
+            }
+        }
+    }
+
     private func startRecording() {
         viewModel.clearFirstNoteError()
         micDenied = false
+        isFocused = false
         Task {
             guard await OnboardingMicrophone.isAllowed() else {
                 micDenied = true
                 isTyping = true
+                isFocused = true
                 return
             }
             do {
                 try recorder.startRecording(sampleRate: 16_000)
+                isTyping = false
             } catch {
                 recorder.reset()
             }

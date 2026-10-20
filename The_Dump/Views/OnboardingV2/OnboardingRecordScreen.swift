@@ -303,24 +303,46 @@ enum OnboardingRecordingPrompt {
     }
 }
 
-/// A row of level bars, as on 2c: the most recent levels in white, newest
-/// on the right, with dim short bars until enough have been heard.
+/// A row of level bars: the most recent levels, newest on the right, with
+/// short dim bars until enough have been heard.
 struct OnboardingLevelBars: View {
+    /// The two drawn sizes: white on black (2c, 3) and black on the white
+    /// capture bar (5b).
+    struct Style {
+        var color: Color = OnboardingStyle.text
+        var waitingColor: Color = OnboardingStyle.text.opacity(0.3)
+        var barWidth: CGFloat = 3
+        var spacing: CGFloat = 5
+        var maxHeight: CGFloat = 28
+        var minHeight: CGFloat = 6
+
+        static let standard = Style()
+        static let captureBar = Style(
+            color: OnboardingStyle.background,
+            waitingColor: OnboardingStyle.secondary,
+            barWidth: 2,
+            spacing: 4,
+            maxHeight: 18,
+            minHeight: 4
+        )
+    }
+
     let level: Float
     var isRecording = true
     var barCount = 14
+    var style: Style = .standard
     @State private var history: [Float] = []
 
     var body: some View {
-        HStack(alignment: .center, spacing: 5) {
+        HStack(alignment: .center, spacing: style.spacing) {
             ForEach(0..<barCount, id: \.self) { index in
                 let sample = index < history.count ? history[index] : nil
                 Capsule()
-                    .fill(OnboardingStyle.text.opacity(sample == nil ? 0.3 : 1))
-                    .frame(width: 3, height: sample.map { max(6, 28 * CGFloat($0)) } ?? 6)
+                    .fill(sample == nil ? style.waitingColor : style.color)
+                    .frame(width: style.barWidth, height: sample.map { max(style.minHeight, style.maxHeight * CGFloat($0)) } ?? style.minHeight)
             }
         }
-        .frame(height: 28)
+        .frame(height: style.maxHeight)
         .animation(.easeOut(duration: 0.1), value: history)
         .onChange(of: level) { _, newLevel in
             guard isRecording else { return }
