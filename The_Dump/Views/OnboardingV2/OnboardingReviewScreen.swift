@@ -4,38 +4,38 @@ import SwiftUI
 
 struct OnboardingReviewScreen: View {
     @ObservedObject var viewModel: OnboardingV2ViewModel
-    /// The card being edited on 4b; a new card when `isAdding`.
+    /// The card being edited on 4b.
     @State private var editing: OnboardingCard?
+    /// 4c: a new, blank card.
     @State private var isAdding = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             OnboardingProgressBar(filled: 3)
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .bottom) {
                         Text("Here’s what we heard.")
                             .onboardingHeadline()
+                            .frame(maxWidth: 240, alignment: .leading)
                             .accessibilityAddTraits(.isHeader)
                         Spacer(minLength: 12)
                         Text("\(viewModel.approvedCount) of \(viewModel.progress.cards.count) done")
                             .onboardingLabel()
                             .fixedSize()
+                            .padding(.bottom, 6)
                     }
-                    VStack(spacing: 12) {
+                    .padding(.top, 40)
+                    .padding(.bottom, 24)
+
+                    VStack(spacing: 8) {
                         ForEach(viewModel.progress.cards) { card in
                             if viewModel.openCardId == card.id {
-                                OnboardingOpenCard(
-                                    viewModel: viewModel,
-                                    card: card,
-                                    onEdit: { editing = card }
-                                )
+                                OnboardingOpenCard(viewModel: viewModel, card: card, onEdit: { editing = card })
                             } else {
-                                OnboardingCollapsedCard(
-                                    card: card,
-                                    onOpen: { viewModel.openCard(card.id) },
-                                    onEdit: { editing = card }
-                                )
+                                OnboardingCollapsedCard(card: card) {
+                                    withAnimation(.easeInOut(duration: 0.2)) { viewModel.openCard(card.id) }
+                                }
                             }
                         }
                         if viewModel.canAddCards {
@@ -44,14 +44,12 @@ struct OnboardingReviewScreen: View {
                     }
                 }
                 .padding(.horizontal, OnboardingStyle.gutter)
-                .padding(.top, 40)
-                .padding(.bottom, 24)
             }
 
             VStack(spacing: 12) {
                 if let error = viewModel.finishError {
                     Text(error)
-                        .onboardingCaption(OnboardingStyle.text)
+                        .onboardingCaption(OnboardingStyle.danger)
                         .multilineTextAlignment(.center)
                 }
                 Button {
@@ -68,12 +66,13 @@ struct OnboardingReviewScreen: View {
                 .disabled(!viewModel.canFinish || viewModel.isFinishing)
             }
             .padding(.horizontal, OnboardingStyle.gutter)
-            .padding(.bottom, 40)
+            .padding(.top, 24)
+            .padding(.bottom, 48)
         }
-        .sheet(item: $editing) { card in
+        .fullScreenCover(item: $editing) { card in
             OnboardingEditCardScreen(viewModel: viewModel, card: card, isNew: false)
         }
-        .sheet(isPresented: $isAdding) {
+        .fullScreenCover(isPresented: $isAdding) {
             OnboardingEditCardScreen(viewModel: viewModel, card: OnboardingCard(name: ""), isNew: true)
         }
     }
@@ -82,19 +81,20 @@ struct OnboardingReviewScreen: View {
         Button {
             isAdding = true
         } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "plus")
-                    .font(.system(size: 14, weight: .medium))
+            HStack(spacing: 12) {
+                Text("+")
+                    .font(.system(size: 18))
+                    .frame(width: 16)
                 Text("Add a category")
-                    .font(OnboardingStyle.bodyMedium)
+                    .font(OnboardingStyle.body)
                 Spacer()
             }
             .foregroundColor(OnboardingStyle.secondary)
-            .padding(.horizontal, OnboardingStyle.cardPadding)
-            .frame(height: 56)
+            .padding(.horizontal, 16)
+            .frame(height: 52)
             .overlay(
                 RoundedRectangle(cornerRadius: OnboardingStyle.cardRadius)
-                    .stroke(OnboardingStyle.hairline, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    .strokeBorder(OnboardingStyle.hairline, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
             )
             .contentShape(Rectangle())
         }
@@ -102,65 +102,77 @@ struct OnboardingReviewScreen: View {
     }
 }
 
-/// A collapsed card: approved ("Newsletter · 3 names" with a check), missing
-/// names ("!" and "Add a name"), or waiting ("Review").
+/// A closed card, 52 tall: approved (grey, a check, "3 names"), missing
+/// names ("!" and "Add a name"), or not looked at yet ("Review"). Tapping it
+/// opens it.
 struct OnboardingCollapsedCard: View {
     let card: OnboardingCard
     let onOpen: () -> Void
-    let onEdit: () -> Void
 
     var body: some View {
         Button(action: onOpen) {
             HStack(spacing: 12) {
-                marker.frame(width: 22, height: 22)
-                Text(title)
-                    .font(OnboardingStyle.bodyMedium)
-                    .foregroundColor(OnboardingStyle.text)
+                marker.frame(width: 16, height: 16)
+                Text(card.name)
+                    .font(OnboardingStyle.body)
+                    .foregroundColor(card.approved || needsAttention ? OnboardingStyle.text : OnboardingStyle.secondary)
                     .lineLimit(1)
-                Spacer(minLength: 8)
-                if card.approved {
-                    Button("Edit", action: onEdit)
-                        .buttonStyle(OnboardingLinkStyle())
-                } else {
-                    Text(card.canApprove ? "Review" : "Add a name")
-                        .onboardingCaption()
-                }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                trailing
             }
-            .padding(.horizontal, OnboardingStyle.cardPadding)
-            .frame(minHeight: 56)
-            .background(RoundedRectangle(cornerRadius: OnboardingStyle.cardRadius).fill(OnboardingStyle.surface))
+            .padding(.horizontal, 16)
+            .frame(height: 52)
+            .background(
+                RoundedRectangle(cornerRadius: OnboardingStyle.cardRadius)
+                    .fill(card.approved ? OnboardingStyle.surface : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: OnboardingStyle.cardRadius)
+                    .strokeBorder(card.approved ? Color.clear : OnboardingStyle.hairline, lineWidth: 0.5)
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityHint("Opens this category")
     }
 
-    private var title: String {
-        guard card.approved else { return card.name }
-        let count = card.names.count
-        return "\(card.name) · \(count) \(count == 1 ? "name" : "names")"
+    private var needsAttention: Bool { !card.canApprove || card.errorMessage != nil }
+
+    @ViewBuilder
+    private var trailing: some View {
+        if card.approved {
+            let count = card.names.count
+            Text(count == 1 ? "1 name" : "\(count) names")
+                .onboardingCaption()
+                .monospacedDigit()
+        } else if needsAttention {
+            Text(card.canApprove ? "Fix the name" : "Add a name")
+                .font(OnboardingStyle.captionMedium)
+                .foregroundColor(OnboardingStyle.text)
+        } else {
+            Text("Review").onboardingCaption()
+        }
     }
 
     @ViewBuilder
     private var marker: some View {
         if card.approved {
             Image(systemName: "checkmark")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundColor(OnboardingStyle.background)
-                .frame(width: 22, height: 22)
-                .background(Circle().fill(OnboardingStyle.text))
-        } else if !card.canApprove || card.errorMessage != nil {
-            Text("!")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 12, weight: .bold))
                 .foregroundColor(OnboardingStyle.text)
-                .frame(width: 22, height: 22)
-                .overlay(Circle().stroke(OnboardingStyle.text, lineWidth: 1.5))
+        } else if needsAttention {
+            Text("!")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(OnboardingStyle.text)
+                .frame(width: 16, height: 16)
+                .overlay(Circle().strokeBorder(OnboardingStyle.text, lineWidth: 1.5))
         } else {
-            Circle().stroke(OnboardingStyle.secondary, lineWidth: 1.5)
+            Circle().strokeBorder(OnboardingStyle.placeholder, lineWidth: 1.5)
         }
     }
 }
 
-/// The open card: title with Edit, description, the two chip lists with
+/// The open card: name and Edit, what it's for, the two chip lists with
 /// "+ Add", and "Looks right".
 struct OnboardingOpenCard: View {
     @ObservedObject var viewModel: OnboardingV2ViewModel
@@ -168,28 +180,27 @@ struct OnboardingOpenCard: View {
     let onEdit: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(card.name)
-                        .font(OnboardingStyle.display(22))
-                        .tracking(OnboardingStyle.displayTracking(22) / 2)
-                        .foregroundColor(OnboardingStyle.text)
-                    Spacer()
-                    Button("Edit", action: onEdit)
-                        .buttonStyle(OnboardingLinkStyle(color: OnboardingStyle.text))
-                }
-                if !card.description.isEmpty {
-                    Text(card.description).onboardingCaption()
-                }
-                if let error = card.errorMessage {
-                    Text(error)
-                        .onboardingCaption(OnboardingStyle.danger)
-                }
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text(card.name).onboardingTitle()
+                Spacer()
+                Button("Edit", action: onEdit)
+                    .buttonStyle(OnboardingLinkStyle())
+            }
+            if !card.description.isEmpty {
+                Text(card.description)
+                    .onboardingCaption()
+                    .lineSpacing(3)
+            }
+            if let error = card.errorMessage {
+                Text(error)
+                    .onboardingCaption(OnboardingStyle.danger)
+                    .lineSpacing(2)
             }
             OnboardingChipSection(
                 title: "Names that mean this",
                 chips: card.names,
+                error: card.canApprove ? nil : "Add at least one name so notes can find this category.",
                 onAdd: { viewModel.addChip($0, to: .names, cardId: card.id) }
             )
             OnboardingChipSection(
@@ -197,30 +208,36 @@ struct OnboardingOpenCard: View {
                 chips: card.examples,
                 onAdd: { viewModel.addChip($0, to: .examples, cardId: card.id) }
             )
-            if !card.canApprove {
-                Text("Add at least one name so notes can find this category.")
-                    .onboardingCaption()
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { viewModel.approveCard(card.id) }
+            } label: {
+                Text("Looks right")
+                    .font(OnboardingStyle.bodyMedium)
+                    .foregroundColor(canApprove ? OnboardingStyle.background : OnboardingStyle.placeholder)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .background(Capsule().fill(canApprove ? OnboardingStyle.text : OnboardingStyle.hairline))
             }
-            Button("Looks right") {
-                withAnimation { viewModel.approveCard(card.id) }
-            }
-            .buttonStyle(OnboardingPrimaryButtonStyle(isEnabled: card.canApprove && card.errorMessage == nil))
-            .disabled(!card.canApprove || card.errorMessage != nil)
+            .buttonStyle(.plain)
+            .disabled(!canApprove)
         }
         .padding(OnboardingStyle.cardPadding)
-        .background(RoundedRectangle(cornerRadius: OnboardingStyle.cardRadius).fill(OnboardingStyle.background))
         .overlay(
             RoundedRectangle(cornerRadius: OnboardingStyle.cardRadius)
-                .stroke(OnboardingStyle.text, lineWidth: 1)
+                .strokeBorder(OnboardingStyle.placeholder, lineWidth: 1)
         )
     }
+
+    /// A card refused at Finish for its name has to be edited first.
+    private var canApprove: Bool { card.canApprove && card.errorMessage == nil }
 }
 
-/// A label and a wrapping row of chips, ending in "+ Add", which turns into
-/// a small text field.
+/// A label and a wrapping row of chips ending in "+ Add", which becomes a
+/// small text field. On 4b each chip has an × to remove it.
 struct OnboardingChipSection: View {
     let title: String
     let chips: [String]
+    var error: String?
     var onRemove: ((String) -> Void)?
     let onAdd: (String) -> Void
     @State private var isAdding = false
@@ -228,9 +245,9 @@ struct OnboardingChipSection: View {
     @FocusState private var isFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(title).onboardingLabel()
-            OnboardingFlowLayout(spacing: 8) {
+            OnboardingFlowLayout(spacing: onRemove == nil ? 6 : 8) {
                 ForEach(chips, id: \.self) { chip in
                     chipView(chip)
                 }
@@ -241,14 +258,16 @@ struct OnboardingChipSection: View {
                         .focused($isFocused)
                         .submitLabel(.done)
                         .onSubmit(commit)
-                        .frame(minWidth: 90)
+                        .fixedSize()
+                        .frame(minWidth: 80, alignment: .leading)
+                        .padding(.vertical, 5)
                         .padding(.horizontal, 12)
-                        .frame(height: 32)
-                        .background(Capsule().stroke(OnboardingStyle.text, lineWidth: 1))
+                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(OnboardingStyle.text, lineWidth: 1))
                         .onAppear { isFocused = true }
                         .onChange(of: isFocused) { _, focused in
                             if !focused { commit() }
                         }
+                        .accessibilityLabel("New entry for \(title)")
                 } else {
                     Button {
                         isAdding = true
@@ -256,19 +275,27 @@ struct OnboardingChipSection: View {
                         Text("+ Add")
                             .font(OnboardingStyle.caption)
                             .foregroundColor(OnboardingStyle.secondary)
+                            .padding(.vertical, 5)
                             .padding(.horizontal, 12)
-                            .frame(height: 32)
-                            .overlay(Capsule().stroke(OnboardingStyle.hairline, style: StrokeStyle(lineWidth: 1, dash: [3, 3])))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .strokeBorder(OnboardingStyle.placeholder, style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
+                            )
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Add to \(title)")
                 }
             }
+            if let error {
+                Text(error)
+                    .onboardingCaption(OnboardingStyle.danger)
+                    .lineSpacing(2)
+            }
         }
     }
 
     private func chipView(_ chip: String) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             Text(chip)
                 .font(OnboardingStyle.caption)
                 .foregroundColor(OnboardingStyle.text)
@@ -276,18 +303,18 @@ struct OnboardingChipSection: View {
                 Button {
                     onRemove(chip)
                 } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundColor(OnboardingStyle.secondary)
+                    Text("×")
+                        .font(OnboardingStyle.caption)
+                        .foregroundColor(OnboardingStyle.text)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Remove \(chip)")
             }
         }
-        .padding(.horizontal, 12)
-        .frame(height: 32)
-        .background(Capsule().fill(OnboardingStyle.surface))
-        .overlay(Capsule().stroke(OnboardingStyle.hairline, lineWidth: 1))
+        .padding(.vertical, 6)
+        .padding(.leading, 12)
+        .padding(.trailing, onRemove == nil ? 12 : 10)
+        .background(RoundedRectangle(cornerRadius: 8).fill(OnboardingStyle.hairline))
     }
 
     private func commit() {

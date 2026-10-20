@@ -57,7 +57,7 @@ struct OnboardingRecordScreen: View {
             .scrollDismissesKeyboard(.interactively)
             bottom
                 .padding(.horizontal, OnboardingStyle.gutter)
-                .padding(.bottom, 48)
+                .padding(.bottom, viewModel.recordMode == .idle ? 48 : 40)
         }
         .onReceive(rotation) { _ in
             guard viewModel.recordMode == .idle, viewModel.trySaying.count > 1 else { return }
@@ -87,7 +87,7 @@ struct OnboardingRecordScreen: View {
         case .typing:
             typingBox
         case .micDenied:
-            micDeniedCard
+            OnboardingNoMicCard()
         }
     }
 
@@ -116,59 +116,32 @@ struct OnboardingRecordScreen: View {
     }
 
     private var typingBox: some View {
-        let words = OnboardingV2ViewModel.wordCount(typedText)
-        return VStack(alignment: .leading, spacing: 12) {
-            ZStack(alignment: .topLeading) {
-                if typedText.isEmpty {
-                    Text("I’m launching a newsletter, I’ve got two clients…")
-                        .onboardingBody(OnboardingStyle.placeholder)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 16)
-                        .accessibilityHidden(true)
-                }
-                TextEditor(text: $typedText)
-                    .font(OnboardingStyle.body)
-                    .foregroundColor(OnboardingStyle.text)
-                    .scrollContentBackground(.hidden)
-                    .padding(.horizontal, 11)
-                    .padding(.vertical, 8)
-                    .focused($isTyping)
-                    .accessibilityLabel("What you're juggling")
+        ZStack(alignment: .topLeading) {
+            if typedText.isEmpty {
+                Text("I run a small design studio with two clients, we’re redoing the kitchen…")
+                    .onboardingBody(OnboardingStyle.placeholder)
+                    .padding(20)
+                    .accessibilityHidden(true)
             }
-            .frame(height: 240)
-            .background(
-                RoundedRectangle(cornerRadius: OnboardingStyle.cardRadius)
-                    .fill(OnboardingStyle.surface)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: OnboardingStyle.cardRadius)
-                    .stroke(OnboardingStyle.hairline, lineWidth: 1)
-            )
-            HStack(alignment: .firstTextBaseline) {
-                Text(words < 20 && words > 0 ? "A sentence or two more helps." : "Work, home, ideas: all of it helps.")
-                    .onboardingCaption()
-                Spacer()
-                Text(words == 1 ? "1 word" : "\(words) words")
-                    .onboardingCaption()
-                    .monospacedDigit()
-            }
-        }
-    }
-
-    private var micDeniedCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Image(systemName: "mic.slash")
-                .font(.system(size: 22))
-                .foregroundColor(OnboardingStyle.secondary)
-                .accessibilityHidden(true)
-            Text("No mic? Type instead.")
-                .font(OnboardingStyle.bodyMedium)
+            TextEditor(text: $typedText)
+                .font(OnboardingStyle.body)
                 .foregroundColor(OnboardingStyle.text)
-            Text("The Dump can’t use your microphone. Typing works just as well, or turn the mic on in Settings and come back.")
-                .onboardingCaption()
-                .lineSpacing(3)
+                .lineSpacing(6)
+                .scrollContentBackground(.hidden)
+                .padding(.horizontal, 15)
+                .padding(.vertical, 12)
+                .focused($isTyping)
+                .accessibilityLabel("What you're juggling")
         }
-        .onboardingCard()
+        .frame(height: 240)
+        .background(
+            RoundedRectangle(cornerRadius: OnboardingStyle.cardRadius)
+                .fill(OnboardingStyle.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: OnboardingStyle.cardRadius)
+                .stroke(OnboardingStyle.placeholder, lineWidth: 1)
+        )
     }
 
     // MARK: Bottom of the screen
@@ -183,8 +156,10 @@ struct OnboardingRecordScreen: View {
                     Text("Tap and talk. The more, the better.")
                         .font(OnboardingStyle.bodyMedium)
                         .foregroundColor(OnboardingStyle.text)
-                    if let recordError {
-                        Text(recordError).onboardingCaption()
+                    if let notice = recordError ?? viewModel.recordNotice {
+                        Text(notice)
+                            .onboardingCaption()
+                            .multilineTextAlignment(.center)
                     }
                     Button("Type instead") { viewModel.startTyping() }
                         .buttonStyle(OnboardingLinkStyle())
@@ -195,6 +170,7 @@ struct OnboardingRecordScreen: View {
             recordingControls
         case .typing:
             VStack(spacing: 16) {
+                typingHint
                 Button("Continue") {
                     let text = typedText
                     isTyping = false
@@ -218,31 +194,43 @@ struct OnboardingRecordScreen: View {
         }
     }
 
+    /// Under about 20 words the hint asks for a little more; it never
+    /// blocks Continue.
+    private var typingHint: some View {
+        let words = OnboardingV2ViewModel.wordCount(typedText)
+        return HStack(alignment: .firstTextBaseline) {
+            Text(words > 0 && words < 20 ? "A sentence or two more helps." : "Work, home, ideas: all of it helps.")
+                .onboardingCaption()
+            Spacer()
+            Text(words == 1 ? "1 word" : "\(words) words")
+                .onboardingCaption()
+                .monospacedDigit()
+        }
+    }
+
     private var recordingControls: some View {
         let limits = viewModel.recordingLimits
         let prompt = recorder.duration >= limits.warnAtSeconds
             ? "1 minute left"
             : OnboardingRecordingPrompt.text(for: recorder.duration)
-        return VStack(spacing: 20) {
+        return VStack(spacing: 16) {
             Text(prompt)
                 .onboardingCaption()
                 .animation(.easeInOut, value: prompt)
             Text(OnboardingRecordingPrompt.clock(recorder.duration))
-                .font(.system(size: 34, weight: .regular))
-                .tracking(-1)
+                .font(OnboardingStyle.display(52))
+                .tracking(52 * -0.03)
                 .monospacedDigit()
                 .foregroundColor(OnboardingStyle.text)
                 .accessibilityLabel("Recording, \(OnboardingRecordingPrompt.clock(recorder.duration))")
-            OnboardingLevelBars(level: recorder.level)
+            OnboardingLevelBars(level: recorder.level, isRecording: recorder.state == .recording)
             Button(action: stopAndSend) {
-                ZStack {
-                    Circle().fill(OnboardingStyle.background)
-                    Circle().stroke(OnboardingStyle.text, lineWidth: 3)
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(OnboardingStyle.text)
-                        .frame(width: 28, height: 28)
-                }
-                .frame(width: 96, height: 96)
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(OnboardingStyle.text)
+                    .frame(width: 26, height: 26)
+                    .frame(width: 88, height: 88)
+                    .overlay(Circle().stroke(OnboardingStyle.text, lineWidth: 2))
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Stop recording")
@@ -315,21 +303,32 @@ enum OnboardingRecordingPrompt {
     }
 }
 
-/// A row of bars that follows the microphone's level.
+/// A row of level bars, as on 2c: the most recent levels in white, newest
+/// on the right, with dim short bars until enough have been heard.
 struct OnboardingLevelBars: View {
     let level: Float
-    private let weights: [CGFloat] = [0.35, 0.6, 0.85, 1, 0.75, 0.5, 0.9, 0.65, 0.4, 0.7, 0.55, 0.3]
+    var isRecording = true
+    var barCount = 14
+    @State private var history: [Float] = []
 
     var body: some View {
-        HStack(alignment: .center, spacing: 4) {
-            ForEach(weights.indices, id: \.self) { index in
+        HStack(alignment: .center, spacing: 5) {
+            ForEach(0..<barCount, id: \.self) { index in
+                let sample = index < history.count ? history[index] : nil
                 Capsule()
-                    .fill(OnboardingStyle.text.opacity(0.85))
-                    .frame(width: 3, height: max(4, 28 * CGFloat(level) * weights[index]))
+                    .fill(OnboardingStyle.text.opacity(sample == nil ? 0.3 : 1))
+                    .frame(width: 3, height: sample.map { max(6, 28 * CGFloat($0)) } ?? 6)
             }
         }
         .frame(height: 28)
-        .animation(.easeOut(duration: 0.1), value: level)
+        .animation(.easeOut(duration: 0.1), value: history)
+        .onChange(of: level) { _, newLevel in
+            guard isRecording else { return }
+            history.append(newLevel)
+            if history.count > barCount {
+                history.removeFirst(history.count - barCount)
+            }
+        }
         .accessibilityHidden(true)
     }
 }

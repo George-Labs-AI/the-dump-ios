@@ -1,5 +1,13 @@
 import Foundation
 
+/// Why a card's edits can't be saved, one message per field.
+struct OnboardingCardEditErrors: Equatable {
+    var name: String?
+    var names: String?
+
+    var isEmpty: Bool { name == nil && names == nil }
+}
+
 /// The rules for onboarding's cards and the Finish save, kept apart from the
 /// view model so they can be tested on their own
 /// (docs/onboarding-voice-handoff.md, sections 2 and 6.1; D-023).
@@ -51,36 +59,34 @@ enum OnboardingRules {
         }
     }
 
-    // MARK: - Screen 4b
+    // MARK: - Screens 4b to 4d
 
-    /// Why a card's edits can't be saved, or nil when they can. `others`
-    /// are the other cards' names; the catch-all's name is reserved too,
-    /// because it is added at Finish.
-    static func editError(
+    /// What blocks a card's edits, shown under the field it is about (4d).
+    /// The name field stops at the length limit, so "too long" only comes up
+    /// for a name that was already longer.
+    static func editErrors(
         name: String,
         names: [String],
         others: [String],
         catchAllName: String?,
         maxLength: Int
-    ) -> String? {
+    ) -> OnboardingCardEditErrors {
+        var errors = OnboardingCardEditErrors()
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            return "Give it a name."
-        }
-        if trimmed.count > maxLength {
-            return "Keep the name to \(maxLength) characters."
-        }
         let key = nameKey(trimmed)
-        if others.contains(where: { nameKey($0) == key }) {
-            return "You already have a category called \"\(trimmed)\"."
-        }
-        if let catchAllName, nameKey(catchAllName) == key {
-            return "\"\(catchAllName)\" is added for you at the end."
+        if trimmed.isEmpty {
+            errors.name = "Give it a name."
+        } else if trimmed.count > maxLength {
+            errors.name = "Keep the name to \(maxLength) characters."
+        } else if let existing = others.first(where: { nameKey($0) == key }) {
+            errors.name = "You already have a category called \(existing.trimmingCharacters(in: .whitespacesAndNewlines))."
+        } else if let catchAllName, nameKey(catchAllName) == key {
+            errors.name = "\(catchAllName) is added for you at the end."
         }
         if cleanedChips(names).isEmpty {
-            return "Add at least one name that means this."
+            errors.names = "Add at least one name so notes can find this category."
         }
-        return nil
+        return errors
     }
 
     // MARK: - Finish

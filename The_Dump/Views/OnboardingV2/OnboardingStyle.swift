@@ -36,6 +36,7 @@ enum OnboardingStyle {
     /// Small capitals labels: 11px, tracking 0.12em.
     static let labelTracking: CGFloat = 11 * 0.12
     static let button = Font.system(size: 17, weight: .medium)
+    static let captionMedium = Font.system(size: 13, weight: .medium)
 }
 
 // MARK: - Text styles
@@ -48,6 +49,14 @@ extension Text {
             .foregroundColor(OnboardingStyle.text)
             .lineSpacing(max(0, lineHeight - size * 1.2))
             .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// A 22-point title (Instrument Sans in the design): card names, the
+    /// "While you wait" line, the edit screen's name field.
+    func onboardingTitle(_ color: Color = OnboardingStyle.text) -> some View {
+        self.font(OnboardingStyle.display(22))
+            .tracking(22 * -0.02)
+            .foregroundColor(color)
     }
 
     /// Body copy: 16/24, secondary grey unless told otherwise.
@@ -83,7 +92,7 @@ struct OnboardingPrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(OnboardingStyle.button)
-            .foregroundColor(isEnabled ? OnboardingStyle.background : OnboardingStyle.secondary)
+            .foregroundColor(isEnabled ? OnboardingStyle.background : OnboardingStyle.placeholder)
             .frame(maxWidth: .infinity)
             .frame(height: OnboardingStyle.buttonHeight)
             .background(
@@ -126,6 +135,29 @@ struct OnboardingProgressBar: View {
         .padding(.top, 8)
         .accessibilityElement()
         .accessibilityLabel("Step \(filled) of 3")
+    }
+}
+
+/// The "No mic? Type instead." card (2e), also shown on screen 3 when an
+/// answer is tapped without microphone access.
+struct OnboardingNoMicCard: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "mic.slash")
+                .font(.system(size: 16, weight: .regular))
+                .foregroundColor(OnboardingStyle.text)
+                .frame(width: 20, height: 20)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("No mic? Type instead.")
+                    .font(OnboardingStyle.bodyMedium)
+                    .foregroundColor(OnboardingStyle.text)
+                Text("The Dump can’t use your microphone. Typing works just as well, or turn the mic on in Settings and come back.")
+                    .onboardingCaption()
+                    .lineSpacing(3)
+            }
+        }
+        .onboardingCard()
     }
 }
 

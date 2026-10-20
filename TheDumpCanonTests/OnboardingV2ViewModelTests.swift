@@ -18,6 +18,7 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         var readFailures = 0
         var checkCalls = 0
         var transcribeKinds: [OnboardingTranscribeKind] = []
+        var transcriptText = "I run a newsletter and two clients."
         var draftRequests: [OnboardingDraftRequest] = []
         var saved: [[The_Dump.Category]] = []
         var saveError: Error?
@@ -52,7 +53,7 @@ final class OnboardingV2ViewModelTests: XCTestCase {
                 config: { self.config },
                 transcribe: { _, kind, _, _ in
                     self.transcribeKinds.append(kind)
-                    return OnboardingTranscription(text: "I run a newsletter and two clients.", durationSeconds: 3)
+                    return OnboardingTranscription(text: self.transcriptText, durationSeconds: 3)
                 },
                 read: { _, _ in
                     self.readCalls += 1
@@ -321,6 +322,22 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: FileManager.default.temporaryDirectory.appendingPathComponent(name).path))
     }
 
+    func testASilentRecordingGoesBackToRecordingWithANotice() async throws {
+        let server = FakeServer()
+        server.transcriptText = "  "
+        let viewModel = makeViewModel(server)
+        await viewModel.resume()
+        viewModel.begin()
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("ramble-\(UUID().uuidString).m4a")
+        try Data("audio".utf8).write(to: file)
+        await viewModel.submitRecording(fileURL: file)
+        XCTAssertEqual(viewModel.step, .record)
+        XCTAssertNotNil(viewModel.recordNotice)
+        XCTAssertNil(viewModel.progress.transcript)
+        XCTAssertEqual(server.readCalls, 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+    }
+
     func testFinishedButNotLeftKeepsTheOnboardingOnScreen() async {
         let store = makeStore()
         XCTAssertFalse(store.hasFinishedButNotLeft)
@@ -365,11 +382,17 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         let viewModel = await reachReview(server)
         let card = viewModel.progress.cards[0]
 
-        XCTAssertEqual(viewModel.saveCard(cardId: card.id, name: " ", description: "", names: ["a"], examples: []), "Give it a name.")
-        XCTAssertNotNil(viewModel.saveCard(cardId: card.id, name: String(repeating: "x", count: 31), description: "", names: ["a"], examples: []))
-        XCTAssertNotNil(viewModel.saveCard(cardId: card.id, name: " client WORK ", description: "", names: ["a"], examples: []), "names clash ignoring case and spaces")
-        XCTAssertNotNil(viewModel.saveCard(cardId: card.id, name: "everything else", description: "", names: ["a"], examples: []), "the catch-all's name is taken")
-        XCTAssertNotNil(viewModel.saveCard(cardId: card.id, name: "Letters", description: "", names: ["  "], examples: []), "needs a name chip")
+        XCTAssertEqual(viewModel.saveCard(cardId: card.id, name: " ", description: "", names: ["a"], examples: [])?.name, "Give it a name.")
+        XCTAssertNotNil(viewModel.saveCard(cardId: card.id, name: String(repeating: "x", count: 31), description: "", names: ["a"], examples: [])?.name)
+        XCTAssertEqual(
+            viewModel.saveCard(cardId: card.id, name: " client WORK ", description: "", names: ["a"], examples: [])?.name,
+            "You already have a category called Client work.",
+            "names clash ignoring case and spaces"
+        )
+        XCTAssertNotNil(viewModel.saveCard(cardId: card.id, name: "everything else", description: "", names: ["a"], examples: [])?.name, "the catch-all's name is taken")
+        let noNames = viewModel.saveCard(cardId: card.id, name: "Letters", description: "", names: ["  "], examples: [])
+        XCTAssertNil(noNames?.name)
+        XCTAssertEqual(noNames?.names, "Add at least one name so notes can find this category.")
         XCTAssertNil(viewModel.saveCard(cardId: card.id, name: " Letters ", description: "Mine.", names: ["S&N", "s&n"], examples: []))
         XCTAssertEqual(viewModel.progress.cards[0].name, "Letters")
         XCTAssertEqual(viewModel.progress.cards[0].names, ["S&N"])

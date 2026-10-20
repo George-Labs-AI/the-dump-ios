@@ -1,7 +1,7 @@
 import SwiftUI
 import PhotosUI
 
-// MARK: - Screens 5 (you're done organizing), 6a and 6b (the first note)
+// MARK: - Screens 5 (you're done organizing), 6a, 6b and 6c (the first note)
 
 struct OnboardingFirstNoteScreen: View {
     @ObservedObject var viewModel: OnboardingV2ViewModel
@@ -12,20 +12,20 @@ struct OnboardingFirstNoteScreen: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
+                Group {
                     if viewModel.step == .done {
-                        doneHeader
+                        doneContent
                     } else if let note = viewModel.progress.firstNote {
-                        noteHeader(note)
+                        noteContent(note)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, OnboardingStyle.gutter)
-                .padding(.top, 48)
                 .padding(.bottom, 24)
             }
             footer
                 .padding(.horizontal, OnboardingStyle.gutter)
-                .padding(.bottom, 32)
+                .padding(.bottom, 40)
         }
         .task(id: viewModel.progress.firstNote?.fileUuid) {
             await viewModel.pollFirstNote()
@@ -33,49 +33,68 @@ struct OnboardingFirstNoteScreen: View {
         .sheet(isPresented: $showChangePicker) {
             OnboardingChangeCategorySheet(viewModel: viewModel)
                 .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(OnboardingStyle.surface)
+                .presentationCornerRadius(20)
         }
     }
 
     // MARK: Screen 5
 
-    private var doneHeader: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("You’re done organizing.")
-                .onboardingHeadline()
-                .accessibilityAddTraits(.isHeader)
-            Text("We built your categories from what you told us. From here, just dump.")
-                .onboardingBody()
-            HStack(alignment: .top, spacing: 16) {
+    private var doneContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("You’re done organizing.")
+                    .onboardingHeadline(52, lineHeight: 50)
+                    .accessibilityAddTraits(.isHeader)
+                Text("We built your categories from what you told us. From here, just dump.")
+                    .onboardingBody()
+            }
+            .padding(.top, 48)
+
+            HStack(alignment: .top, spacing: 8) {
                 stat(viewModel.savedCategoryCount, "Categories")
                 stat(viewModel.savedNameCount, "Names it knows")
-                stat(0, "Folders to manage")
+                stat(0, "Folders to manage", highlighted: true)
             }
-            .padding(.top, 24)
-            VStack(alignment: .leading, spacing: 10) {
+            .padding(.top, 40)
+
+            VStack(alignment: .leading, spacing: 8) {
                 Text("Your categories").onboardingLabel()
                 Text(viewModel.savedCategoryLine)
                     .onboardingBody(OnboardingStyle.text)
+                    .lineSpacing(7)
             }
-            .padding(.top, 24)
+            .padding(.top, 36)
         }
     }
 
-    private func stat(_ value: Int, _ label: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+    /// One of the three stats; the last ("0 folders to manage") has a white
+    /// rule and label.
+    private func stat(_ value: Int, _ label: String, highlighted: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
             Text("\(value)")
-                .font(OnboardingStyle.display(34))
-                .tracking(OnboardingStyle.displayTracking(34))
+                .font(OnboardingStyle.display(40))
+                .tracking(OnboardingStyle.displayTracking(40))
+                .monospacedDigit()
                 .foregroundColor(OnboardingStyle.text)
-            Text(label).onboardingLabel()
+            Text(label).onboardingLabel(highlighted ? OnboardingStyle.text : OnboardingStyle.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 16)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(highlighted ? OnboardingStyle.text : OnboardingStyle.hairline)
+                .frame(height: 0.5)
+        }
         .accessibilityElement(children: .combine)
     }
 
-    // MARK: Screens 6a and 6b
+    // MARK: Screens 6a, 6b and 6c
 
-    private func noteHeader(_ note: OnboardingFirstNote) -> some View {
-        VStack(alignment: .leading, spacing: 24) {
+    private func noteContent(_ note: OnboardingFirstNote) -> some View {
+        VStack(alignment: .leading, spacing: 32) {
             Text(headline(for: note))
                 .onboardingHeadline()
                 .accessibilityAddTraits(.isHeader)
@@ -89,82 +108,112 @@ struct OnboardingFirstNoteScreen: View {
                 }
             }
         }
+        .padding(.top, 40)
     }
 
     private func headline(for note: OnboardingFirstNote) -> String {
         switch note.status {
         case .processing: return "Got it."
         case .sorted: return "First one, sorted."
-        case .failed: return "We couldn’t read that one"
+        case .failed: return "We couldn’t read that one."
         }
     }
 
     private func noteCard(_ note: OnboardingFirstNote) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            if (note.kind == .photo || note.kind == .file) && note.status == .processing && (note.preview ?? "").isEmpty {
-                HStack(spacing: 10) {
-                    Image(systemName: note.kind == .photo ? "photo" : "doc")
-                        .font(.system(size: 18))
-                        .foregroundColor(OnboardingStyle.secondary)
-                    Text(note.localText)
-                        .onboardingBody(OnboardingStyle.text)
-                        .lineLimit(1)
-                }
-            } else {
-                Text(note.displayText)
-                    .onboardingBody(OnboardingStyle.text)
-                    .lineLimit(8)
-            }
+        VStack(alignment: .leading, spacing: 16) {
+            noteBody(note)
             switch note.status {
             case .processing:
-                HStack(spacing: 10) {
-                    ProgressView().tint(OnboardingStyle.secondary).scaleEffect(0.8)
-                    Text("Reading your note").onboardingLabel()
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .tint(OnboardingStyle.text)
+                        .scaleEffect(0.6)
+                        .frame(width: 14, height: 14)
+                    Text("Reading your note").onboardingLabel(OnboardingStyle.text)
                 }
                 .accessibilityElement(children: .combine)
             case .sorted:
                 if let reason = note.visibleReason {
-                    Text(reason).onboardingCaption()
+                    Text(reason)
+                        .onboardingCaption()
+                        .lineSpacing(3)
                 }
                 HStack {
-                    Text("Sorted into \(note.categoryName ?? "")").onboardingLabel(OnboardingStyle.text)
+                    Text("Sorted into \(note.categoryName ?? "")")
+                        .onboardingLabel(OnboardingStyle.text)
                     Spacer()
                     if viewModel.isChangingCategory {
-                        ProgressView().tint(OnboardingStyle.secondary)
+                        ProgressView().tint(OnboardingStyle.secondary).scaleEffect(0.7)
                     } else if note.organizedNoteId != nil {
                         Button("Change") { showChangePicker = true }
-                            .buttonStyle(OnboardingLinkStyle(color: OnboardingStyle.text))
+                            .buttonStyle(OnboardingLinkStyle())
                     }
                 }
                 if let error = viewModel.changeError {
                     Text(error).onboardingCaption(OnboardingStyle.danger)
                 }
             case .failed:
-                Text("Something in it couldn’t be read. You can find it in your Dump.")
+                HStack(spacing: 8) {
+                    Text("!")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(OnboardingStyle.text)
+                        .frame(width: 14, height: 14)
+                        .overlay(Circle().strokeBorder(OnboardingStyle.text, lineWidth: 1.25))
+                    Text("Couldn’t read it").onboardingLabel(OnboardingStyle.text)
+                }
+                .accessibilityElement(children: .combine)
+                Text("This note didn’t go through. It’s on our side, not yours, and your categories are all set.")
                     .onboardingCaption()
+                    .lineSpacing(3)
             }
         }
         .onboardingCard()
         .animation(.easeInOut(duration: 0.25), value: note.status)
     }
 
+    /// What they sent: the text once there is some, otherwise (a photo or
+    /// file that hasn't been read yet, or couldn't be) its icon and name.
+    @ViewBuilder
+    private func noteBody(_ note: OnboardingFirstNote) -> some View {
+        let isFile = note.kind == .photo || note.kind == .file
+        if isFile && (note.preview ?? "").isEmpty {
+            HStack(spacing: 12) {
+                Image(systemName: note.kind == .photo ? "photo" : "doc.text")
+                    .font(.system(size: 17, weight: .regular))
+                    .foregroundColor(OnboardingStyle.secondary)
+                    .frame(width: 48, height: 48)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(OnboardingStyle.hairline))
+                Text(note.localText)
+                    .font(OnboardingStyle.body)
+                    .foregroundColor(OnboardingStyle.text)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+        } else {
+            Text(note.displayText)
+                .onboardingBody(OnboardingStyle.text)
+                .lineLimit(note.status == .failed ? 3 : 10)
+        }
+    }
+
     private func categoryRow(_ category: OnboardingSavedCategory) -> some View {
         let isLit = viewModel.isFirstNoteCategory(category)
         return HStack {
             Text(category.name)
-                .font(OnboardingStyle.body)
+                .font(isLit ? OnboardingStyle.bodyMedium : OnboardingStyle.body)
                 .foregroundColor(isLit ? OnboardingStyle.text : OnboardingStyle.secondary)
             Spacer()
             Text(isLit ? "1" : "0")
-                .font(OnboardingStyle.body)
+                .font(isLit ? OnboardingStyle.captionMedium : OnboardingStyle.caption)
                 .monospacedDigit()
                 .foregroundColor(isLit ? OnboardingStyle.text : OnboardingStyle.secondary)
         }
-        .padding(.vertical, 14)
+        .padding(.vertical, 12)
         .overlay(alignment: .bottom) {
-            Rectangle().fill(OnboardingStyle.hairline).frame(height: 1)
+            Rectangle().fill(OnboardingStyle.hairline).frame(height: 0.5)
         }
         .accessibilityElement(children: .combine)
+        .animation(.easeInOut(duration: 0.3), value: isLit)
     }
 
     // MARK: Footer
@@ -172,18 +221,20 @@ struct OnboardingFirstNoteScreen: View {
     @ViewBuilder
     private var footer: some View {
         if viewModel.step == .done {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(spacing: 16) {
                 Text("Type, talk, or add a photo or file.")
                     .onboardingCaption()
+                    .multilineTextAlignment(.center)
                 OnboardingCaptureBar(viewModel: viewModel)
-                HStack {
-                    Spacer()
-                    goToDump
-                }
-                .padding(.top, 8)
+                Button("Go to my Dump →", action: onLeave)
+                    .buttonStyle(OnboardingLinkStyle(color: OnboardingStyle.text, font: OnboardingStyle.captionMedium))
             }
+        } else if viewModel.progress.firstNote?.status == .failed {
+            // 6c: one way forward, no retry; the categories are saved.
+            Button("Go to my Dump", action: onLeave)
+                .buttonStyle(OnboardingPrimaryButtonStyle())
         } else {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(spacing: 16) {
                 leaveBar
                 HStack {
                     if viewModel.progress.firstNote?.status == .sorted {
@@ -193,12 +244,12 @@ struct OnboardingFirstNoteScreen: View {
                             }
                             onLeave()
                         }
-                        .buttonStyle(OnboardingLinkStyle(color: OnboardingStyle.text))
+                        .buttonStyle(OnboardingLinkStyle())
                     }
                     Spacer()
-                    goToDump
+                    Button("Go to my Dump →", action: onLeave)
+                        .buttonStyle(OnboardingLinkStyle(color: OnboardingStyle.text, font: OnboardingStyle.captionMedium))
                 }
-                .padding(.top, 8)
             }
         }
     }
@@ -210,23 +261,23 @@ struct OnboardingFirstNoteScreen: View {
             HStack {
                 Text("Dump something else…")
                     .font(OnboardingStyle.body)
-                    .foregroundColor(OnboardingStyle.secondary)
+                    .foregroundColor(OnboardingStyle.placeholder)
                 Spacer()
                 Image(systemName: "mic")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(OnboardingStyle.text)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(OnboardingStyle.background)
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(OnboardingStyle.text))
             }
-            .padding(.horizontal, 20)
+            .padding(.leading, 20)
+            .padding(.trailing, 8)
             .frame(height: 56)
             .background(Capsule().fill(OnboardingStyle.surface))
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-    }
-
-    private var goToDump: some View {
-        Button("Go to my Dump →", action: onLeave)
-            .buttonStyle(OnboardingLinkStyle(color: OnboardingStyle.text))
+        .accessibilityLabel("Dump something else")
+        .accessibilityHint("Opens your Dump")
     }
 }
 
@@ -249,7 +300,7 @@ struct OnboardingCaptureBar: View {
     @FocusState private var isFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(spacing: 8) {
             Group {
                 if recorder.state == .recording {
                     recordingBar
@@ -262,7 +313,11 @@ struct OnboardingCaptureBar: View {
                 }
             }
             .frame(minHeight: 56)
-            .background(RoundedRectangle(cornerRadius: 28).fill(OnboardingStyle.surface))
+            .background {
+                if recorder.state == .recording || viewModel.isSavingFirstNote || isTyping {
+                    RoundedRectangle(cornerRadius: 28).fill(OnboardingStyle.surface)
+                }
+            }
 
             if micDenied {
                 Text("The Dump can’t use your microphone. Type instead, or turn the mic on in Settings.")
@@ -308,16 +363,19 @@ struct OnboardingCaptureBar: View {
         }
     }
 
+    /// As drawn on screen 5: a white pill with "+" and "Start dumping" on
+    /// the left and a black mic on the right.
     private var restingBar: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 12) {
             Button {
                 viewModel.clearFirstNoteError()
                 showSourceDialog = true
             } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 18, weight: .regular))
-                    .foregroundColor(OnboardingStyle.text)
-                    .frame(width: 56, height: 56)
+                Text("+")
+                    .font(.system(size: 20))
+                    .foregroundColor(OnboardingStyle.background)
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(Color(hex: "E5E5EA")))
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Add a photo or file")
@@ -327,8 +385,8 @@ struct OnboardingCaptureBar: View {
                 isTyping = true
             } label: {
                 Text("Start dumping")
-                    .font(OnboardingStyle.body)
-                    .foregroundColor(OnboardingStyle.secondary)
+                    .font(OnboardingStyle.button)
+                    .foregroundColor(OnboardingStyle.background)
                     .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
                     .contentShape(Rectangle())
             }
@@ -337,13 +395,16 @@ struct OnboardingCaptureBar: View {
 
             Button(action: startRecording) {
                 Image(systemName: "mic")
-                    .font(.system(size: 17, weight: .medium))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(OnboardingStyle.text)
-                    .frame(width: 56, height: 56)
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(OnboardingStyle.background))
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Record a note")
         }
+        .padding(.horizontal, 8)
+        .background(Capsule().fill(OnboardingStyle.text))
     }
 
     private var typingBar: some View {
@@ -387,8 +448,7 @@ struct OnboardingCaptureBar: View {
                 .monospacedDigit()
                 .foregroundColor(OnboardingStyle.text)
                 .padding(.leading, 20)
-            OnboardingLevelBars(level: recorder.level)
-                .scaleEffect(0.7, anchor: .leading)
+            OnboardingLevelBars(level: recorder.level, barCount: 8)
             Spacer()
             Button("Cancel") {
                 recorder.discardRecording()
@@ -449,59 +509,72 @@ struct OnboardingCaptureBar: View {
     }
 }
 
-// MARK: - "Change" on 6b
+// MARK: - "Change" on 6b (6d)
 
-/// The category picker behind "Change". Picking one moves the note through
-/// `/api/edit_note`; the sorter's reason is hidden afterwards.
+/// The category picker behind "Change": every category just made, in the
+/// same order as on 6b, the current one ticked. Picking another saves the
+/// move at once through `/api/edit_note` and closes the sheet; the sorter's
+/// reason is hidden afterwards.
 struct OnboardingChangeCategorySheet: View {
     @ObservedObject var viewModel: OnboardingV2ViewModel
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Move it to").onboardingLabel()
-                Spacer()
-                Button("Cancel") { dismiss() }
-                    .buttonStyle(OnboardingLinkStyle(color: OnboardingStyle.text, font: OnboardingStyle.body))
+        VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Move this note to").onboardingTitle()
+                if let text = viewModel.progress.firstNote?.displayText {
+                    Text(text)
+                        .onboardingCaption()
+                        .lineLimit(2)
+                }
             }
-            .padding(.horizontal, OnboardingStyle.gutter)
-            .frame(height: 56)
+            .padding(.top, 24)
             ScrollView {
                 VStack(spacing: 0) {
                     ForEach(viewModel.progress.savedCategories) { category in
-                        Button {
-                            Task {
-                                await viewModel.changeFirstNoteCategory(to: category)
-                                if viewModel.changeError == nil { dismiss() }
-                            }
-                        } label: {
-                            HStack {
-                                Text(category.name)
-                                    .font(OnboardingStyle.body)
-                                    .foregroundColor(OnboardingStyle.text)
-                                Spacer()
-                                if viewModel.isFirstNoteCategory(category) {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundColor(OnboardingStyle.text)
-                                }
-                            }
-                            .padding(.vertical, 16)
-                            .overlay(alignment: .bottom) {
-                                Rectangle().fill(OnboardingStyle.hairline).frame(height: 1)
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(viewModel.isChangingCategory)
+                        row(category)
                     }
                 }
-                .padding(.horizontal, OnboardingStyle.gutter)
+            }
+            if let error = viewModel.changeError {
+                Text(error).onboardingCaption(OnboardingStyle.danger)
             }
         }
-        .background(OnboardingStyle.background.ignoresSafeArea())
+        .padding(.horizontal, OnboardingStyle.gutter)
+        .padding(.bottom, 24)
+        .background(OnboardingStyle.surface.ignoresSafeArea())
         .environment(\.colorScheme, .dark)
         .preferredColorScheme(.dark)
+    }
+
+    private func row(_ category: OnboardingSavedCategory) -> some View {
+        let isCurrent = viewModel.isFirstNoteCategory(category)
+        return Button {
+            Task {
+                await viewModel.changeFirstNoteCategory(to: category)
+                if viewModel.changeError == nil { dismiss() }
+            }
+        } label: {
+            HStack {
+                Text(category.name)
+                    .font(isCurrent ? OnboardingStyle.bodyMedium : OnboardingStyle.body)
+                    .foregroundColor(isCurrent ? OnboardingStyle.text : OnboardingStyle.secondary)
+                Spacer()
+                Image(systemName: "checkmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(OnboardingStyle.text)
+                    .opacity(isCurrent ? 1 : 0)
+                    .frame(width: 20, alignment: .trailing)
+            }
+            .padding(.vertical, 14)
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(OnboardingStyle.hairline).frame(height: 0.5)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(viewModel.isChangingCategory)
+        .accessibilityAddTraits(isCurrent ? .isSelected : [])
     }
 }

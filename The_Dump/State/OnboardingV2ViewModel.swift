@@ -32,7 +32,11 @@ final class OnboardingV2ViewModel: ObservableObject {
         didSet { store?.save(progress) }
     }
 
-    @Published var recordMode: RecordMode = .idle
+    @Published var recordMode: RecordMode = .idle {
+        didSet { if recordMode != oldValue { recordNotice = nil } }
+    }
+    /// Shown on screen 2 when a recording came back empty.
+    @Published private(set) var recordNotice: String?
     /// How many "Heard …" lines on 2b have appeared so far.
     @Published private(set) var heardLinesShown = 0
     /// How many "name → category" lines on 3b have appeared so far.
@@ -229,6 +233,7 @@ final class OnboardingV2ViewModel: ObservableObject {
                 deleteRecording(named: name)
                 progress.pendingRecordingName = nil
                 progress.step = .record
+                recordNotice = "We didn’t catch anything. Try again, or type instead."
                 return false
             }
             progress.transcript = text
@@ -581,9 +586,10 @@ extension OnboardingV2ViewModel {
         }
     }
 
-    /// Why these edits can't be saved, or nil. `cardId` is nil for a new card.
-    func editError(cardId: UUID?, name: String, names: [String]) -> String? {
-        OnboardingRules.editError(
+    /// What blocks these edits; empty when they can be saved. `cardId` is
+    /// nil for a new card.
+    func editErrors(cardId: UUID?, name: String, names: [String]) -> OnboardingCardEditErrors {
+        OnboardingRules.editErrors(
             name: name,
             names: names,
             others: progress.cards.filter { $0.id != cardId }.map(\.name),
@@ -593,13 +599,18 @@ extension OnboardingV2ViewModel {
     }
 
     /// 4b's Save: updates the card (or adds it when `cardId` is nil) and
-    /// marks it approved. Returns the error to show instead when the edits
-    /// can't be saved.
+    /// marks it approved. Returns what to show under the fields instead when
+    /// the edits can't be saved, or nil once saved.
     @discardableResult
-    func saveCard(cardId: UUID?, name: String, description: String, names: [String], examples: [String]) -> String? {
-        if let error = editError(cardId: cardId, name: name, names: names) {
-            return error
-        }
+    func saveCard(
+        cardId: UUID?,
+        name: String,
+        description: String,
+        names: [String],
+        examples: [String]
+    ) -> OnboardingCardEditErrors? {
+        let errors = editErrors(cardId: cardId, name: name, names: names)
+        guard errors.isEmpty else { return errors }
         let card = OnboardingCard(
             id: cardId ?? UUID(),
             name: name.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -611,7 +622,9 @@ extension OnboardingV2ViewModel {
         if let index = progress.cards.firstIndex(where: { $0.id == card.id }) {
             progress.cards[index] = card
         } else {
-            guard canAddCards else { return "You can have up to \(rules.hardMax) categories." }
+            guard canAddCards else {
+                return OnboardingCardEditErrors(name: "You can have up to \(rules.hardMax) categories.")
+            }
             progress.cards.append(card)
         }
         finishError = nil
