@@ -42,15 +42,22 @@ final class OnboardingV2ViewModelTests: XCTestCase {
             OnboardingDraftCard(name: "Kids", description: "School and activities.", examples: [], names: ["Maya"])
         ]
 
-        let config = OnboardingConfig(
+        var config = OnboardingConfig(
             flowVersion: "voice-v1",
             trySaying: ["I'm launching a newsletter..."],
             catchAll: OnboardingCatchAll(name: "Everything else", description: "Anything that doesn't belong anywhere else yet.")
         )
+        var configCalls = 0
+        var existingCategories: [CategoryResponse] = []
+        var restored: [Int] = []
+        var restoreError: Error?
 
         var client: OnboardingClient {
             OnboardingClient(
-                config: { self.config },
+                config: {
+                    self.configCalls += 1
+                    return self.config
+                },
                 transcribe: { _, kind, _, _ in
                     self.transcribeKinds.append(kind)
                     return OnboardingTranscription(text: self.transcriptText, durationSeconds: 3)
@@ -84,8 +91,11 @@ final class OnboardingV2ViewModelTests: XCTestCase {
                         try Self.savedResponse(id: 100 + index, category: category)
                     }
                 },
-                fetchCategories: { [] },
-                restoreCategory: { _ in },
+                fetchCategories: { self.existingCategories },
+                restoreCategory: { id in
+                    if let error = self.restoreError { throw error }
+                    self.restored.append(id)
+                },
                 uploadText: { text in
                     self.uploadedTexts.append(text)
                     return "file-1"
@@ -452,6 +462,62 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.openCardId, card.id)
         XCTAssertNil(viewModel.finishError)
         XCTAssertFalse(viewModel.canFinish)
+    }
+
+    func testFinishFetchesTheConfigAgainWhenItHasNoCatchAll() async {
+        let server = FakeServer()
+        let catchAll = server.config.catchAll
+        server.config = OnboardingConfig(flowVersion: "voice-v1")
+        let viewModel = await reachReview(server)
+        approveAll(viewModel)
+        await viewModel.finish()
+        XCTAssertEqual(viewModel.step, .review)
+        XCTAssertNotNil(viewModel.finishError)
+        XCTAssertTrue(server.saved.isEmpty, "nothing is saved without the catch-all")
+
+        server.config = OnboardingConfig(flowVersion: "voice-v1", catchAll: catchAll)
+        let callsBefore = server.configCalls
+        await viewModel.finish()
+        XCTAssertEqual(server.configCalls, callsBefore + 1, "tapping Finish again fetches the config again")
+        XCTAssertEqual(viewModel.step, .done)
+        XCTAssertEqual(server.saved.last?.last?.name, "Everything else")
+    }
+
+    func testAnArchivedCatchAllIsRestoredAndAFailedRestoreStillFinishes() async throws {
+        let archived = try FakeServer.savedResponse(id: 77, category: The_Dump.Category(name: "Everything else"))
+        let clash = APIError.conflict(message: "You already have an archived category called \"Everything else\". Restore it instead of creating a new one.")
+
+        let server = FakeServer()
+        server.existingCategories = [archived]
+        let viewModel = await reachReview(server)
+        approveAll(viewModel)
+        server.saveError = clash
+        await viewModel.finish()
+        XCTAssertEqual(viewModel.step, .done)
+        XCTAssertEqual(server.saved.last?.map(\.name), ["Newsletter", "Client work", "Kitchen reno"], "saved without the catch-all")
+        XCTAssertEqual(server.restored, [77])
+        XCTAssertEqual(viewModel.progress.savedCategories.last?.id, 77)
+        XCTAssertEqual(viewModel.progress.savedCategories.last?.isCatchAll, true)
+
+        let failing = FakeServer()
+        failing.existingCategories = [archived]
+        failing.restoreError = APIError.serverError(message: "down")
+        let stuck = await reachReview(failing)
+        approveAll(stuck)
+        failing.saveError = clash
+        await stuck.finish()
+        XCTAssertEqual(stuck.step, .done, "the cards are saved, so a failed restore doesn't leave them on screen 4")
+        XCTAssertEqual(stuck.progress.savedCategories.count, 3)
+    }
+
+    func testCancelledRequestsAreNotRetried() {
+        XCTAssertFalse(OnboardingV2ViewModel.isRetryable(CancellationError()))
+        XCTAssertFalse(OnboardingV2ViewModel.isRetryable(APIError.networkError(underlying: URLError(.cancelled))))
+        XCTAssertFalse(OnboardingV2ViewModel.isRetryable(APIError.networkError(underlying: CancellationError())))
+        XCTAssertTrue(OnboardingV2ViewModel.isRetryable(APIError.networkError(underlying: URLError(.timedOut))))
+        XCTAssertTrue(OnboardingV2ViewModel.isRetryable(APIError.upstreamFailed(message: "x")))
+        XCTAssertFalse(OnboardingV2ViewModel.isRetryable(APIError.conflict(message: "x")))
+        XCTAssertFalse(OnboardingV2ViewModel.isRetryable(APIError.badRequest(message: "x")))
     }
 
     // MARK: - Screen 6

@@ -127,8 +127,11 @@ final class OnboardingV2ViewModel: ObservableObject {
         }
     }
 
+    /// Fetches the config when there is none yet, or when the saved one has
+    /// no catch-all (Finish can't save without it), so a failed or partial
+    /// fetch is tried again on the next screen that needs it.
     func loadConfigIfNeeded() async {
-        guard progress.config == nil else { return }
+        guard progress.config?.catchAll == nil else { return }
         if let config = try? await retrying({ try await self.client.config() }) {
             progress.config = config
         }
@@ -500,9 +503,14 @@ final class OnboardingV2ViewModel: ObservableObject {
     }
 
     nonisolated static func isRetryable(_ error: Error) -> Bool {
+        // A cancelled request means the screen went away; don't start it again.
+        if error is CancellationError || Task.isCancelled { return false }
         guard let apiError = error as? APIError else { return true }
         switch apiError {
-        case .networkError, .serverError, .upstreamFailed, .decodingFailed, .unknownError:
+        case .networkError(let underlying):
+            if underlying is CancellationError { return false }
+            return (underlying as? URLError)?.code != .cancelled
+        case .serverError, .upstreamFailed, .decodingFailed, .unknownError:
             return true
         case .httpError(let status, _):
             return status >= 500
@@ -660,6 +668,7 @@ extension OnboardingV2ViewModel {
 
         await loadConfigIfNeeded()
         guard let catchAll = progress.config?.catchAll else {
+            // Finish stays enabled, and tapping it fetches the config again.
             finishError = Self.message(for: APIError.unknownError)
             return
         }
@@ -674,6 +683,10 @@ extension OnboardingV2ViewModel {
         }
     }
 
+    /// Sending the same save twice is safe, so it is retried like the AI
+    /// calls: the server updates a category whose name matches exactly
+    /// (`plan_category_saves`) instead of refusing it, so a retry after a
+    /// lost reply finds the first attempt's categories and updates them.
     private func saveAll(catchAll: OnboardingCatchAll) async throws -> [CategoryResponse] {
         let payload = OnboardingRules.finishPayload(cards: progress.cards, catchAll: catchAll)
         do {
@@ -683,14 +696,30 @@ extension OnboardingV2ViewModel {
             // "Everything else" was archived on this account: save the
             // cards on their own, then bring the old catch-all back.
             let cardsOnly = OnboardingRules.finishPayload(cards: progress.cards, catchAll: nil)
-            var saved = try await client.saveCategories(cardsOnly)
-            let existing = try await client.fetchCategories()
-            let key = OnboardingRules.nameKey(catchAll.name)
-            if let old = existing.first(where: { OnboardingRules.nameKey($0.name) == key }) {
-                try await client.restoreCategory(old.categoryId)
-                saved.append(old)
+            var saved = try await retrying { try await self.client.saveCategories(cardsOnly) }
+            if let restored = await restoreCatchAll(named: catchAll.name) {
+                saved.append(restored)
             }
             return saved
+        }
+    }
+
+    /// Brings an archived catch-all back. Best effort: the cards are saved
+    /// by now, so a failure here still finishes onboarding rather than
+    /// leaving the person stuck on screen 4; their notes then go to the
+    /// other categories until they restore it in Settings.
+    private func restoreCatchAll(named name: String) async -> CategoryResponse? {
+        let key = OnboardingRules.nameKey(name)
+        do {
+            let existing = try await retrying { try await self.client.fetchCategories() }
+            guard let old = existing.first(where: { OnboardingRules.nameKey($0.name) == key }) else { return nil }
+            try await retrying { try await self.client.restoreCategory(old.categoryId) }
+            return old
+        } catch {
+#if DEBUG
+            print("[Onboarding] Restoring the catch-all failed: \(error)")
+#endif
+            return nil
         }
     }
 
