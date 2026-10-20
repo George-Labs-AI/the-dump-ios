@@ -301,6 +301,10 @@ struct OnboardingCaptureBar: View {
     @State private var libraryItem: PhotosPickerItem?
     @State private var capturedImage: UIImage?
     @State private var micDenied = false
+    /// Set the moment Send is tapped, before the save starts, so the
+    /// keyboard closing on the way can't turn the bar back to its resting
+    /// state and drop the note.
+    @State private var isSending = false
     @FocusState private var isFocused: Bool
 
     private var isRecording: Bool { recorder.state == .recording }
@@ -365,7 +369,7 @@ struct OnboardingCaptureBar: View {
         .onChange(of: isFocused) { _, focused in
             // Tapping outside the box closes the keyboard and returns to 5,
             // keeping what was typed.
-            if !focused && !viewModel.isSavingFirstNote {
+            if !focused && !isSending && !viewModel.isSavingFirstNote {
                 isTyping = false
             }
         }
@@ -525,8 +529,10 @@ struct OnboardingCaptureBar: View {
 
     private func sendText() {
         let note = text
+        isSending = true
         Task {
             await viewModel.submitFirstText(note)
+            isSending = false
             if viewModel.firstNoteError == nil {
                 text = ""
                 isTyping = false
