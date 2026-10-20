@@ -77,6 +77,15 @@ class AppState: ObservableObject {
             return
         }
 
+        // Someone who saved their categories but closed the app on the
+        // "You're done organizing" or first-note screen goes back there,
+        // even though the account now has categories.
+        if OnboardingProgressStore(uid: userId).hasFinishedButNotLeft {
+            hasCompletedOnboarding = false
+            isCheckingOnboardingStatus = false
+            return
+        }
+
         // Fast path: check local cache first (instant)
         if UserDefaults.standard.bool(forKey: "onboarding_completed_\(userId)") {
             hasCompletedOnboarding = true
@@ -103,6 +112,9 @@ class AppState: ObservableObject {
                 print("[AppState] Found \(counts.categoryBucketCount) categories on server - skipping onboarding")
 #endif
                 UserDefaults.standard.set(true, forKey: "onboarding_completed_\(userId)")
+                // Onboarded somewhere else (the web, another phone): any
+                // half-finished progress on this phone is stale.
+                OnboardingProgressStore(uid: userId).clear()
                 hasCompletedOnboarding = true
             } else {
 #if DEBUG
@@ -136,6 +148,7 @@ class AppState: ObservableObject {
     private func clearLocalData() {
         if let userId = currentUser?.uid {
             UserDefaults.standard.removeObject(forKey: "onboarding_completed_\(userId)")
+            OnboardingProgressStore(uid: userId).clear()
         }
         TokenManager().clearToken()
         isAuthenticated = false
@@ -144,6 +157,13 @@ class AppState: ObservableObject {
         hasCompletedOnboarding = false
     }
 
+    /// Whether the onboarding is what's on screen, which is always dark
+    /// whatever the appearance setting (D-071).
+    var isShowingOnboarding: Bool {
+        isAuthenticated && !isCheckingOnboardingStatus && !hasCompletedOnboarding
+    }
+
+    /// Called when the person leaves the onboarding's last screens.
     func markOnboardingComplete() {
         guard let userId = currentUser?.uid else { return }
         UserDefaults.standard.set(true, forKey: "onboarding_completed_\(userId)")
