@@ -28,7 +28,8 @@ struct FileStatusResponse: Codable, Equatable, Sendable {
 struct FileStatusEntry: Codable, Equatable, Sendable {
     let fileUuid: String
     let status: String
-    /// `transcribed` only — first 512 chars of intake_notes.note_content.
+    /// First 512 chars of the note's text: on `transcribed`, and on
+    /// `completed` from servers with the onboarding change (THEDUMP-37).
     let noteContentPreview: String?
     /// `transcribed` only — voice / image / text / file.
     let mediaType: String?
@@ -37,8 +38,36 @@ struct FileStatusEntry: Codable, Equatable, Sendable {
     let title: String?
     let categoryId: Int?
     let categoryName: String?
+    /// `completed` only, and only from servers with the onboarding change:
+    /// the sorter's one-sentence reason for the category. Nil when the note
+    /// has none.
+    let decisionReason: String?
     /// `failed` only.
     let error: String?
+
+    init(
+        fileUuid: String,
+        status: String,
+        noteContentPreview: String? = nil,
+        mediaType: String? = nil,
+        organizedNoteId: String? = nil,
+        title: String? = nil,
+        categoryId: Int? = nil,
+        categoryName: String? = nil,
+        decisionReason: String? = nil,
+        error: String? = nil
+    ) {
+        self.fileUuid = fileUuid
+        self.status = status
+        self.noteContentPreview = noteContentPreview
+        self.mediaType = mediaType
+        self.organizedNoteId = organizedNoteId
+        self.title = title
+        self.categoryId = categoryId
+        self.categoryName = categoryName
+        self.decisionReason = decisionReason
+        self.error = error
+    }
 
     enum CodingKeys: String, CodingKey {
         case fileUuid = "file_uuid"
@@ -49,6 +78,7 @@ struct FileStatusEntry: Codable, Equatable, Sendable {
         case title
         case categoryId = "category_id"
         case categoryName = "category_name"
+        case decisionReason = "decision_reason"
         case error
     }
 }

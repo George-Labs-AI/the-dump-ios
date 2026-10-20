@@ -25,6 +25,15 @@ enum SharedConstants {
 #endif
     }()
 
+    /// The backend API service (the Cloud Run service the web app's Settings
+    /// page also calls). It runs re-sorting jobs and the onboarding AI steps;
+    /// everything else goes to `baseURL`. Not affected by `-DumpServerURL`.
+    static let backendBaseURL = "https://mindmerge-backend-55o5dgq4ya-uc.a.run.app"
+
+    /// The web page that explains how to connect The Dump to Claude (the MCP
+    /// setup guide). Like the legal links, it always opens thedump.ai.
+    static let mcpSetupGuideURL = "https://thedump.ai/mcp"
+
     /// Ingest endpoint path (text and links).
     static let ingestEndpoint = "/api/ingest"
 

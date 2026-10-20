@@ -12,7 +12,7 @@ class NotesService {
 
     // The recategorize job pipeline currently lives on a separate Cloud Run
     // service. Routed via createRequest's baseURLOverride parameter.
-    private let recategorizeBaseURL = "https://mindmerge-backend-55o5dgq4ya-uc.a.run.app"
+    private let recategorizeBaseURL = SharedConstants.backendBaseURL
 
     private init() {}
 

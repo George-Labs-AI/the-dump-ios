@@ -35,6 +35,8 @@ class AudioRecorderService: NSObject, ObservableObject {
     @Published var duration: TimeInterval = 0
     @Published var currentFileURL: URL?
     @Published var errorMessage: String?
+    /// The input level while recording, 0 (silence) to 1, for level meters.
+    @Published var level: Float = 0
     
     private var audioRecorder: AVAudioRecorder?
     private var timer: Timer?
@@ -63,7 +65,10 @@ class AudioRecorderService: NSObject, ObservableObject {
     
     // MARK: - Recording
     
-    func startRecording() throws {
+    /// Voice notes record at 44.1 kHz. Onboarding passes 16 kHz, which is
+    /// plenty for speech and keeps a ten-minute recording small enough to
+    /// upload quickly for transcription.
+    func startRecording(sampleRate: Double = 44100) throws {
         guard hasPermission() else {
             throw RecorderError.permissionDenied
         }
@@ -78,13 +83,14 @@ class AudioRecorderService: NSObject, ObservableObject {
         
         let settings: [String: Any] = [
             AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-            AVSampleRateKey: 44100,
+            AVSampleRateKey: sampleRate,
             AVNumberOfChannelsKey: 1,
             AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
         ]
         
         audioRecorder = try AVAudioRecorder(url: fileURL, settings: settings)
         audioRecorder?.delegate = self
+        audioRecorder?.isMeteringEnabled = true
         
         guard audioRecorder?.record() == true else {
             throw RecorderError.recordingFailed
@@ -130,6 +136,7 @@ class AudioRecorderService: NSObject, ObservableObject {
         startTime = nil
         stopTimer()
         errorMessage = nil
+        level = 0
     }
     
     // MARK: - Timer
@@ -139,6 +146,10 @@ class AudioRecorderService: NSObject, ObservableObject {
             MainActor.assumeIsolated {
                 guard let self = self, let recorder = self.audioRecorder, recorder.isRecording else { return }
                 self.duration = recorder.currentTime
+                recorder.updateMeters()
+                // averagePower is in decibels, about -160 (silence) to 0.
+                let power = recorder.averagePower(forChannel: 0)
+                self.level = max(0, min(1, (power + 50) / 50))
                 
                 // Hard limit
                 if self.duration >= Self.maxDurationHard {

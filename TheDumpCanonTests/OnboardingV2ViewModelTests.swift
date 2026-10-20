@@ -1,0 +1,586 @@
+import XCTest
+import UIKit
+@testable import The_Dump
+
+/// The voice onboarding's rules, run against a fake server: the order of
+/// the steps, resuming where the app was closed, which cards can be
+/// approved, skipping the questions screen, the questions headline,
+/// revising the draft only when an answer was given, the Finish save
+/// (catch-all included), and the first note's reason line. Every test is
+/// async on purpose: releasing a main-actor object at the end of a
+/// synchronous test crashes under Xcode 26.
+@MainActor
+final class OnboardingV2ViewModelTests: XCTestCase {
+    /// Records what was sent and answers with canned replies.
+    @MainActor
+    final class FakeServer {
+        var readCalls = 0
+        var readFailures = 0
+        var checkCalls = 0
+        var transcribeKinds: [OnboardingTranscribeKind] = []
+        var transcriptText = "I run a newsletter and two clients."
+        var draftRequests: [OnboardingDraftRequest] = []
+        var saved: [[The_Dump.Category]] = []
+        var saveError: Error?
+        var uploadedTexts: [String] = []
+        var statuses: [FileStatusEntry] = []
+        var moves: [(String, Int)] = []
+
+        var questions: [OnboardingCheckResult.Question] = [
+            .init(question: "Anything at home you're keeping track of?", why: nil),
+            .init(question: "Any ideas you keep coming back to?", why: nil)
+        ]
+        var initialCards = [
+            OnboardingDraftCard(name: "Newsletter", description: "Signal & Noise.", examples: ["Drafts"], names: ["Signal & Noise"]),
+            OnboardingDraftCard(name: "Client work", description: "Work for clients.", examples: [], names: ["Priya", "Acme"]),
+            OnboardingDraftCard(name: "Kitchen reno", description: "Redoing the kitchen.", examples: ["Quotes", "Paint colors"], names: ["Dave"])
+        ]
+        var revisedCards = [
+            OnboardingDraftCard(name: "Newsletter", description: "Signal & Noise.", examples: [], names: ["Signal & Noise"]),
+            OnboardingDraftCard(name: "Client work", description: "Work for clients.", examples: [], names: ["Priya"]),
+            OnboardingDraftCard(name: "Kitchen reno", description: "Redoing the kitchen.", examples: [], names: ["Dave"]),
+            OnboardingDraftCard(name: "Kids", description: "School and activities.", examples: [], names: ["Maya"])
+        ]
+
+        var config = OnboardingConfig(
+            flowVersion: "voice-v1",
+            trySaying: ["I'm launching a newsletter..."],
+            catchAll: OnboardingCatchAll(name: "Everything else", description: "Anything that doesn't belong anywhere else yet.")
+        )
+        var configCalls = 0
+        var existingCategories: [CategoryResponse] = []
+        var restored: [Int] = []
+        var restoreError: Error?
+
+        var client: OnboardingClient {
+            OnboardingClient(
+                config: {
+                    self.configCalls += 1
+                    return self.config
+                },
+                transcribe: { _, kind, _, _ in
+                    self.transcribeKinds.append(kind)
+                    return OnboardingTranscription(text: self.transcriptText, durationSeconds: 3)
+                },
+                read: { _, _ in
+                    self.readCalls += 1
+                    if self.readFailures > 0 {
+                        self.readFailures -= 1
+                        throw APIError.upstreamFailed(message: "Read failed")
+                    }
+                    return OnboardingReadResult(
+                        items: [.init(label: "Newsletter", heardPhrase: "newsletter"), .init(label: "Clients", heardPhrase: "Priya at Acme")],
+                        names: [.init(name: "Priya", kind: "person", context: nil)]
+                    )
+                },
+                check: { _, _ in
+                    self.checkCalls += 1
+                    return OnboardingCheckResult(summary: "You covered work and your newsletter.", assessment: "some_gaps", questions: self.questions)
+                },
+                draft: { request in
+                    self.draftRequests.append(request)
+                    return request.previousDraft == nil ? self.initialCards : self.revisedCards
+                },
+                saveCategories: { categories in
+                    self.saved.append(categories)
+                    if let error = self.saveError {
+                        self.saveError = nil
+                        throw error
+                    }
+                    return try categories.enumerated().map { index, category in
+                        try Self.savedResponse(id: 100 + index, category: category)
+                    }
+                },
+                fetchCategories: { self.existingCategories },
+                restoreCategory: { id in
+                    if let error = self.restoreError { throw error }
+                    self.restored.append(id)
+                },
+                uploadText: { text in
+                    self.uploadedTexts.append(text)
+                    return "file-1"
+                },
+                uploadPhoto: { _ in "file-photo" },
+                uploadFile: { _ in "file-doc" },
+                fileStatus: { uuid in
+                    guard !self.statuses.isEmpty else { return FileStatusEntry(fileUuid: uuid, status: "processing") }
+                    return self.statuses.removeFirst()
+                },
+                moveNote: { noteId, categoryId in self.moves.append((noteId, categoryId)) },
+                sleep: { _ in }
+            )
+        }
+
+        static func savedResponse(id: Int, category: The_Dump.Category) throws -> CategoryResponse {
+            let keywords = (category.keywords ?? []).map { "\"\($0)\"" }.joined(separator: ",")
+            let json = """
+            {"category_id": \(id), "name": "\(category.name)", "definition": "", "keywords": [\(keywords)],
+             "source": "\(category.source ?? "")", "date_added": "x", "last_modified_date": "x"}
+            """
+            return try JSONDecoder().decode(CategoryResponse.self, from: Data(json.utf8))
+        }
+    }
+
+    private var suiteNames: [String] = []
+
+    override func tearDown() async throws {
+        for name in suiteNames {
+            UserDefaults().removePersistentDomain(forName: name)
+        }
+        suiteNames = []
+        try await super.tearDown()
+    }
+
+    private func makeStore() -> OnboardingProgressStore {
+        let name = "OnboardingV2ViewModelTests-\(UUID().uuidString)"
+        suiteNames.append(name)
+        return OnboardingProgressStore(uid: "user-1", defaults: UserDefaults(suiteName: name))
+    }
+
+    private func makeViewModel(
+        _ server: FakeServer,
+        store: OnboardingProgressStore? = nil
+    ) -> OnboardingV2ViewModel {
+        OnboardingV2ViewModel(client: server.client, store: store ?? makeStore(), recordingDirectory: FileManager.default.temporaryDirectory)
+    }
+
+    /// Typed ramble → listening back → questions.
+    private func reachQuestions(_ viewModel: OnboardingV2ViewModel) async {
+        await viewModel.resume()
+        viewModel.begin()
+        await viewModel.submitTyped("I run a newsletter, I have two clients, and we're redoing the kitchen.")
+    }
+
+    private func reachReview(_ server: FakeServer) async -> OnboardingV2ViewModel {
+        server.questions = []
+        let viewModel = makeViewModel(server)
+        await reachQuestions(viewModel)
+        return viewModel
+    }
+
+    private func approveAll(_ viewModel: OnboardingV2ViewModel) {
+        for card in viewModel.progress.cards {
+            viewModel.approveCard(card.id)
+        }
+    }
+
+    // MARK: - Step order
+
+    func testStepsRunInOrderFromPromiseToQuestions() async {
+        let server = FakeServer()
+        let viewModel = makeViewModel(server)
+        XCTAssertEqual(viewModel.step, .promise)
+        await viewModel.resume()
+        viewModel.begin()
+        XCTAssertEqual(viewModel.step, .record)
+
+        await viewModel.submitTyped("I run a newsletter, I have two clients, and we're redoing the kitchen.")
+        XCTAssertEqual(viewModel.step, .questions)
+        XCTAssertEqual(viewModel.progress.transcriptSource, .typed)
+        XCTAssertTrue(server.transcribeKinds.isEmpty, "typed text is never transcribed")
+        XCTAssertEqual(server.readCalls, 1)
+        XCTAssertEqual(server.checkCalls, 1)
+        XCTAssertEqual(viewModel.heardLinesShown, 2)
+        XCTAssertTrue(viewModel.isCheckDone)
+        XCTAssertEqual(viewModel.progress.followups.map(\.question), server.questions.map(\.question))
+    }
+
+    func testQuestionsThenBuildingThenReviewThenDone() async throws {
+        let server = FakeServer()
+        let viewModel = makeViewModel(server)
+        await reachQuestions(viewModel)
+        viewModel.skipQuestion(0)
+        viewModel.skipQuestion(1)
+        await viewModel.buildCategories()
+        XCTAssertEqual(viewModel.step, .review)
+        XCTAssertEqual(viewModel.progress.cards.map(\.name), ["Newsletter", "Client work", "Kitchen reno"])
+
+        approveAll(viewModel)
+        await viewModel.finish()
+        XCTAssertEqual(viewModel.step, .done)
+    }
+
+    // MARK: - Screen 3
+
+    func testNoQuestionsSkipsTheQuestionsScreen() async {
+        let server = FakeServer()
+        let viewModel = await reachReview(server)
+        XCTAssertEqual(viewModel.step, .review, "no questions goes straight through 3b to the cards")
+        XCTAssertTrue(viewModel.progress.followups.isEmpty)
+        XCTAssertEqual(server.draftRequests.count, 1, "no answers, so no revise call")
+    }
+
+    func testHeadlineMatchesTheNumberOfQuestions() async {
+        XCTAssertEqual(OnboardingRules.questionsHeadline(count: 1), "Got it. One quick one.")
+        XCTAssertEqual(OnboardingRules.questionsHeadline(count: 2), "Got it. Two quick ones.")
+
+        let server = FakeServer()
+        server.questions = [.init(question: "Anything at home?", why: nil)]
+        let viewModel = makeViewModel(server)
+        await reachQuestions(viewModel)
+        XCTAssertEqual(viewModel.questionsHeadline, "Got it. One quick one.")
+        XCTAssertEqual(viewModel.questionsBody, "You covered work and your newsletter. Anything else?")
+    }
+
+    func testDraftIsRevisedOnlyWhenAnAnswerWasGiven() async {
+        let skipped = FakeServer()
+        let skippedModel = makeViewModel(skipped)
+        await reachQuestions(skippedModel)
+        skippedModel.skipQuestion(0)
+        await skippedModel.buildCategories()
+        XCTAssertEqual(skipped.draftRequests.count, 1, "an unanswered question counts as skipped")
+        XCTAssertEqual(skippedModel.progress.followups.map(\.source), [.skipped, .skipped])
+        XCTAssertEqual(skippedModel.progress.cards.count, 3)
+
+        let answered = FakeServer()
+        let answeredModel = makeViewModel(answered)
+        await reachQuestions(answeredModel)
+        answeredModel.submitTypedAnswer(0, text: "  Maya's school stuff  ")
+        answeredModel.skipQuestion(1)
+        await answeredModel.buildCategories()
+        XCTAssertEqual(answered.draftRequests.count, 2)
+        XCTAssertNil(answered.draftRequests[0].previousDraft, "the first draft starts from the transcript alone")
+        XCTAssertEqual(answered.draftRequests[0].answers, [])
+        let revise = answered.draftRequests[1]
+        XCTAssertEqual(revise.answers, [OnboardingAnswer(question: answered.questions[0].question, answer: "Maya's school stuff")])
+        XCTAssertEqual(revise.previousDraft, answered.initialCards)
+        XCTAssertEqual(answeredModel.progress.cards.map(\.name), ["Newsletter", "Client work", "Kitchen reno", "Kids"])
+    }
+
+    func testSpokenAnswerIsTranscribedWithTheNamesHeard() async throws {
+        let server = FakeServer()
+        let viewModel = makeViewModel(server)
+        await reachQuestions(viewModel)
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("answer-\(UUID().uuidString).m4a")
+        try Data("audio".utf8).write(to: file)
+
+        viewModel.submitAnswerRecording(0, fileURL: file)
+        XCTAssertEqual(viewModel.answerStates[0], .transcribing)
+        await viewModel.buildCategories()
+        XCTAssertEqual(server.transcribeKinds, [.answer])
+        XCTAssertEqual(viewModel.progress.followups[0].source, .voice)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path), "the recording is deleted once it is text")
+        XCTAssertEqual(server.draftRequests.count, 2)
+    }
+
+    // MARK: - Failures and resuming
+
+    func testAFailedStepIsRetriedOnceThenShownAndRetriedFromWhatWasSaved() async {
+        let server = FakeServer()
+        server.readFailures = 2
+        let viewModel = makeViewModel(server)
+        await reachQuestions(viewModel)
+        XCTAssertEqual(viewModel.step, .listening)
+        XCTAssertEqual(viewModel.progress.failure?.task, .read)
+        XCTAssertEqual(server.readCalls, 2, "retried once on its own")
+        XCTAssertNotNil(viewModel.progress.transcript, "what they said is kept")
+
+        await viewModel.retryFailedStep()
+        XCTAssertNil(viewModel.progress.failure)
+        XCTAssertEqual(viewModel.step, .questions)
+        XCTAssertEqual(server.checkCalls, 1, "the check already finished, so only read re-runs")
+    }
+
+    func testResumesAtTheSavedStep() async {
+        let store = makeStore()
+        let first = FakeServer()
+        let viewModel = makeViewModel(first, store: store)
+        await reachQuestions(viewModel)
+        viewModel.submitTypedAnswer(0, text: "The kids")
+
+        let again = FakeServer()
+        let resumed = makeViewModel(again, store: store)
+        XCTAssertEqual(resumed.step, .questions)
+        XCTAssertEqual(resumed.progress.followups[0].answer, "The kids")
+        XCTAssertEqual(resumed.progress.sessionId, viewModel.progress.sessionId)
+        await resumed.resume()
+        XCTAssertEqual(again.readCalls, 0, "finished steps are not run again")
+        XCTAssertEqual(again.checkCalls, 0)
+    }
+
+    func testResumeMidListeningRunsOnlyWhatIsLeft() async {
+        let store = makeStore()
+        var progress = OnboardingProgress()
+        progress.step = .listening
+        progress.transcript = "I run a newsletter."
+        progress.extraction = OnboardingReadResult(items: [.init(label: "N", heardPhrase: "newsletter")], names: [])
+        store.save(progress)
+
+        let server = FakeServer()
+        let viewModel = makeViewModel(server, store: store)
+        await viewModel.resume()
+        XCTAssertEqual(server.readCalls, 0)
+        XCTAssertEqual(server.checkCalls, 1)
+        XCTAssertEqual(viewModel.step, .questions)
+    }
+
+    func testResumeWithAnUnsentRecordingTranscribesItAndDeletesIt() async throws {
+        let store = makeStore()
+        let name = "ramble-\(UUID().uuidString).m4a"
+        try Data("audio".utf8).write(to: FileManager.default.temporaryDirectory.appendingPathComponent(name))
+        var progress = OnboardingProgress()
+        progress.step = .listening
+        progress.pendingRecordingName = name
+        store.save(progress)
+
+        let server = FakeServer()
+        let viewModel = makeViewModel(server, store: store)
+        await viewModel.resume()
+        XCTAssertEqual(server.transcribeKinds, [.ramble])
+        XCTAssertEqual(viewModel.progress.transcript, "I run a newsletter and two clients.")
+        XCTAssertNil(viewModel.progress.pendingRecordingName)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: FileManager.default.temporaryDirectory.appendingPathComponent(name).path))
+    }
+
+    func testASilentRecordingGoesBackToRecordingWithANotice() async throws {
+        let server = FakeServer()
+        server.transcriptText = "  "
+        let viewModel = makeViewModel(server)
+        await viewModel.resume()
+        viewModel.begin()
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("ramble-\(UUID().uuidString).m4a")
+        try Data("audio".utf8).write(to: file)
+        await viewModel.submitRecording(fileURL: file)
+        XCTAssertEqual(viewModel.step, .record)
+        XCTAssertNotNil(viewModel.recordNotice)
+        XCTAssertNil(viewModel.progress.transcript)
+        XCTAssertEqual(server.readCalls, 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+    }
+
+    func testFinishedButNotLeftKeepsTheOnboardingOnScreen() async {
+        let store = makeStore()
+        XCTAssertFalse(store.hasFinishedButNotLeft)
+        var progress = OnboardingProgress()
+        progress.step = .review
+        store.save(progress)
+        XCTAssertFalse(store.hasFinishedButNotLeft)
+        progress.step = .done
+        store.save(progress)
+        XCTAssertTrue(store.hasFinishedButNotLeft)
+
+        let viewModel = makeViewModel(FakeServer(), store: store)
+        viewModel.leave()
+        XCTAssertNil(store.load())
+        viewModel.begin()
+        XCTAssertNil(store.load(), "a late change after leaving is not saved again")
+    }
+
+    // MARK: - Screen 4: approving and editing
+
+    func testCardWithoutNamesCannotBeApprovedAndFinishWaitsForEveryCard() async {
+        let server = FakeServer()
+        server.initialCards[2] = OnboardingDraftCard(name: "Kids", description: "", examples: [], names: [])
+        let viewModel = await reachReview(server)
+        XCTAssertEqual(viewModel.finishLabel, "Finish · 3 left")
+        XCTAssertFalse(viewModel.canFinish)
+
+        let cards = viewModel.progress.cards
+        viewModel.approveCard(cards[0].id)
+        viewModel.approveCard(cards[1].id)
+        viewModel.approveCard(cards[2].id)
+        XCTAssertFalse(viewModel.progress.cards[2].approved, "no names, so it can't be approved")
+        XCTAssertEqual(viewModel.finishLabel, "Finish · 1 left")
+        XCTAssertEqual(viewModel.openCardId, cards[2].id, "the card still needing attention is open")
+
+        viewModel.addChip(" Maya ", to: .names, cardId: cards[2].id)
+        viewModel.approveCard(cards[2].id)
+        XCTAssertTrue(viewModel.canFinish)
+        XCTAssertEqual(viewModel.finishLabel, "Finish")
+    }
+
+    func testEditRulesAndRemoveStopsAtThree() async {
+        let server = FakeServer()
+        let viewModel = await reachReview(server)
+        let card = viewModel.progress.cards[0]
+
+        XCTAssertEqual(viewModel.saveCard(cardId: card.id, name: " ", description: "", names: ["a"], examples: [])?.name, "Give it a name.")
+        XCTAssertNotNil(viewModel.saveCard(cardId: card.id, name: String(repeating: "x", count: 31), description: "", names: ["a"], examples: [])?.name)
+        XCTAssertEqual(
+            viewModel.saveCard(cardId: card.id, name: " client WORK ", description: "", names: ["a"], examples: [])?.name,
+            "You already have a category called Client work.",
+            "names clash ignoring case and spaces"
+        )
+        XCTAssertNotNil(viewModel.saveCard(cardId: card.id, name: "everything else", description: "", names: ["a"], examples: [])?.name, "the catch-all's name is taken")
+        let noNames = viewModel.saveCard(cardId: card.id, name: "Letters", description: "", names: ["  "], examples: [])
+        XCTAssertNil(noNames?.name)
+        XCTAssertEqual(noNames?.names, "Add at least one name so notes can find this category.")
+        XCTAssertNil(viewModel.saveCard(cardId: card.id, name: " Letters ", description: "Mine.", names: ["S&N", "s&n"], examples: []))
+        XCTAssertEqual(viewModel.progress.cards[0].name, "Letters")
+        XCTAssertEqual(viewModel.progress.cards[0].names, ["S&N"])
+        XCTAssertTrue(viewModel.progress.cards[0].approved, "Save approves the card")
+
+        XCTAssertFalse(viewModel.canRemoveCards, "Remove is hidden at three cards")
+        viewModel.removeCard(card.id)
+        XCTAssertEqual(viewModel.progress.cards.count, 3)
+
+        XCTAssertNil(viewModel.saveCard(cardId: nil, name: "Kids", description: "", names: ["Maya"], examples: []))
+        XCTAssertEqual(viewModel.progress.cards.count, 4)
+        XCTAssertTrue(viewModel.canRemoveCards)
+        viewModel.removeCard(card.id)
+        XCTAssertEqual(viewModel.progress.cards.count, 3)
+    }
+
+    // MARK: - Finish
+
+    func testFinishSavesEveryCardAndTheCatchAllInOneRequest() async {
+        let server = FakeServer()
+        let viewModel = await reachReview(server)
+        approveAll(viewModel)
+        await viewModel.finish()
+
+        XCTAssertEqual(server.saved.count, 1)
+        let payload = server.saved[0]
+        XCTAssertEqual(payload.map(\.name), ["Newsletter", "Client work", "Kitchen reno", "Everything else"])
+        XCTAssertEqual(payload[0].definition, "Signal & Noise. Things like: Drafts.")
+        XCTAssertEqual(payload[1].definition, "Work for clients.", "no examples, no \"Things like\"")
+        XCTAssertEqual(payload[2].definition, "Redoing the kitchen. Things like: Quotes, Paint colors.")
+        XCTAssertEqual(payload[1].keywords, ["Priya", "Acme"])
+        XCTAssertEqual(payload.prefix(3).map(\.source), Array(repeating: "onboarding_voice", count: 3))
+        XCTAssertEqual(payload[3].definition, server.config.catchAll?.description)
+        XCTAssertEqual(payload[3].keywords, [])
+        XCTAssertEqual(payload[3].source, "onboarding_catchall")
+
+        XCTAssertEqual(viewModel.step, .done)
+        XCTAssertEqual(viewModel.savedCategoryCount, 4)
+        XCTAssertEqual(viewModel.savedNameCount, 4)
+        XCTAssertEqual(viewModel.savedCategoryLine, "Newsletter · Client work · Kitchen reno · Everything else")
+        XCTAssertEqual(viewModel.progress.savedCategories.last?.isCatchAll, true)
+    }
+
+    func testANameClashIsShownOnItsCard() async {
+        let server = FakeServer()
+        let viewModel = await reachReview(server)
+        approveAll(viewModel)
+        server.saveError = APIError.conflict(message: "You already have an archived category called \"client work\". Restore it instead of creating a new one.")
+        await viewModel.finish()
+
+        XCTAssertEqual(viewModel.step, .review)
+        let card = viewModel.progress.cards[1]
+        XCTAssertEqual(card.errorMessage, "You already have an archived category called \"client work\". Restore it instead of creating a new one.")
+        XCTAssertFalse(card.approved)
+        XCTAssertEqual(viewModel.openCardId, card.id)
+        XCTAssertNil(viewModel.finishError)
+        XCTAssertFalse(viewModel.canFinish)
+    }
+
+    func testFinishFetchesTheConfigAgainWhenItHasNoCatchAll() async {
+        let server = FakeServer()
+        let catchAll = server.config.catchAll
+        server.config = OnboardingConfig(flowVersion: "voice-v1")
+        let viewModel = await reachReview(server)
+        approveAll(viewModel)
+        await viewModel.finish()
+        XCTAssertEqual(viewModel.step, .review)
+        XCTAssertNotNil(viewModel.finishError)
+        XCTAssertTrue(server.saved.isEmpty, "nothing is saved without the catch-all")
+
+        server.config = OnboardingConfig(flowVersion: "voice-v1", catchAll: catchAll)
+        let callsBefore = server.configCalls
+        await viewModel.finish()
+        XCTAssertEqual(server.configCalls, callsBefore + 1, "tapping Finish again fetches the config again")
+        XCTAssertEqual(viewModel.step, .done)
+        XCTAssertEqual(server.saved.last?.last?.name, "Everything else")
+    }
+
+    func testAnArchivedCatchAllIsRestoredAndAFailedRestoreStillFinishes() async throws {
+        let archived = try FakeServer.savedResponse(id: 77, category: The_Dump.Category(name: "Everything else"))
+        let clash = APIError.conflict(message: "You already have an archived category called \"Everything else\". Restore it instead of creating a new one.")
+
+        let server = FakeServer()
+        server.existingCategories = [archived]
+        let viewModel = await reachReview(server)
+        approveAll(viewModel)
+        server.saveError = clash
+        await viewModel.finish()
+        XCTAssertEqual(viewModel.step, .done)
+        XCTAssertEqual(server.saved.last?.map(\.name), ["Newsletter", "Client work", "Kitchen reno"], "saved without the catch-all")
+        XCTAssertEqual(server.restored, [77])
+        XCTAssertEqual(viewModel.progress.savedCategories.last?.id, 77)
+        XCTAssertEqual(viewModel.progress.savedCategories.last?.isCatchAll, true)
+
+        let failing = FakeServer()
+        failing.existingCategories = [archived]
+        failing.restoreError = APIError.serverError(message: "down")
+        let stuck = await reachReview(failing)
+        approveAll(stuck)
+        failing.saveError = clash
+        await stuck.finish()
+        XCTAssertEqual(stuck.step, .done, "the cards are saved, so a failed restore doesn't leave them on screen 4")
+        XCTAssertEqual(stuck.progress.savedCategories.count, 3)
+    }
+
+    func testCancelledRequestsAreNotRetried() {
+        XCTAssertFalse(OnboardingV2ViewModel.isRetryable(CancellationError()))
+        XCTAssertFalse(OnboardingV2ViewModel.isRetryable(APIError.networkError(underlying: URLError(.cancelled))))
+        XCTAssertFalse(OnboardingV2ViewModel.isRetryable(APIError.networkError(underlying: CancellationError())))
+        XCTAssertTrue(OnboardingV2ViewModel.isRetryable(APIError.networkError(underlying: URLError(.timedOut))))
+        XCTAssertTrue(OnboardingV2ViewModel.isRetryable(APIError.upstreamFailed(message: "x")))
+        XCTAssertFalse(OnboardingV2ViewModel.isRetryable(APIError.conflict(message: "x")))
+        XCTAssertFalse(OnboardingV2ViewModel.isRetryable(APIError.badRequest(message: "x")))
+    }
+
+    // MARK: - Screen 6
+
+    private func reachDone(_ server: FakeServer) async -> OnboardingV2ViewModel {
+        let viewModel = await reachReview(server)
+        approveAll(viewModel)
+        await viewModel.finish()
+        return viewModel
+    }
+
+    func testFirstNoteShowsTheReasonUntilTheCategoryIsChanged() async {
+        let server = FakeServer()
+        let viewModel = await reachDone(server)
+        server.statuses = [
+            FileStatusEntry(fileUuid: "file-1", status: "processing"),
+            FileStatusEntry(fileUuid: "file-1", status: "transcribed", noteContentPreview: "Ask Priya about Q4"),
+            FileStatusEntry(
+                fileUuid: "file-1", status: "completed", noteContentPreview: "Ask Priya about the Q4 retainer",
+                organizedNoteId: "note-9", categoryId: 101, categoryName: "Client work",
+                decisionReason: "A question for a client."
+            )
+        ]
+
+        await viewModel.submitFirstText("  Ask Priya about the Q4 retainer ")
+        XCTAssertEqual(server.uploadedTexts, ["Ask Priya about the Q4 retainer"])
+        XCTAssertEqual(viewModel.step, .first)
+        await viewModel.pollFirstNote()
+
+        let note = viewModel.progress.firstNote
+        XCTAssertEqual(note?.status, .sorted)
+        XCTAssertEqual(note?.displayText, "Ask Priya about the Q4 retainer")
+        XCTAssertEqual(note?.visibleReason, "A question for a client.")
+        let saved = viewModel.progress.savedCategories
+        XCTAssertEqual(saved.filter { viewModel.isFirstNoteCategory($0) }.map(\.name), ["Client work"])
+
+        let kitchen = saved[2]
+        await viewModel.changeFirstNoteCategory(to: kitchen)
+        XCTAssertEqual(server.moves.first?.0, "note-9")
+        XCTAssertEqual(server.moves.first?.1, kitchen.id)
+        XCTAssertNil(viewModel.progress.firstNote?.visibleReason, "the reason no longer matches")
+        XCTAssertTrue(viewModel.isFirstNoteCategory(kitchen))
+    }
+
+    func testFirstNoteWithoutAReasonLeavesTheLineOut() async {
+        let server = FakeServer()
+        let viewModel = await reachDone(server)
+        server.statuses = [
+            FileStatusEntry(fileUuid: "file-1", status: "completed", organizedNoteId: "note-9", categoryId: 103, categoryName: "Everything else")
+        ]
+        await viewModel.submitFirstText("Buy stamps")
+        await viewModel.pollFirstNote()
+        XCTAssertEqual(viewModel.progress.firstNote?.status, .sorted)
+        XCTAssertNil(viewModel.progress.firstNote?.visibleReason)
+        XCTAssertEqual(viewModel.progress.firstNote?.displayText, "Buy stamps", "falls back to what was typed")
+    }
+
+    func testFirstNoteThatFailsStopsPolling() async {
+        let server = FakeServer()
+        let viewModel = await reachDone(server)
+        server.statuses = [FileStatusEntry(fileUuid: "file-1", status: "failed", error: "unreadable")]
+        await viewModel.submitFirstText("Something")
+        await viewModel.pollFirstNote()
+        XCTAssertEqual(viewModel.progress.firstNote?.status, .failed)
+    }
+}

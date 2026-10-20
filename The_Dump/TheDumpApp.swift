@@ -45,7 +45,7 @@ struct TheDumpApp: App {
             RootView()
                 .environmentObject(appState)
                 .environmentObject(recategorizationTracker)
-                .preferredColorScheme(appearance.colorScheme)
+                .preferredColorScheme(appState.isShowingOnboarding ? .dark : appearance.colorScheme)
                 .task {
                     recategorizationTracker.bootstrap()
                     recategorizationTracker.setPollingEnabled(scenePhase == .active)
@@ -89,8 +89,9 @@ struct RootView: View {
                     }
                 } else if appState.hasCompletedOnboarding {
                     MainTabView()
-                } else {
-                    OnboardingView()
+                } else if let uid = appState.currentUser?.uid {
+                    OnboardingV2View(uid: uid)
+                        .id(uid)
                 }
             } else {
                 AuthView()

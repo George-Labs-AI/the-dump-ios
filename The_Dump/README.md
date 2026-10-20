@@ -1,5 +1,7 @@
 # The Dump (iOS)
 
+> **Historical.** This README was written for an early coursework version of the app and is not kept up to date; the code is the reference for how the app works now. Server addresses live in `Shared/SharedConstants.swift` (`baseURL` for the web app, `backendBaseURL` for the backend), and new users go through the voice onboarding in `Views/OnboardingV2/`.
+
 #### Video Demo: <PASTE YOUR VIDEO URL HERE>
 
 #### Description:
@@ -80,7 +82,7 @@ Selecting a note navigates to a detail screen that fetches the full note text an
 2. Ensure Firebase is configured:
    - `GoogleService-Info.plist` must be present in the app target.
 3. Backend configuration:
-   - The backend base URL is currently hardcoded (e.g., `https://thedump.ai`) in `NotesService.swift` and `UploadService.swift`.
+   - Server addresses are in `Shared/SharedConstants.swift`; a Debug build can point at another web server with `-DumpServerURL` (see `Shared/ServerOverride.swift`).
 4. Build and run. The app starts on the login screen. After signing in, you can capture uploads in the Dump tab and browse organized notes in the Browse tab.
 
 ---
