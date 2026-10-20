@@ -352,6 +352,8 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         let viewModel = makeViewModel(FakeServer(), store: store)
         viewModel.leave()
         XCTAssertNil(store.load())
+        viewModel.begin()
+        XCTAssertNil(store.load(), "a late change after leaving is not saved again")
     }
 
     // MARK: - Screen 4: approving and editing

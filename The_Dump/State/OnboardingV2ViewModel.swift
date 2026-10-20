@@ -29,7 +29,12 @@ final class OnboardingV2ViewModel: ObservableObject {
     }
 
     @Published private(set) var progress: OnboardingProgress {
-        didSet { store?.save(progress) }
+        didSet {
+            // A late reply after leaving must not bring the progress back,
+            // or the next launch would reopen the onboarding.
+            guard !hasLeft else { return }
+            store?.save(progress)
+        }
     }
 
     @Published var recordMode: RecordMode = .idle {
@@ -70,6 +75,7 @@ final class OnboardingV2ViewModel: ObservableObject {
     private var draftTask: Task<[OnboardingDraftCard], Error>?
     private var answerTasks: [Int: Task<Void, Never>] = [:]
     private var isPollingFirstNote = false
+    private var hasLeft = false
 
     init(
         client: OnboardingClient,
@@ -532,6 +538,7 @@ final class OnboardingV2ViewModel: ObservableObject {
     /// Leaving onboarding for good (Go to my Dump, the capture bar on 6b,
     /// or the Claude link): the saved progress is no longer needed.
     func leave() {
+        hasLeft = true
         store?.clear()
     }
 }
