@@ -9,6 +9,11 @@ struct SettingsView: View {
     @State private var showDeleteConfirmation = false
     @State private var showDeletePasswordSheet = false
     @State private var showPaywall = false
+    @State private var showsResetOnboarding = false
+    @State private var showResetOnboardingConfirmation = false
+    @State private var isResettingOnboarding = false
+    @State private var resetOnboardingErrorMessage = ""
+    @State private var showResetOnboardingError = false
     @AppStorage("appearance") private var appearance: AppAppearance = .system
 
     var body: some View {
@@ -93,6 +98,24 @@ struct SettingsView: View {
                         .foregroundColor(Theme.accent)
                         .listRowBackground(Theme.surface)
 
+                        // Only test accounts on the website's reset list see this.
+                        if showsResetOnboarding {
+                            Button {
+                                showResetOnboardingConfirmation = true
+                            } label: {
+                                HStack {
+                                    Text("Reset onboarding (test accounts)")
+                                    Spacer()
+                                    if isResettingOnboarding {
+                                        ProgressView()
+                                    }
+                                }
+                            }
+                            .foregroundColor(.red)
+                            .disabled(isResettingOnboarding)
+                            .listRowBackground(Theme.surface)
+                        }
+
                         Button("Delete Account") {
                             showDeleteConfirmation = true
                         }
@@ -172,6 +195,10 @@ struct SettingsView: View {
             .toolbarBackground(Theme.background, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
         }
+        .task {
+            let counts = try? await NotesService.shared.fetchCounts()
+            showsResetOnboarding = counts?.isOnboardingResetAllowed ?? false
+        }
         .confirmationDialog(
             "Sign Out",
             isPresented: $showLogoutConfirmation,
@@ -191,6 +218,19 @@ struct SettingsView: View {
             }
         } message: {
             Text("This will permanently delete your account and all your data. This action cannot be undone.")
+        }
+        .alert("Reset Onboarding?", isPresented: $showResetOnboardingConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Reset", role: .destructive) {
+                Task { await resetOnboarding() }
+            }
+        } message: {
+            Text("This deletes all of this account's categories and notes, then starts the onboarding again from the first screen. You stay signed in.")
+        }
+        .alert("Reset Failed", isPresented: $showResetOnboardingError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(resetOnboardingErrorMessage)
         }
         .sheet(isPresented: $showDeletePasswordSheet) {
             DeleteAccountSheet()
@@ -216,6 +256,28 @@ struct SettingsView: View {
         } catch {
             print("Sign out error: \(error)")
         }
+    }
+
+    private func resetOnboarding() async {
+        isResettingOnboarding = true
+        defer { isResettingOnboarding = false }
+
+        do {
+            try await appState.resetOnboarding()
+            sessionStore.clear()
+            dismiss()
+        } catch {
+            resetOnboardingErrorMessage = Self.resetOnboardingErrorMessage(for: error)
+            showResetOnboardingError = true
+        }
+    }
+
+    /// 404 means the website doesn't have this account on its reset list.
+    static func resetOnboardingErrorMessage(for error: Error) -> String {
+        if case APIError.notFound = error {
+            return "This account can't be reset."
+        }
+        return "Couldn't reset. Try again."
     }
 }
 

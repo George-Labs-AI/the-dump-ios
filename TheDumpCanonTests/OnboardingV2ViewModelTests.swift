@@ -6,7 +6,8 @@ import UIKit
 /// the steps, resuming where the app was closed, which cards can be
 /// approved, skipping the questions screen, the questions headline,
 /// revising the draft only when an answer was given, the Finish save
-/// (catch-all included), and the first note's reason line. Every test is
+/// (catch-all included), the first note's reason line, and a reset from
+/// Settings starting again at the first screen. Every test is
 /// async on purpose: releasing a main-actor object at the end of a
 /// synchronous test crashes under Xcode 26.
 @MainActor
@@ -582,5 +583,38 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         await viewModel.submitFirstText("Something")
         await viewModel.pollFirstNote()
         XCTAssertEqual(viewModel.progress.firstNote?.status, .failed)
+    }
+
+    // MARK: - Resetting onboarding from Settings (test accounts)
+
+    func testResetForgetsProgressSoTheFlowStartsAtThePromise() async {
+        let store = makeStore()
+        var progress = OnboardingProgress()
+        progress.step = .first
+        store.save(progress)
+        let defaultsName = "OnboardingV2ViewModelTests-\(UUID().uuidString)"
+        suiteNames.append(defaultsName)
+        let defaults = UserDefaults(suiteName: defaultsName) ?? .standard
+        defaults.set(true, forKey: "onboarding_completed_user-1")
+        XCTAssertTrue(store.hasFinishedButNotLeft)
+
+        AppState.forgetOnboarding(uid: "user-1", store: store, defaults: defaults)
+
+        XCTAssertNil(store.load())
+        XCTAssertFalse(store.hasFinishedButNotLeft, "screens 5 and 6 are not resumed")
+        XCTAssertFalse(defaults.bool(forKey: "onboarding_completed_user-1"))
+        let viewModel = makeViewModel(FakeServer(), store: store)
+        XCTAssertEqual(viewModel.step, .promise)
+    }
+
+    func testResetFailureMessages() async {
+        XCTAssertEqual(
+            SettingsView.resetOnboardingErrorMessage(for: APIError.notFound(message: "Not found")),
+            "This account can't be reset."
+        )
+        XCTAssertEqual(
+            SettingsView.resetOnboardingErrorMessage(for: APIError.serverError(message: "boom")),
+            "Couldn't reset. Try again."
+        )
     }
 }

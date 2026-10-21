@@ -88,6 +88,15 @@ actor PendingNotesStore {
         persist()
     }
 
+    /// Drops every record. Used after an onboarding reset deletes the
+    /// account's notes on the server, which then can't answer for them.
+    func removeAll() {
+        loadPersistedRecordsIfNeeded()
+        guard !recordsByUuid.isEmpty else { return }
+        recordsByUuid = [:]
+        persist()
+    }
+
     /// Drops records older than the 24h contract TTL and acknowledged
     /// terminal records. Call on app launch.
     func prune(now: Date = Date()) {

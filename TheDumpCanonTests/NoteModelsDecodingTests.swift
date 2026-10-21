@@ -72,6 +72,27 @@ final class NoteModelsDecodingTests: XCTestCase {
         XCTAssertEqual(response.notes.map(\.author), ["pat@example.com", nil, nil])
     }
 
+    // onboarding_reset_allowed shows the Settings reset row for test
+    // accounts; servers before THEDUMP-46 leave it out, which means no.
+    func testNoteCountsOnboardingResetAllowedPresentOrMissing() throws {
+        let allowed = try decode(NoteCountsResponse.self, """
+        {"categories": {"Work": 2}, "onboarding_reset_allowed": true}
+        """)
+        XCTAssertTrue(allowed.isOnboardingResetAllowed)
+        XCTAssertEqual(allowed.categoryCounts, ["Work": 2])
+
+        let notAllowed = try decode(NoteCountsResponse.self, """
+        {"categories": {}, "onboarding_reset_allowed": false}
+        """)
+        XCTAssertFalse(notAllowed.isOnboardingResetAllowed)
+
+        let missing = try decode(NoteCountsResponse.self, """
+        {"categories": {"Work": 2}}
+        """)
+        XCTAssertNil(missing.onboarding_reset_allowed)
+        XCTAssertFalse(missing.isOnboardingResetAllowed)
+    }
+
     func testRequiredFieldsStillRequired() {
         XCTAssertThrowsError(try decode(NotePreview.self, """
         {"organized_note_id": "n1", "note_content_modified": "x"}
