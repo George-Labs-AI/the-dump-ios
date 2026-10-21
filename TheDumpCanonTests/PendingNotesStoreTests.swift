@@ -47,6 +47,20 @@ final class PendingNotesStoreTests: XCTestCase {
         XCTAssertEqual(records.map(\.fileUuid), ["a"])
     }
 
+    func test_removeAll_dropsEveryRecordForAFreshInstanceToo() async {
+        let store = makeStore()
+        await store.add(makeRecord("a"))
+        await store.add(makeRecord("b"))
+
+        await store.removeAll()
+
+        let afterRemoval = await store.allRecords()
+        XCTAssertTrue(afterRemoval.isEmpty)
+        let reader = makeStore()
+        let persisted = await reader.allRecords()
+        XCTAssertTrue(persisted.isEmpty)
+    }
+
     // MARK: - Cross-process reload (share extension → main app)
 
     func test_reload_picksUpRecordWrittenByAnotherInstance() async {

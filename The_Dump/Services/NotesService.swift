@@ -995,4 +995,35 @@ class NotesService {
             throw APIError.networkError(underlying: error)
         }
     }
+
+    // Test accounts only: deletes this account's categories and notes on the
+    // server but keeps the sign-in, so onboarding can be run again. 404 when
+    // the account isn't on the website's reset list.
+    func resetOnboarding() async throws {
+        var request = try await createRequest(endpoint: "/api/onboarding/reset", method: "POST")
+        request.httpBody = Data("{}".utf8)
+
+        do {
+#if DEBUG
+            debugLogRequest(request, label: "onboarding_reset")
+#endif
+            let (data, response) = try await URLSession.shared.data(for: request)
+#if DEBUG
+            debugLogResponse(data: data, response: response, label: "onboarding_reset")
+#endif
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.networkError(underlying: URLError(.badServerResponse))
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+                throw APIError.from(statusCode: httpResponse.statusCode, errorResponse: errorResponse)
+            }
+        } catch let error as APIError {
+            throw error
+        } catch {
+            throw APIError.networkError(underlying: error)
+        }
+    }
 }

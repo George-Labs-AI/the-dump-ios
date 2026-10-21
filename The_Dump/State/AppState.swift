@@ -145,10 +145,39 @@ class AppState: ObservableObject {
         clearLocalData()
     }
 
+    /// Test accounts only (THEDUMP-47): the website deletes this account's
+    /// categories and notes, then the phone forgets its onboarding progress
+    /// and goes back to the first onboarding screen, still signed in. If the
+    /// website call fails, nothing on the phone is cleared.
+    func resetOnboarding() async throws {
+        guard let userId = currentUser?.uid else { throw APIError.noAuthToken }
+        try await NotesService.shared.resetOnboarding()
+
+        Self.forgetOnboarding(uid: userId)
+        CategoryRecategorizationTracker.shared.clear()
+        await PendingNotesStore.shared.removeAll()
+        // Set directly rather than through checkOnboardingStatus(), which
+        // would ask the server again: the reset just removed every category,
+        // so the answer is already known.
+        isCheckingOnboardingStatus = false
+        hasCompletedOnboarding = false
+    }
+
+    /// Removes what marks onboarding as started or done for one account on
+    /// this phone: the saved progress (which would otherwise resume screens
+    /// 5 and 6) and the "completed" flag.
+    static func forgetOnboarding(
+        uid: String,
+        store: OnboardingProgressStore? = nil,
+        defaults: UserDefaults = .standard
+    ) {
+        (store ?? OnboardingProgressStore(uid: uid)).clear()
+        defaults.removeObject(forKey: "onboarding_completed_\(uid)")
+    }
+
     private func clearLocalData() {
         if let userId = currentUser?.uid {
-            UserDefaults.standard.removeObject(forKey: "onboarding_completed_\(userId)")
-            OnboardingProgressStore(uid: userId).clear()
+            Self.forgetOnboarding(uid: userId)
         }
         TokenManager().clearToken()
         isAuthenticated = false

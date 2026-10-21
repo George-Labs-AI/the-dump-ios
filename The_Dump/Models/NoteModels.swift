@@ -10,6 +10,9 @@ struct NoteCountsResponse: Decodable {
     let note_types: [String: Int]?
     let mime_types: [String: Int]?
     let date_groups: [String: Int]?
+    /// True only for test accounts on the website's reset list (THEDUMP-46).
+    /// Older servers leave it out.
+    let onboarding_reset_allowed: Bool?
 
     enum CodingKeys: String, CodingKey {
         case categories
@@ -18,6 +21,7 @@ struct NoteCountsResponse: Decodable {
         case note_types
         case mime_types
         case date_groups
+        case onboarding_reset_allowed
     }
 
     var categoryCounts: [String: Int] { categories ?? [:] }
@@ -25,6 +29,7 @@ struct NoteCountsResponse: Decodable {
     var noteTypeCounts: [String: Int] { note_types ?? [:] }
     var mimeTypeCounts: [String: Int] { mime_types ?? [:] }
     var dateGroupCounts: [String: Int] { date_groups ?? [:] }
+    var isOnboardingResetAllowed: Bool { onboarding_reset_allowed ?? false }
 
     var hasAnyCategories: Bool {
         if let categoryDetails {
