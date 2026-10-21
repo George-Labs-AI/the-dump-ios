@@ -210,7 +210,7 @@ struct OnboardingDraftCard: Codable, Equatable {
     let description: String
     /// "What you'll dump here".
     let examples: [String]
-    /// "Names that mean this", saved as the category's keywords.
+    /// The card's "Keywords", saved as the category's keywords.
     let names: [String]
 
     init(name: String, description: String = "", examples: [String] = [], names: [String] = []) {

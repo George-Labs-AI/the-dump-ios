@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - Screen 4: here's what we heard
+// MARK: - Screen 4: here's what we heard (and 4m, setting up by hand)
 
 struct OnboardingReviewScreen: View {
     @ObservedObject var viewModel: OnboardingV2ViewModel
@@ -9,24 +9,39 @@ struct OnboardingReviewScreen: View {
     /// 4c: a new, blank card.
     @State private var isAdding = false
 
+    private var isManual: Bool { viewModel.isManualSetup }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            OnboardingProgressBar(filled: 3)
+            if !isManual {
+                OnboardingProgressBar(filled: 3)
+            }
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .bottom) {
-                        Text("Here’s what we heard.")
+                        Text(isManual ? "Your categories." : "Here’s what we heard.")
                             .onboardingHeadline()
                             .frame(maxWidth: 240, alignment: .leading)
                             .accessibilityAddTraits(.isHeader)
                         Spacer(minLength: 12)
-                        Text("\(viewModel.approvedCount) of \(viewModel.progress.cards.count) done")
+                        Text(countLabel)
                             .onboardingLabel()
                             .fixedSize()
                             .padding(.bottom, 6)
                     }
-                    .padding(.top, 40)
-                    .padding(.bottom, 24)
+                    .padding(.top, isManual ? 48 : 40)
+                    .padding(.bottom, 12)
+
+                    // What the AI sorts with, so people know what to check
+                    // or fill in (Emily found editing gave no guidance).
+                    Text(isManual
+                         ? "Add one for each part of your life you’ll dump notes about. Give each a short description and the keywords that should always land there, like a nickname for a place or a person’s name."
+                         : "Every note you dump is checked against each category’s description and keywords. Add any name that should always land in a category, even one only you would know.")
+                        .font(.system(size: 15))
+                        .foregroundColor(OnboardingStyle.secondary)
+                        .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.bottom, 24)
 
                     VStack(spacing: 8) {
                         ForEach(viewModel.progress.cards) { card in
@@ -41,6 +56,11 @@ struct OnboardingReviewScreen: View {
                         if viewModel.canAddCards {
                             addCategoryRow
                         }
+                        Text("Need finer folders? You can add sub-categories later.")
+                            .onboardingCaption()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 4)
+                            .padding(.top, 4)
                     }
                 }
                 .padding(.horizontal, OnboardingStyle.gutter)
@@ -64,10 +84,18 @@ struct OnboardingReviewScreen: View {
                 }
                 .buttonStyle(OnboardingPrimaryButtonStyle(isEnabled: viewModel.canFinish))
                 .disabled(!viewModel.canFinish || viewModel.isFinishing)
+                if isManual {
+                    Button("Rather talk it through? Let the AI draft them") {
+                        viewModel.letAIDraft()
+                    }
+                    .buttonStyle(OnboardingLinkStyle())
+                    .disabled(viewModel.isFinishing)
+                    .padding(.top, 4)
+                }
             }
             .padding(.horizontal, OnboardingStyle.gutter)
             .padding(.top, 24)
-            .padding(.bottom, 48)
+            .padding(.bottom, isManual ? 32 : 48)
         }
         .fullScreenCover(item: $editing) { card in
             OnboardingEditCardScreen(viewModel: viewModel, card: card, isNew: false)
@@ -75,6 +103,13 @@ struct OnboardingReviewScreen: View {
         .fullScreenCover(isPresented: $isAdding) {
             OnboardingEditCardScreen(viewModel: viewModel, card: OnboardingCard(name: ""), isNew: true)
         }
+    }
+
+    /// "2 of 5 done", or "1 added" when setting up by hand (every card made
+    /// by hand is approved when it's saved).
+    private var countLabel: String {
+        let count = viewModel.progress.cards.count
+        return isManual ? "\(count) added" : "\(viewModel.approvedCount) of \(count) done"
     }
 
     private var addCategoryRow: some View {
@@ -102,9 +137,9 @@ struct OnboardingReviewScreen: View {
     }
 }
 
-/// A closed card, 52 tall: approved (grey, a check, "3 names"), missing
-/// names ("!" and "Add a name"), or not looked at yet ("Review"). Tapping it
-/// opens it.
+/// A closed card, 52 tall: approved (grey, a check, "3 keywords"), missing
+/// keywords ("!" and "Add a keyword"), or not looked at yet ("Review").
+/// Tapping it opens it.
 struct OnboardingCollapsedCard: View {
     let card: OnboardingCard
     let onOpen: () -> Void
@@ -142,11 +177,11 @@ struct OnboardingCollapsedCard: View {
     private var trailing: some View {
         if card.approved {
             let count = card.names.count
-            Text(count == 1 ? "1 name" : "\(count) names")
+            Text(count == 1 ? "1 keyword" : "\(count) keywords")
                 .onboardingCaption()
                 .monospacedDigit()
         } else if needsAttention {
-            Text(card.canApprove ? "Fix the name" : "Add a name")
+            Text(card.canApprove ? "Fix the name" : "Add a keyword")
                 .font(OnboardingStyle.captionMedium)
                 .foregroundColor(OnboardingStyle.text)
         } else {
@@ -198,9 +233,9 @@ struct OnboardingOpenCard: View {
                     .lineSpacing(2)
             }
             OnboardingChipSection(
-                title: "Names that mean this",
+                title: "Keywords",
                 chips: card.names,
-                error: card.canApprove ? nil : "Add at least one name so notes can find this category.",
+                error: card.canApprove ? nil : OnboardingRules.missingKeywordMessage,
                 onAdd: { viewModel.addChip($0, to: .names, cardId: card.id) }
             )
             OnboardingChipSection(
@@ -237,6 +272,8 @@ struct OnboardingOpenCard: View {
 struct OnboardingChipSection: View {
     let title: String
     let chips: [String]
+    /// A line under the chips saying what the AI does with them (4b).
+    var hint: String?
     var error: String?
     var onRemove: ((String) -> Void)?
     let onAdd: (String) -> Void
@@ -285,6 +322,11 @@ struct OnboardingChipSection: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("Add to \(title)")
                 }
+            }
+            if let hint {
+                Text(hint)
+                    .onboardingCaption()
+                    .lineSpacing(3)
             }
             if let error {
                 Text(error)

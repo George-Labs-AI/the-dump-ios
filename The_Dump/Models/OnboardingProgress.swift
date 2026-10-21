@@ -7,10 +7,14 @@ import Foundation
 
 /// The screens, in order. Each case is one screen of the Paper design;
 /// in-between states (recording, typing, a failed step) live inside them.
+/// 1b, 2g, 2h and 4m are on the Paper page "Rework after first test
+/// (decided)" (THEDUMP-101).
 enum OnboardingStep: String, Codable, CaseIterable, Comparable {
     case promise      // 1
+    case explainer    // 1b
     case record       // 2, 2c, 2d, 2e
     case listening    // 2b, 2f
+    case names        // 2h, or 2g when fewer than two names were heard
     case questions    // 3, 3c
     case building     // 3b
     case review       // 4, 4b
@@ -58,6 +62,31 @@ struct OnboardingFollowup: Codable, Equatable {
         guard source == .voice || source == .typed else { return false }
         return !(answer ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
+}
+
+/// A row on the names step (2h): a name heard in the ramble, or one the
+/// person added, and what it means. A heard name starts with the AI's guess
+/// at what it is, so most rows only need a glance.
+struct OnboardingNameRow: Codable, Equatable, Identifiable {
+    var id: UUID
+    var name: String
+    var meaning: String
+    /// Added with "Add a nickname or name we missed", rather than heard.
+    var isAdded: Bool
+
+    init(id: UUID = UUID(), name: String, meaning: String = "", isAdded: Bool = false) {
+        self.id = id
+        self.name = name
+        self.meaning = meaning
+        self.isAdded = isAdded
+    }
+}
+
+/// Talking it through (the AI drafts the categories), or setting them up
+/// by hand from the first screen (4m).
+enum OnboardingSetupMode: String, Codable, Equatable {
+    case talk
+    case manual
 }
 
 /// One category card on screen 4, editable on 4b. Nothing is saved to the
@@ -178,6 +207,13 @@ struct OnboardingProgress: Codable, Equatable {
     var extraction: OnboardingReadResult?
     var gapCheck: OnboardingCheckResult?
     var followups: [OnboardingFollowup] = []
+    /// The names step's rows (2h), made from the names heard when the step
+    /// is first shown. Optional, like the fields below, so progress saved
+    /// by an earlier build still loads.
+    var nameRows: [OnboardingNameRow]?
+    /// What was typed or said in the names step's open box (2g).
+    var namesNote: String?
+    var setupMode: OnboardingSetupMode?
     /// The first draft, from the transcript alone.
     var initialDraft: [OnboardingDraftCard]?
     var cards: [OnboardingCard] = []
