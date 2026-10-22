@@ -676,7 +676,7 @@ final class OnboardingV2ViewModel: ObservableObject {
 
     // MARK: - Leaving
 
-    /// Leaving onboarding for good (Go to my Dump, the capture bar on 6b,
+    /// Leaving onboarding for good (Go to The Dump, the capture bar on 6b,
     /// or the Claude link): the saved progress is no longer needed.
     func leave() {
         hasLeft = true

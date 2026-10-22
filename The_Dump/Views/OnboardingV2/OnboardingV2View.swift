@@ -50,7 +50,7 @@ struct OnboardingV2View: View {
         }
     }
 
-    /// Go to my Dump, the capture bar after the first note, or the Claude
+    /// Go to The Dump, the capture bar after the first note, or the Claude
     /// link: onboarding is over, and the main app opens on the Dump tab.
     private func leave() {
         viewModel.leave()
