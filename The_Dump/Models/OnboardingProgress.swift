@@ -82,6 +82,12 @@ struct OnboardingNameRow: Codable, Equatable, Identifiable {
     }
 }
 
+/// The words and answers a draft was made from.
+struct OnboardingDraftInputs: Codable, Equatable {
+    let transcript: String
+    let answers: [OnboardingAnswer]
+}
+
 /// Talking it through (the AI drafts the categories), or setting them up
 /// by hand from the first screen (4m).
 enum OnboardingSetupMode: String, Codable, Equatable {
@@ -217,6 +223,10 @@ struct OnboardingProgress: Codable, Equatable {
     /// The first draft, from the transcript alone.
     var initialDraft: [OnboardingDraftCard]?
     var cards: [OnboardingCard] = []
+    /// What the cards were drafted from. Someone who goes back and comes
+    /// forward again without changing any of it returns to the same cards
+    /// without drafting again.
+    var draftedFrom: OnboardingDraftInputs?
     var failure: OnboardingFailure?
 
     var savedCategories: [OnboardingSavedCategory] = []

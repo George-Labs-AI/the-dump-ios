@@ -119,6 +119,44 @@ enum OnboardingRules {
         return merged
     }
 
+    // MARK: - Going back (THEDUMP-120)
+
+    /// The screen the back arrow returns to, or nil where there is none: the
+    /// first screen, the waiting screens while the AI works, and from screen
+    /// 5 on, because Finish has saved the categories by then. The review
+    /// screen goes back to the questions, or to the names step when there
+    /// were none; set up by hand, it goes back to the first screen.
+    static func previousStep(
+        from step: OnboardingStep,
+        setupMode: OnboardingSetupMode?,
+        hasFollowups: Bool
+    ) -> OnboardingStep? {
+        switch step {
+        case .explainer:
+            return .promise
+        case .record:
+            return .explainer
+        case .names:
+            return .record
+        case .questions:
+            return .names
+        case .review:
+            if setupMode == .manual { return .promise }
+            return hasFollowups ? .questions : .names
+        case .promise, .listening, .building, .done, .first:
+            return nil
+        }
+    }
+
+    /// The cards kept when drafting again after going back and changing
+    /// something: the ones the person approved or edited (saving an edit
+    /// approves it), and any Finish refused for a name clash, which were
+    /// approved before. Cards not looked at yet are replaced by the new
+    /// draft. Cards added by hand are approved when saved, so all are kept.
+    static func keptCards(_ cards: [OnboardingCard]) -> [OnboardingCard] {
+        cards.filter { $0.approved || $0.errorMessage != nil }
+    }
+
     // MARK: - Screens 4b to 4d
 
     /// Shown on a card with no keywords. The cards call a category's

@@ -10,6 +10,7 @@ struct OnboardingQuestionsScreen: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            OnboardingBackBar(isShown: viewModel.canGoBack, action: viewModel.goBack)
             OnboardingProgressBar(filled: 2)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -34,7 +35,7 @@ struct OnboardingQuestionsScreen: View {
                     .padding(.top, 16)
                 }
                 .padding(.horizontal, OnboardingStyle.gutter)
-                .padding(.top, 40)
+                .padding(.top, 24)
                 .padding(.bottom, 24)
             }
             .scrollDismissesKeyboard(.interactively)
