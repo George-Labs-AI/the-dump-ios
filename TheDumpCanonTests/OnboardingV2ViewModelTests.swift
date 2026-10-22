@@ -385,6 +385,18 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         XCTAssertEqual(server.readCalls, 0)
     }
 
+    func testACategoryAddedByMistakeCanBeRemovedWhenSettingUpByHand() async {
+        let viewModel = makeViewModel(FakeServer())
+        await viewModel.resume()
+        viewModel.setUpMyself()
+        XCTAssertNil(viewModel.saveCard(cardId: nil, name: "Oops", description: "", names: ["typo"], examples: []))
+        XCTAssertTrue(viewModel.canRemoveCards, "below the minimum, but set up by hand")
+
+        viewModel.removeCard(viewModel.progress.cards[0].id)
+        XCTAssertTrue(viewModel.progress.cards.isEmpty)
+        XCTAssertFalse(viewModel.canFinish, "the minimum still blocks Finish")
+    }
+
     func testLettingTheAIDraftKeepsCategoriesAddedByHand() async {
         let server = FakeServer()
         server.questions = []

@@ -237,8 +237,9 @@ struct OnboardingNamesScreen: View {
             Button {
                 focusedRow = nil
                 isContinuing = true
+                // What they were saying still counts: Continue waits for it.
                 if recorder.state == .recording {
-                    recorder.discardRecording()
+                    stopRecording()
                 }
                 Task { await viewModel.continueFromNames() }
             } label: {

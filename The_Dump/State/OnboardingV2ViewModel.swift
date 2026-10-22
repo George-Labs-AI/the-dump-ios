@@ -696,8 +696,10 @@ extension OnboardingV2ViewModel {
 
     var canFinish: Bool { OnboardingRules.canFinish(cards: progress.cards, rules: rules) }
 
-    /// Remove is hidden once only the minimum number of cards is left.
-    var canRemoveCards: Bool { progress.cards.count > rules.min }
+    /// Remove is hidden once only the minimum number of cards is left. Set up
+    /// by hand, the list starts empty, so the minimum only blocks Finish and a
+    /// card added by mistake can always go.
+    var canRemoveCards: Bool { isManualSetup || progress.cards.count > rules.min }
 
     var canAddCards: Bool { progress.cards.count < rules.hardMax }
 
