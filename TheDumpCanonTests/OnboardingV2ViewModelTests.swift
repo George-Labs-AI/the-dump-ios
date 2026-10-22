@@ -20,6 +20,7 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         var checkCalls = 0
         var transcribeKinds: [OnboardingTranscribeKind] = []
         var transcriptText = "I run a newsletter and two clients."
+        var heardNames: [OnboardingReadResult.Name] = [.init(name: "Priya", kind: "person", context: nil)]
         var draftRequests: [OnboardingDraftRequest] = []
         var saved: [[The_Dump.Category]] = []
         var saveError: Error?
@@ -71,7 +72,7 @@ final class OnboardingV2ViewModelTests: XCTestCase {
                     }
                     return OnboardingReadResult(
                         items: [.init(label: "Newsletter", heardPhrase: "newsletter"), .init(label: "Clients", heardPhrase: "Priya at Acme")],
-                        names: [.init(name: "Priya", kind: "person", context: nil)]
+                        names: self.heardNames
                     )
                 },
                 check: { _, _ in
@@ -145,10 +146,19 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         OnboardingV2ViewModel(client: server.client, store: store ?? makeStore(), recordingDirectory: FileManager.default.temporaryDirectory)
     }
 
-    /// Typed ramble → listening back → questions.
+    /// Typed ramble → listening back → names (left as they are) → questions.
     private func reachQuestions(_ viewModel: OnboardingV2ViewModel) async {
+        await reachNames(viewModel)
+        if viewModel.step == .names {
+            await viewModel.continueFromNames()
+        }
+    }
+
+    /// How sorting works → typed ramble → listening back → the names step.
+    private func reachNames(_ viewModel: OnboardingV2ViewModel) async {
         await viewModel.resume()
         viewModel.begin()
+        viewModel.continueFromExplainer()
         await viewModel.submitTyped("I run a newsletter, I have two clients, and we're redoing the kitchen.")
     }
 
@@ -173,9 +183,13 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.step, .promise)
         await viewModel.resume()
         viewModel.begin()
+        XCTAssertEqual(viewModel.step, .explainer, "how sorting works comes first")
+        viewModel.continueFromExplainer()
         XCTAssertEqual(viewModel.step, .record)
 
         await viewModel.submitTyped("I run a newsletter, I have two clients, and we're redoing the kitchen.")
+        XCTAssertEqual(viewModel.step, .names, "the names step comes before the questions")
+        await viewModel.continueFromNames()
         XCTAssertEqual(viewModel.step, .questions)
         XCTAssertEqual(viewModel.progress.transcriptSource, .typed)
         XCTAssertTrue(server.transcribeKinds.isEmpty, "typed text is never transcribed")
@@ -264,6 +278,157 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         XCTAssertEqual(server.draftRequests.count, 2)
     }
 
+    // MARK: - The names step (2h and 2g)
+
+    func testHeardNamesAreListedWithGuessesAndSentAsOneAnswer() async {
+        let server = FakeServer()
+        server.heardNames = [
+            .init(name: "Priya", kind: "person", context: "client at Acme"),
+            .init(name: "Landing Lane", kind: "place", context: nil)
+        ]
+        let viewModel = makeViewModel(server)
+        await reachNames(viewModel)
+        XCTAssertEqual(viewModel.step, .names)
+        XCTAssertTrue(viewModel.listsNames, "two names heard, so they're listed (2h)")
+        XCTAssertEqual(viewModel.nameRows.map(\.name), ["Priya", "Landing Lane"])
+        XCTAssertEqual(viewModel.nameRows.map(\.meaning), ["client at Acme", ""], "the AI's guess is filled in")
+
+        let lane = viewModel.nameRows[1].id
+        viewModel.updateNameRow(lane, meaning: " the cape house ")
+        let added = viewModel.addNameRow()
+        viewModel.updateNameRow(added, name: "Bean", meaning: "what we call the baby.")
+        viewModel.addNameRow() // left empty, so it says nothing
+
+        await viewModel.continueFromNames()
+        XCTAssertEqual(viewModel.step, .questions)
+        viewModel.skipQuestion(0)
+        viewModel.skipQuestion(1)
+        await viewModel.buildCategories()
+
+        XCTAssertEqual(server.draftRequests.count, 2, "the names answer alone is enough to revise the draft")
+        XCTAssertEqual(server.draftRequests[1].answers, [OnboardingAnswer(
+            question: OnboardingRules.namesQuestion,
+            answer: "Priya: client at Acme. Landing Lane: the cape house. Bean: what we call the baby."
+        )])
+    }
+
+    func testFewerThanTwoNamesShowsTheOpenBoxAndSkipSendsNothing() async {
+        let server = FakeServer()
+        server.questions = []
+        let viewModel = makeViewModel(server)
+        await reachNames(viewModel)
+        XCTAssertFalse(viewModel.listsNames, "one name heard, so the open box shows (2g)")
+        XCTAssertEqual(viewModel.nameRows, [])
+
+        viewModel.updateNamesNote("Bean is the baby.")
+        await viewModel.skipNames()
+        XCTAssertNil(viewModel.progress.namesNote)
+        XCTAssertEqual(viewModel.step, .review, "no questions, so straight through 3b")
+        XCTAssertEqual(server.draftRequests.count, 1, "nothing to revise with")
+    }
+
+    func testTheOpenBoxIsSentAndASpokenNoteIsAddedToIt() async throws {
+        let server = FakeServer()
+        server.questions = []
+        server.transcriptText = "Landing Lane is the cape house."
+        let viewModel = makeViewModel(server)
+        await reachNames(viewModel)
+        viewModel.updateNamesNote("Bean is the baby.")
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("names-\(UUID().uuidString).m4a")
+        try Data("audio".utf8).write(to: file)
+
+        viewModel.submitNamesRecording(fileURL: file)
+        XCTAssertEqual(viewModel.namesNoteState, .transcribing)
+        await viewModel.continueFromNames()
+        XCTAssertEqual(server.transcribeKinds, [.answer])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path), "the recording is deleted once it is text")
+        XCTAssertEqual(server.draftRequests.last?.answers, [OnboardingAnswer(
+            question: OnboardingRules.namesQuestion,
+            answer: "Bean is the baby.\nLanding Lane is the cape house."
+        )])
+    }
+
+    func testNamesAnswerRules() async {
+        XCTAssertNil(OnboardingRules.namesAnswer(rows: [], note: "  "))
+        XCTAssertNil(
+            OnboardingRules.namesAnswer(rows: [OnboardingNameRow(name: "Bean"), OnboardingNameRow(name: " ", meaning: "x")], note: nil),
+            "rows need both a name and a meaning"
+        )
+        let rows = (1...12).map { OnboardingNameRow(name: "N\($0)") }
+        XCTAssertEqual(
+            OnboardingRules.nameRows(from: OnboardingReadResult(items: [], names: rows.map { .init(name: $0.name, kind: nil, context: nil) })).count,
+            OnboardingRules.maxNameRows
+        )
+    }
+
+    // MARK: - Setting up by hand (4m)
+
+    func testSettingUpByHandSkipsTheTalkingAndFinishesWithThreeCategories() async {
+        let server = FakeServer()
+        let viewModel = makeViewModel(server)
+        await viewModel.resume()
+        viewModel.setUpMyself()
+        XCTAssertEqual(viewModel.step, .review)
+        XCTAssertTrue(viewModel.isManualSetup)
+        XCTAssertEqual(viewModel.finishLabel, "Finish · add 3 more")
+
+        XCTAssertNil(viewModel.saveCard(cardId: nil, name: "Cape house", description: "", names: ["Landing Lane"], examples: []))
+        XCTAssertNil(viewModel.saveCard(cardId: nil, name: "Clients", description: "Client work.", names: ["Acme"], examples: []))
+        XCTAssertFalse(viewModel.canFinish)
+        XCTAssertNil(viewModel.saveCard(cardId: nil, name: "Newsletter", description: "", names: ["Signal & Noise"], examples: []))
+        XCTAssertTrue(viewModel.canFinish, "the description is optional")
+
+        await viewModel.finish()
+        XCTAssertEqual(viewModel.step, .done)
+        XCTAssertEqual(server.saved.first?.map(\.name), ["Cape house", "Clients", "Newsletter", "Everything else"])
+        XCTAssertEqual(server.draftRequests.count, 0, "no AI drafting by hand")
+        XCTAssertEqual(server.readCalls, 0)
+    }
+
+    func testACategoryAddedByMistakeCanBeRemovedWhenSettingUpByHand() async {
+        let viewModel = makeViewModel(FakeServer())
+        await viewModel.resume()
+        viewModel.setUpMyself()
+        XCTAssertNil(viewModel.saveCard(cardId: nil, name: "Oops", description: "", names: ["typo"], examples: []))
+        XCTAssertTrue(viewModel.canRemoveCards, "below the minimum, but set up by hand")
+
+        viewModel.removeCard(viewModel.progress.cards[0].id)
+        XCTAssertTrue(viewModel.progress.cards.isEmpty)
+        XCTAssertFalse(viewModel.canFinish, "the minimum still blocks Finish")
+    }
+
+    func testLettingTheAIDraftKeepsCategoriesAddedByHand() async {
+        let server = FakeServer()
+        server.questions = []
+        let viewModel = makeViewModel(server)
+        await viewModel.resume()
+        viewModel.setUpMyself()
+        viewModel.saveCard(cardId: nil, name: "Kitchen RENO", description: "", names: ["Landing Lane"], examples: [])
+        viewModel.letAIDraft()
+        XCTAssertEqual(viewModel.step, .explainer)
+        XCTAssertFalse(viewModel.isManualSetup)
+
+        viewModel.continueFromExplainer()
+        await viewModel.submitTyped("I run a newsletter, I have two clients, and we're redoing the kitchen.")
+        await viewModel.continueFromNames()
+        XCTAssertEqual(viewModel.step, .review)
+        XCTAssertEqual(
+            viewModel.progress.cards.map(\.name),
+            ["Kitchen RENO", "Newsletter", "Client work"],
+            "the hand-made card comes first, and the drafted one with the same name is dropped"
+        )
+        XCTAssertTrue(viewModel.progress.cards[0].approved)
+        XCTAssertEqual(viewModel.progress.cards[0].names, ["Landing Lane"])
+    }
+
+    func testProgressSavedByTheEarlierBuildStillLoads() async throws {
+        let json = #"{"step":"questions","sessionId":"s-1","followups":[],"cards":[],"savedCategories":[]}"#
+        let progress = try JSONDecoder().decode(OnboardingProgress.self, from: Data(json.utf8))
+        XCTAssertEqual(progress.step, .questions)
+        XCTAssertNil(progress.nameRows)
+        XCTAssertNil(progress.setupMode)
+    }
+
     // MARK: - Failures and resuming
 
     func testAFailedStepIsRetriedOnceThenShownAndRetriedFromWhatWasSaved() async {
@@ -278,7 +443,7 @@ final class OnboardingV2ViewModelTests: XCTestCase {
 
         await viewModel.retryFailedStep()
         XCTAssertNil(viewModel.progress.failure)
-        XCTAssertEqual(viewModel.step, .questions)
+        XCTAssertEqual(viewModel.step, .names)
         XCTAssertEqual(server.checkCalls, 1, "the check already finished, so only read re-runs")
     }
 
@@ -312,7 +477,7 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         await viewModel.resume()
         XCTAssertEqual(server.readCalls, 0)
         XCTAssertEqual(server.checkCalls, 1)
-        XCTAssertEqual(viewModel.step, .questions)
+        XCTAssertEqual(viewModel.step, .names)
     }
 
     func testResumeWithAnUnsentRecordingTranscribesItAndDeletesIt() async throws {
@@ -339,6 +504,7 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         let viewModel = makeViewModel(server)
         await viewModel.resume()
         viewModel.begin()
+        viewModel.continueFromExplainer()
         let file = FileManager.default.temporaryDirectory.appendingPathComponent("ramble-\(UUID().uuidString).m4a")
         try Data("audio".utf8).write(to: file)
         await viewModel.submitRecording(fileURL: file)
@@ -405,7 +571,7 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         XCTAssertNotNil(viewModel.saveCard(cardId: card.id, name: "everything else", description: "", names: ["a"], examples: [])?.name, "the catch-all's name is taken")
         let noNames = viewModel.saveCard(cardId: card.id, name: "Letters", description: "", names: ["  "], examples: [])
         XCTAssertNil(noNames?.name)
-        XCTAssertEqual(noNames?.names, "Add at least one name so notes can find this category.")
+        XCTAssertEqual(noNames?.names, "Add at least one keyword so notes can find this category.")
         XCTAssertNil(viewModel.saveCard(cardId: card.id, name: " Letters ", description: "Mine.", names: ["S&N", "s&n"], examples: []))
         XCTAssertEqual(viewModel.progress.cards[0].name, "Letters")
         XCTAssertEqual(viewModel.progress.cards[0].names, ["S&N"])

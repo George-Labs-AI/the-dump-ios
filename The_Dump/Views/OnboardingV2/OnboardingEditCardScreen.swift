@@ -40,9 +40,12 @@ struct OnboardingEditCardScreen: View {
                 VStack(alignment: .leading, spacing: 24) {
                     nameField
                     descriptionField
+                    // Each field says what the AI does with it, because
+                    // editing gave no guidance on how to think about a card.
                     OnboardingChipSection(
-                        title: "Names that mean this",
+                        title: "Keywords",
                         chips: names,
+                        hint: "Words or names that should always land here: people, places, nicknames only you use.",
                         error: errors.names,
                         onRemove: { chip in names.removeAll { $0 == chip } },
                         onAdd: { names = OnboardingRules.cleanedChips(names + [$0]) }
@@ -50,6 +53,7 @@ struct OnboardingEditCardScreen: View {
                     OnboardingChipSection(
                         title: "What you’ll dump here",
                         chips: examples,
+                        hint: "The kinds of notes you’ll save here. They help when a note doesn’t mention a keyword.",
                         onRemove: { chip in examples.removeAll { $0 == chip } },
                         onAdd: { examples = OnboardingRules.cleanedChips(examples + [$0]) }
                     )
@@ -151,6 +155,9 @@ struct OnboardingEditCardScreen: View {
             .padding(.horizontal, 16)
             .background(RoundedRectangle(cornerRadius: 12).fill(OnboardingStyle.surface))
             .accessibilityLabel("What it's for")
+            Text("One sentence that tells the AI what belongs here.")
+                .onboardingCaption()
+                .lineSpacing(3)
         }
     }
 

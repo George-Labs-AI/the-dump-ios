@@ -3,9 +3,11 @@ import UIKit
 import Combine
 
 /// The voice onboarding (docs/onboarding-voice-handoff.md, sections 2 and
-/// 6.1): talk or type about what you're juggling, answer up to two
-/// follow-up questions, approve the drafted categories, save them, then make
-/// a first note and watch it get sorted.
+/// 6.1, reworked in THEDUMP-101): learn how sorting works, talk or type
+/// about what you're juggling, say what the names you used mean, answer up
+/// to two follow-up questions, approve the drafted categories, save them,
+/// then make a first note and watch it get sorted. Or set the categories up
+/// by hand from the first screen.
 ///
 /// Progress is saved on the phone after every change, so a killed app comes
 /// back at the same step and never asks someone to record again once their
@@ -50,6 +52,8 @@ final class OnboardingV2ViewModel: ObservableObject {
     @Published private(set) var buildingDraft: [OnboardingDraftCard]?
     @Published private(set) var isRunningStep = false
     @Published private(set) var answerStates: [Int: AnswerState] = [:]
+    /// The names step's open box (2g), while it is being typed or recorded.
+    @Published private(set) var namesNoteState: AnswerState?
     /// The card shown open on screen 4.
     @Published var openCardId: UUID?
     @Published private(set) var isFinishing = false
@@ -74,6 +78,7 @@ final class OnboardingV2ViewModel: ObservableObject {
     private let recordingDirectory: URL
     private var draftTask: Task<[OnboardingDraftCard], Error>?
     private var answerTasks: [Int: Task<Void, Never>] = [:]
+    private var namesNoteTask: Task<Void, Never>?
     private var isPollingFirstNote = false
     private var hasLeft = false
 
@@ -116,13 +121,16 @@ final class OnboardingV2ViewModel: ObservableObject {
         switch progress.step {
         case .listening:
             await runListening()
+        case .names:
+            prepareNameRows()
+            startInitialDraftIfNeeded()
         case .questions:
             startInitialDraftIfNeeded()
         case .building:
             await runBuilding()
         case .review:
             openCardId = openCardId ?? firstUnapprovedCardId()
-        case .promise, .record, .done, .first:
+        case .promise, .explainer, .record, .done, .first:
             break
         }
     }
@@ -137,10 +145,35 @@ final class OnboardingV2ViewModel: ObservableObject {
         }
     }
 
-    /// Screen 1's "Begin".
+    /// Screen 1's "Begin": first, how sorting works (1b).
     func begin() {
+        progress.setupMode = .talk
+        progress.step = .explainer
+    }
+
+    /// 1b's "Continue".
+    func continueFromExplainer() {
         progress.step = .record
         recordMode = .idle
+    }
+
+    // MARK: - Setting up by hand (4m)
+
+    var isManualSetup: Bool { progress.setupMode == .manual }
+
+    /// Screen 1's "Set up my categories myself": straight to an empty
+    /// review screen, where each category is added with 4c.
+    func setUpMyself() {
+        progress.setupMode = .manual
+        progress.step = .review
+        openCardId = nil
+    }
+
+    /// 4m's "Let the AI draft them": the talking path, keeping any
+    /// categories already added (they come first on screen 4).
+    func letAIDraft() {
+        progress.setupMode = .talk
+        progress.step = .explainer
     }
 
     // MARK: - Screen 2: what are you juggling
@@ -284,18 +317,110 @@ final class OnboardingV2ViewModel: ObservableObject {
         }
     }
 
+    /// On to the names step; the follow-up questions (if any) come after it.
     private func leaveListening() async {
         let questions = progress.gapCheck?.questions ?? []
         if questions.isEmpty {
             progress.followups = []
+        } else if progress.followups.isEmpty {
+            progress.followups = questions.prefix(2).map { OnboardingFollowup(question: $0.question) }
+        }
+        prepareNameRows()
+        progress.step = .names
+    }
+
+    // MARK: - Screen 2h (or 2g): names only you'd know
+
+    /// 2h lists the names heard; with fewer than two, 2g's open box shows.
+    var listsNames: Bool { OnboardingRules.listsNames(progress.extraction) }
+
+    var nameRows: [OnboardingNameRow] { progress.nameRows ?? [] }
+
+    var namesNote: String { progress.namesNote ?? "" }
+
+    private func prepareNameRows() {
+        guard progress.nameRows == nil else { return }
+        progress.nameRows = listsNames ? OnboardingRules.nameRows(from: progress.extraction) : []
+    }
+
+    func updateNameRow(_ id: UUID, name: String? = nil, meaning: String? = nil) {
+        guard let index = progress.nameRows?.firstIndex(where: { $0.id == id }) else { return }
+        if let name { progress.nameRows?[index].name = name }
+        if let meaning { progress.nameRows?[index].meaning = meaning }
+    }
+
+    /// "Add a nickname or name we missed". Returns the new row's id so the
+    /// screen can put the cursor in it.
+    @discardableResult
+    func addNameRow() -> UUID {
+        let row = OnboardingNameRow(name: "", isAdded: true)
+        progress.nameRows = (progress.nameRows ?? []) + [row]
+        return row.id
+    }
+
+    func removeNameRow(_ id: UUID) {
+        progress.nameRows?.removeAll { $0.id == id }
+    }
+
+    func updateNamesNote(_ text: String) {
+        progress.namesNote = text
+    }
+
+    func startNamesRecording() { namesNoteState = .recording }
+    func startTypingNames() { namesNoteState = .typing }
+    func cancelNamesRecording() { namesNoteState = .typing }
+
+    /// 2g's "Talk instead": what they say is added to the box, so they can
+    /// read it back and fix a spelling before Continue.
+    func submitNamesRecording(fileURL: URL) {
+        namesNoteState = .transcribing
+        let sessionId = progress.sessionId
+        let names = knownNames
+        namesNoteTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let result = try await self.retrying {
+                    try await self.client.transcribe(fileURL, .answer, sessionId, names)
+                }
+                let text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if text.isEmpty {
+                    self.namesNoteState = .transcribeFailed
+                } else {
+                    let current = self.namesNote.trimmingCharacters(in: .whitespacesAndNewlines)
+                    self.progress.namesNote = current.isEmpty ? text : "\(current)\n\(text)"
+                    self.namesNoteState = .typing
+                }
+            } catch {
+                self.namesNoteState = .transcribeFailed
+            }
+            try? FileManager.default.removeItem(at: fileURL)
+            self.namesNoteTask = nil
+        }
+    }
+
+    var isWaitingForNamesNote: Bool { namesNoteTask != nil }
+
+    /// The names step's "Continue": waits for a spoken note still being
+    /// turned into text, then on to the questions, or straight to 3b when
+    /// there are none. Every row is optional.
+    func continueFromNames() async {
+        await namesNoteTask?.value
+        namesNoteState = nil
+        if progress.followups.isEmpty {
             progress.step = .building
             await runBuilding()
         } else {
-            if progress.followups.isEmpty {
-                progress.followups = questions.prefix(2).map { OnboardingFollowup(question: $0.question) }
-            }
             progress.step = .questions
         }
+    }
+
+    /// 2g's "Skip": nothing from the box is sent.
+    func skipNames() async {
+        namesNoteTask?.cancel()
+        // A recording already on its way would otherwise land after the clear.
+        await namesNoteTask?.value
+        progress.namesNote = nil
+        await continueFromNames()
     }
 
     // MARK: - Drafting
@@ -450,7 +575,8 @@ final class OnboardingV2ViewModel: ObservableObject {
                 buildingLinesShown += 1
             }
             try? await client.sleep(Self.settleInterval)
-            progress.cards = draft.map(OnboardingCard.init(draft:))
+            // Categories added by hand before choosing the AI are kept (4m).
+            progress.cards = OnboardingRules.mergedCards(kept: progress.cards, draft: draft, hardMax: rules.hardMax)
             progress.step = .review
             openCardId = firstUnapprovedCardId()
         } catch {
@@ -458,9 +584,16 @@ final class OnboardingV2ViewModel: ObservableObject {
         }
     }
 
+    /// The answers that go to revise mode: the names step's (one, at most)
+    /// and the follow-up questions'.
+    var draftAnswers: [OnboardingAnswer] {
+        let names = OnboardingRules.namesAnswer(rows: nameRows, note: progress.namesNote)
+        return (names.map { [$0] } ?? []) + OnboardingRules.answers(from: progress.followups)
+    }
+
     private func finalDraft() async throws -> [OnboardingDraftCard] {
         let initial = try await initialDraft()
-        let answers = OnboardingRules.answers(from: progress.followups)
+        let answers = draftAnswers
         guard !answers.isEmpty, let transcript = progress.transcript else { return initial }
         let request = OnboardingDraftRequest(
             sessionId: progress.sessionId, transcript: transcript, answers: answers, previousDraft: initial
@@ -563,8 +696,10 @@ extension OnboardingV2ViewModel {
 
     var canFinish: Bool { OnboardingRules.canFinish(cards: progress.cards, rules: rules) }
 
-    /// Remove is hidden once only the minimum number of cards is left.
-    var canRemoveCards: Bool { progress.cards.count > rules.min }
+    /// Remove is hidden once only the minimum number of cards is left. Set up
+    /// by hand, the list starts empty, so the minimum only blocks Finish and a
+    /// card added by mistake can always go.
+    var canRemoveCards: Bool { isManualSetup || progress.cards.count > rules.min }
 
     var canAddCards: Bool { progress.cards.count < rules.hardMax }
 

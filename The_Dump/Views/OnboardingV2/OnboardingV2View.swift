@@ -31,10 +31,14 @@ struct OnboardingV2View: View {
         switch viewModel.step {
         case .promise:
             OnboardingPromiseScreen(viewModel: viewModel)
+        case .explainer:
+            OnboardingExplainerScreen(viewModel: viewModel)
         case .record:
             OnboardingRecordScreen(viewModel: viewModel)
         case .listening:
             OnboardingListeningScreen(viewModel: viewModel)
+        case .names:
+            OnboardingNamesScreen(viewModel: viewModel)
         case .questions:
             OnboardingQuestionsScreen(viewModel: viewModel)
         case .building:
@@ -78,15 +82,98 @@ struct OnboardingPromiseScreen: View {
             Spacer(minLength: 24)
 
             VStack(spacing: 16) {
-                Text("Takes about 3 minutes")
+                Text("Takes about 5 minutes")
                     .onboardingLabel()
                 Button("Begin") {
                     viewModel.begin()
                 }
                 .buttonStyle(OnboardingPrimaryButtonStyle())
+                Button("Set up my categories myself") {
+                    viewModel.setUpMyself()
+                }
+                .buttonStyle(OnboardingLinkStyle(font: .system(size: 15)))
+                .padding(.top, 4)
             }
         }
         .padding(.horizontal, OnboardingStyle.gutter)
         .padding(.bottom, 40)
+    }
+}
+
+// MARK: - Screen 1b: how sorting works
+
+/// Before anyone starts talking: sorting runs on clues, and keywords (the
+/// names only they would use) help most. The example is fixed copy, not
+/// their data.
+struct OnboardingExplainerScreen: View {
+    @ObservedObject var viewModel: OnboardingV2ViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("How sorting works")
+                        .onboardingLabel(OnboardingStyle.text)
+                    Text("Every note is sorted by its clues.")
+                        .onboardingHeadline(34, lineHeight: 36)
+                        .accessibilityAddTraits(.isHeader)
+                    Text("When you dump something, the AI reads it and puts it in the category it fits best. Keywords help the most: the names only you would connect to one part of your life.")
+                        .onboardingBody()
+                    exampleCard
+                        .padding(.top, 8)
+                    Text("You can add sub-categories later, too.")
+                        .font(.system(size: 14))
+                        .foregroundColor(OnboardingStyle.secondary)
+                        .padding(.top, 4)
+                }
+                .padding(.horizontal, OnboardingStyle.gutter)
+                .padding(.top, 40)
+                .padding(.bottom, 24)
+            }
+
+            VStack(spacing: 16) {
+                Text("Next: what you’re juggling")
+                    .onboardingLabel()
+                Button("Continue") {
+                    viewModel.continueFromExplainer()
+                }
+                .buttonStyle(OnboardingPrimaryButtonStyle())
+            }
+            .padding(.horizontal, OnboardingStyle.gutter)
+            .padding(.bottom, 40)
+        }
+    }
+
+    private var exampleCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("You dump").onboardingLabel()
+                Text("“Call the plumber before we open up Landing Lane.”")
+                    .onboardingBody(OnboardingStyle.text)
+            }
+            Rectangle()
+                .fill(OnboardingStyle.hairline)
+                .frame(height: 1)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Sorted into Cape house")
+                        .onboardingLabel(OnboardingStyle.text)
+                    Spacer(minLength: 8)
+                    Text("Landing Lane")
+                        .font(OnboardingStyle.captionMedium)
+                        .foregroundColor(OnboardingStyle.background)
+                        .padding(.horizontal, 10)
+                        .frame(height: 26)
+                        .background(RoundedRectangle(cornerRadius: 6).fill(OnboardingStyle.text))
+                }
+                Text("Nothing in the note says “cape house”. It landed there because you told it Landing Lane is a keyword for that category.")
+                    .font(.system(size: 14))
+                    .foregroundColor(OnboardingStyle.secondary)
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .onboardingCard()
+        .accessibilityElement(children: .combine)
     }
 }

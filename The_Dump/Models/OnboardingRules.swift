@@ -59,7 +59,71 @@ enum OnboardingRules {
         }
     }
 
+    // MARK: - The names step (2h and 2g)
+
+    /// The question the names step's answer is sent under.
+    static let namesQuestion = "Names only they would know, and what each one means"
+
+    /// The most heard names listed on 2h; the rest are still in the ramble.
+    static let maxNameRows = 8
+
+    /// 2h lists the names heard only when there are at least two; with
+    /// fewer, 2g's open box is shown instead.
+    static func listsNames(_ extraction: OnboardingReadResult?) -> Bool {
+        (extraction?.names.count ?? 0) >= 2
+    }
+
+    /// 2h's starting rows: the names heard, each with the AI's guess at
+    /// what it is.
+    static func nameRows(from extraction: OnboardingReadResult?) -> [OnboardingNameRow] {
+        (extraction?.names ?? []).prefix(maxNameRows).map { heard in
+            OnboardingNameRow(
+                name: heard.name,
+                meaning: (heard.context ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+        }
+    }
+
+    /// Every row and the open box as one answer ("Priya: my client at Acme.
+    /// Landing Lane: the cape house."), so the step never takes more than
+    /// one of the five answers the server accepts. Rows without both a name
+    /// and a meaning say nothing, so they're left out. Nil when there's
+    /// nothing to send.
+    static func namesAnswer(rows: [OnboardingNameRow], note: String?) -> OnboardingAnswer? {
+        var parts: [String] = rows.compactMap { row in
+            let name = row.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            var meaning = row.meaning.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty, !meaning.isEmpty else { return nil }
+            if !meaning.hasSuffix(".") { meaning += "." }
+            return "\(name): \(meaning)"
+        }
+        let trimmedNote = (note ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedNote.isEmpty {
+            parts.append(trimmedNote)
+        }
+        guard !parts.isEmpty else { return nil }
+        return OnboardingAnswer(question: namesQuestion, answer: parts.joined(separator: " "))
+    }
+
+    // MARK: - Setting up by hand (4m)
+
+    /// Someone who added categories by hand, then chose "Let the AI draft
+    /// them", keeps what they made: their cards come first, then the
+    /// drafted ones whose names aren't already taken, up to the limit.
+    static func mergedCards(kept: [OnboardingCard], draft: [OnboardingDraftCard], hardMax: Int) -> [OnboardingCard] {
+        var taken = Set(kept.map { nameKey($0.name) })
+        var merged = kept
+        for card in draft where merged.count < hardMax && taken.insert(nameKey(card.name)).inserted {
+            merged.append(OnboardingCard(draft: card))
+        }
+        return merged
+    }
+
     // MARK: - Screens 4b to 4d
+
+    /// Shown on a card with no keywords. The cards call a category's
+    /// keywords "Keywords", the word the app's settings screens use.
+    static let missingKeywordMessage = "Add at least one keyword so notes can find this category."
 
     /// What blocks a card's edits, shown under the field it is about (4d).
     /// The name field stops at the length limit, so "too long" only comes up
@@ -84,7 +148,7 @@ enum OnboardingRules {
             errors.name = "\(catchAllName) is added for you at the end."
         }
         if cleanedChips(names).isEmpty {
-            errors.names = "Add at least one name so notes can find this category."
+            errors.names = missingKeywordMessage
         }
         return errors
     }
