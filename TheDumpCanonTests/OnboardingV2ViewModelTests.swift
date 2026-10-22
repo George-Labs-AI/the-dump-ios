@@ -284,17 +284,17 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         let server = FakeServer()
         server.heardNames = [
             .init(name: "Priya", kind: "person", context: "client at Acme"),
-            .init(name: "Landing Lane", kind: "place", context: nil)
+            .init(name: "Pocketly", kind: "other", context: nil)
         ]
         let viewModel = makeViewModel(server)
         await reachNames(viewModel)
         XCTAssertEqual(viewModel.step, .names)
         XCTAssertTrue(viewModel.listsNames, "two names heard, so they're listed (2h)")
-        XCTAssertEqual(viewModel.nameRows.map(\.name), ["Priya", "Landing Lane"])
+        XCTAssertEqual(viewModel.nameRows.map(\.name), ["Priya", "Pocketly"])
         XCTAssertEqual(viewModel.nameRows.map(\.meaning), ["client at Acme", ""], "the AI's guess is filled in")
 
-        let lane = viewModel.nameRows[1].id
-        viewModel.updateNameRow(lane, meaning: " the cape house ")
+        let app = viewModel.nameRows[1].id
+        viewModel.updateNameRow(app, meaning: " my app ")
         let added = viewModel.addNameRow()
         viewModel.updateNameRow(added, name: "Bean", meaning: "what we call the baby.")
         viewModel.addNameRow() // left empty, so it says nothing
@@ -308,7 +308,7 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         XCTAssertEqual(server.draftRequests.count, 2, "the names answer alone is enough to revise the draft")
         XCTAssertEqual(server.draftRequests[1].answers, [OnboardingAnswer(
             question: OnboardingRules.namesQuestion,
-            answer: "Priya: client at Acme. Landing Lane: the cape house. Bean: what we call the baby."
+            answer: "Priya: client at Acme. Pocketly: my app. Bean: what we call the baby."
         )])
     }
 
@@ -330,7 +330,7 @@ final class OnboardingV2ViewModelTests: XCTestCase {
     func testTheOpenBoxIsSentAndASpokenNoteIsAddedToIt() async throws {
         let server = FakeServer()
         server.questions = []
-        server.transcriptText = "Landing Lane is the cape house."
+        server.transcriptText = "Pocketly is my app."
         let viewModel = makeViewModel(server)
         await reachNames(viewModel)
         viewModel.updateNamesNote("Bean is the baby.")
@@ -344,7 +344,7 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: file.path), "the recording is deleted once it is text")
         XCTAssertEqual(server.draftRequests.last?.answers, [OnboardingAnswer(
             question: OnboardingRules.namesQuestion,
-            answer: "Bean is the baby.\nLanding Lane is the cape house."
+            answer: "Bean is the baby.\nPocketly is my app."
         )])
     }
 
@@ -372,7 +372,7 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.isManualSetup)
         XCTAssertEqual(viewModel.finishLabel, "Finish · add 3 more")
 
-        XCTAssertNil(viewModel.saveCard(cardId: nil, name: "Cape house", description: "", names: ["Landing Lane"], examples: []))
+        XCTAssertNil(viewModel.saveCard(cardId: nil, name: "Dreary Lane House", description: "", names: ["Dreary Lane"], examples: []))
         XCTAssertNil(viewModel.saveCard(cardId: nil, name: "Clients", description: "Client work.", names: ["Acme"], examples: []))
         XCTAssertFalse(viewModel.canFinish)
         XCTAssertNil(viewModel.saveCard(cardId: nil, name: "Newsletter", description: "", names: ["Signal & Noise"], examples: []))
@@ -380,7 +380,7 @@ final class OnboardingV2ViewModelTests: XCTestCase {
 
         await viewModel.finish()
         XCTAssertEqual(viewModel.step, .done)
-        XCTAssertEqual(server.saved.first?.map(\.name), ["Cape house", "Clients", "Newsletter", "Everything else"])
+        XCTAssertEqual(server.saved.first?.map(\.name), ["Dreary Lane House", "Clients", "Newsletter", "Everything else"])
         XCTAssertEqual(server.draftRequests.count, 0, "no AI drafting by hand")
         XCTAssertEqual(server.readCalls, 0)
     }
@@ -403,7 +403,7 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         let viewModel = makeViewModel(server)
         await viewModel.resume()
         viewModel.setUpMyself()
-        viewModel.saveCard(cardId: nil, name: "Kitchen RENO", description: "", names: ["Landing Lane"], examples: [])
+        viewModel.saveCard(cardId: nil, name: "Kitchen RENO", description: "", names: ["Dreary Lane"], examples: [])
         viewModel.letAIDraft()
         XCTAssertEqual(viewModel.step, .explainer)
         XCTAssertFalse(viewModel.isManualSetup)
@@ -418,7 +418,7 @@ final class OnboardingV2ViewModelTests: XCTestCase {
             "the hand-made card comes first, and the drafted one with the same name is dropped"
         )
         XCTAssertTrue(viewModel.progress.cards[0].approved)
-        XCTAssertEqual(viewModel.progress.cards[0].names, ["Landing Lane"])
+        XCTAssertEqual(viewModel.progress.cards[0].names, ["Dreary Lane"])
     }
 
     func testProgressSavedByTheEarlierBuildStillLoads() async throws {

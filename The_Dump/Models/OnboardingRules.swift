@@ -85,7 +85,7 @@ enum OnboardingRules {
     }
 
     /// Every row and the open box as one answer ("Priya: my client at Acme.
-    /// Landing Lane: the cape house."), so the step never takes more than
+    /// Pocketly: my app."), so the step never takes more than
     /// one of the five answers the server accepts. Rows without both a name
     /// and a meaning say nothing, so they're left out. Nil when there's
     /// nothing to send.

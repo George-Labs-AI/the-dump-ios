@@ -1058,7 +1058,7 @@
     </div>
     <div class="cat-icon-example">
       <div class="cat-icon-circle" style="background: rgba(52,199,89,0.10);">🏠</div>
-      <span class="cat-icon-name">Landing Lane</span>
+      <span class="cat-icon-name">Dreary Lane House</span>
     </div>
     <div class="cat-icon-example">
       <div class="cat-icon-circle" style="background: rgba(255,204,0,0.10);">📚</div>
@@ -1227,7 +1227,7 @@
         <div class="recent-title-ex">Screenshot of Etsy shop layout</div>
         <div class="recent-meta-ex">Yesterday · Photo</div>
       </div>
-      <span class="recent-cat-badge">Landing Lane</span>
+      <span class="recent-cat-badge">Dreary Lane House</span>
     </div>
   </div>
 

@@ -148,7 +148,7 @@ struct OnboardingExplainerScreen: View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("You dump").onboardingLabel()
-                Text("“Call the plumber before we open up Landing Lane.”")
+                Text("“Ask the designer for Pocketly’s new logo by Friday.”")
                     .onboardingBody(OnboardingStyle.text)
             }
             Rectangle()
@@ -156,17 +156,17 @@ struct OnboardingExplainerScreen: View {
                 .frame(height: 1)
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text("Sorted into Cape house")
+                    Text("Sorted into My app")
                         .onboardingLabel(OnboardingStyle.text)
                     Spacer(minLength: 8)
-                    Text("Landing Lane")
+                    Text("Pocketly")
                         .font(OnboardingStyle.captionMedium)
                         .foregroundColor(OnboardingStyle.background)
                         .padding(.horizontal, 10)
                         .frame(height: 26)
                         .background(RoundedRectangle(cornerRadius: 6).fill(OnboardingStyle.text))
                 }
-                Text("Nothing in the note says “cape house”. It landed there because you told it Landing Lane is a keyword for that category.")
+                Text("Nothing in the note says “app”. It landed there because you told it Pocketly is a keyword for that category.")
                     .font(.system(size: 14))
                     .foregroundColor(OnboardingStyle.secondary)
                     .lineSpacing(3)
