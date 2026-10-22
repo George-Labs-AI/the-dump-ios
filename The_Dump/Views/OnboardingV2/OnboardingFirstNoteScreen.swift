@@ -232,7 +232,7 @@ struct OnboardingFirstNoteScreen: View {
             OnboardingCaptureBar(viewModel: viewModel, isTyping: $isTypingFirstNote, onLeave: onLeave)
         } else if viewModel.progress.firstNote?.status == .failed {
             // 6c: one way forward, no retry; the categories are saved.
-            Button("Go to my Dump", action: onLeave)
+            Button("Go to The Dump", action: onLeave)
                 .buttonStyle(OnboardingPrimaryButtonStyle())
         } else {
             VStack(spacing: 16) {
@@ -248,7 +248,7 @@ struct OnboardingFirstNoteScreen: View {
                         .buttonStyle(OnboardingLinkStyle())
                     }
                     Spacer()
-                    Button("Go to my Dump →", action: onLeave)
+                    Button("Go to The Dump →", action: onLeave)
                         .buttonStyle(OnboardingLinkStyle(color: OnboardingStyle.text, font: OnboardingStyle.captionMedium))
                 }
             }
@@ -387,7 +387,7 @@ struct OnboardingCaptureBar: View {
             Button("Cancel") { recorder.discardRecording() }
                 .buttonStyle(OnboardingLinkStyle(color: OnboardingStyle.text, font: OnboardingStyle.captionMedium))
         } else if !isTyping {
-            Button("Go to my Dump →", action: onLeave)
+            Button("Go to The Dump →", action: onLeave)
                 .buttonStyle(OnboardingLinkStyle(color: OnboardingStyle.text, font: OnboardingStyle.captionMedium))
         }
     }
