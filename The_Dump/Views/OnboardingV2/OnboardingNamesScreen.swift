@@ -174,7 +174,7 @@ struct OnboardingNamesScreen: View {
     private var textBox: some View {
         ZStack(alignment: .topLeading) {
             if viewModel.namesNote.isEmpty {
-                Text("Landing Lane is the cape house.\nPriya and Acme are client work.")
+                Text("Pocketly is my app.\nPriya and Acme are client work.")
                     .onboardingBody(OnboardingStyle.placeholder)
                     .padding(20)
                     .accessibilityHidden(true)
