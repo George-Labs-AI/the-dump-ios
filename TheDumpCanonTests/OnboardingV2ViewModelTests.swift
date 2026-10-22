@@ -296,7 +296,7 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         let app = viewModel.nameRows[1].id
         viewModel.updateNameRow(app, meaning: " my app ")
         let added = viewModel.addNameRow()
-        viewModel.updateNameRow(added, name: "Bean", meaning: "what we call the baby.")
+        viewModel.updateNameRow(added, name: "Peter", meaning: "our son.")
         viewModel.addNameRow() // left empty, so it says nothing
 
         await viewModel.continueFromNames()
@@ -308,7 +308,7 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         XCTAssertEqual(server.draftRequests.count, 2, "the names answer alone is enough to revise the draft")
         XCTAssertEqual(server.draftRequests[1].answers, [OnboardingAnswer(
             question: OnboardingRules.namesQuestion,
-            answer: "Priya: client at Acme. Pocketly: my app. Bean: what we call the baby."
+            answer: "Priya: client at Acme. Pocketly: my app. Peter: our son."
         )])
     }
 
@@ -320,7 +320,7 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.listsNames, "one name heard, so the open box shows (2g)")
         XCTAssertEqual(viewModel.nameRows, [])
 
-        viewModel.updateNamesNote("Bean is the baby.")
+        viewModel.updateNamesNote("Peter is our son.")
         await viewModel.skipNames()
         XCTAssertNil(viewModel.progress.namesNote)
         XCTAssertEqual(viewModel.step, .review, "no questions, so straight through 3b")
@@ -333,7 +333,7 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         server.transcriptText = "Pocketly is my app."
         let viewModel = makeViewModel(server)
         await reachNames(viewModel)
-        viewModel.updateNamesNote("Bean is the baby.")
+        viewModel.updateNamesNote("Peter is our son.")
         let file = FileManager.default.temporaryDirectory.appendingPathComponent("names-\(UUID().uuidString).m4a")
         try Data("audio".utf8).write(to: file)
 
@@ -344,14 +344,14 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: file.path), "the recording is deleted once it is text")
         XCTAssertEqual(server.draftRequests.last?.answers, [OnboardingAnswer(
             question: OnboardingRules.namesQuestion,
-            answer: "Bean is the baby.\nPocketly is my app."
+            answer: "Peter is our son.\nPocketly is my app."
         )])
     }
 
     func testNamesAnswerRules() async {
         XCTAssertNil(OnboardingRules.namesAnswer(rows: [], note: "  "))
         XCTAssertNil(
-            OnboardingRules.namesAnswer(rows: [OnboardingNameRow(name: "Bean"), OnboardingNameRow(name: " ", meaning: "x")], note: nil),
+            OnboardingRules.namesAnswer(rows: [OnboardingNameRow(name: "Peter"), OnboardingNameRow(name: " ", meaning: "x")], note: nil),
             "rows need both a name and a meaning"
         )
         let rows = (1...12).map { OnboardingNameRow(name: "N\($0)") }
