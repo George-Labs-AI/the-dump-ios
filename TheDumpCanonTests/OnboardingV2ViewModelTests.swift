@@ -575,6 +575,36 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         XCTAssertEqual(server.readCalls, 1)
     }
 
+    func testListeningBackDoesNotTickWhileANewRecordingIsTurnedIntoText() async throws {
+        let server = FakeServer()
+        server.questions = []
+        let viewModel = makeViewModel(server)
+        await reachNames(viewModel)
+        viewModel.goBack()
+        viewModel.talkInstead()
+        var release: CheckedContinuation<Void, Never>?
+        server.transcribeGate = { await withCheckedContinuation { release = $0 } }
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("ramble-\(UUID().uuidString).m4a")
+        try Data("audio".utf8).write(to: file)
+
+        let recording = Task { await viewModel.submitRecording(fileURL: file) }
+        while release == nil {
+            await Task.yield()
+        }
+        XCTAssertEqual(viewModel.step, .listening)
+        XCTAssertFalse(viewModel.isTranscribeDone, "the new words aren't text yet")
+        XCTAssertFalse(viewModel.isReadDone)
+        XCTAssertFalse(viewModel.isCheckDone)
+        XCTAssertEqual(viewModel.heardPhrases, [], "no lines from the old words")
+        XCTAssertNotNil(viewModel.progress.extraction, "the old results are still saved meanwhile")
+
+        release?.resume()
+        await recording.value
+        XCTAssertEqual(viewModel.step, .names)
+        XCTAssertTrue(viewModel.isTranscribeDone)
+        XCTAssertTrue(viewModel.isCheckDone)
+    }
+
     func testSetUpByHandGoesBackToTheFirstScreenKeepingTheCards() async {
         let viewModel = makeViewModel(FakeServer())
         await viewModel.resume()

@@ -288,11 +288,17 @@ final class OnboardingV2ViewModel: ObservableObject {
     // MARK: - Screen 2b: listening back
 
     var heardPhrases: [String] {
-        Array((progress.extraction?.items ?? []).map(\.heardPhrase).prefix(Self.maxRevealedLines))
+        guard !isAddingRecording else { return [] }
+        return Array((progress.extraction?.items ?? []).map(\.heardPhrase).prefix(Self.maxRevealedLines))
     }
 
-    var isTranscribeDone: Bool { progress.transcript != nil }
-    var isReadDone: Bool { progress.extraction != nil }
+    /// Back from a later step, a new recording is still being turned into
+    /// text: the words and results saved before are kept until it is, but
+    /// the rows don't tick for them.
+    private var isAddingRecording: Bool { progress.pendingRecordingName != nil }
+
+    var isTranscribeDone: Bool { progress.transcript != nil && !isAddingRecording }
+    var isReadDone: Bool { progress.extraction != nil && !isAddingRecording }
     /// The check's row ticks only once the "Heard …" lines have all
     /// appeared, so the two ticks never land at once.
     var isCheckDone: Bool {
