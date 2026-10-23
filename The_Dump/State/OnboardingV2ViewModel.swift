@@ -235,12 +235,9 @@ final class OnboardingV2ViewModel: ObservableObject {
 
     /// The ramble was recorded; it is kept on the phone until it has been
     /// turned into text, then deleted. Back from a later step, it is added
-    /// to the words in the typing box (the saved ones, perhaps edited).
+    /// to the words in the typing box (the saved ones, perhaps edited) once
+    /// its text is back.
     func submitRecording(fileURL: URL) async {
-        if progress.transcript != nil {
-            let typed = typedText.trimmingCharacters(in: .whitespacesAndNewlines)
-            setTranscript(typed.isEmpty ? nil : typed)
-        }
         progress.pendingRecordingName = fileURL.lastPathComponent
         progress.transcriptSource = .voice
         progress.step = .listening
@@ -265,7 +262,7 @@ final class OnboardingV2ViewModel: ObservableObject {
     /// what the person wrote is kept: name rows, the names box, answered
     /// questions and cards. Name rows and questions holding nothing of
     /// theirs are made afresh from the new words.
-    private func setTranscript(_ text: String?) {
+    private func setTranscript(_ text: String) {
         guard text != progress.transcript else { return }
         progress.transcript = text
         progress.extraction = nil
@@ -357,9 +354,11 @@ final class OnboardingV2ViewModel: ObservableObject {
                 recordNotice = "We didn’t catch anything. Try again, or type instead."
                 return false
             }
-            // Back from a later step: what they said now is added to what
-            // was saved before.
-            let combined = progress.transcript.map { "\($0)\n\n\(text)" } ?? text
+            // Back from a later step: what they said now is added to the
+            // typing box's words. The saved words stay until this point, so
+            // a silent or failed recording leaves them as they were.
+            let base = progress.transcript == nil ? "" : typedText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let combined = base.isEmpty ? text : "\(base)\n\n\(text)"
             setTranscript(combined)
             typedText = combined
             progress.pendingRecordingName = nil

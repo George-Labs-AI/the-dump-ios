@@ -554,6 +554,27 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.step, .names)
     }
 
+    func testASilentRecordingAfterGoingBackKeepsTheSavedWords() async throws {
+        let server = FakeServer()
+        server.questions = []
+        let viewModel = makeViewModel(server)
+        await reachNames(viewModel)
+        let saved = viewModel.progress.transcript
+        viewModel.goBack()
+        viewModel.typedText = ""
+        viewModel.talkInstead()
+        server.transcriptText = "  "
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("ramble-\(UUID().uuidString).m4a")
+        try Data("audio".utf8).write(to: file)
+
+        await viewModel.submitRecording(fileURL: file)
+        XCTAssertEqual(viewModel.step, .record)
+        XCTAssertNotNil(viewModel.recordNotice)
+        XCTAssertEqual(viewModel.progress.transcript, saved, "clearing the box and recording silence deletes nothing")
+        XCTAssertNotNil(viewModel.progress.extraction, "the AI's results are kept too")
+        XCTAssertEqual(server.readCalls, 1)
+    }
+
     func testSetUpByHandGoesBackToTheFirstScreenKeepingTheCards() async {
         let viewModel = makeViewModel(FakeServer())
         await viewModel.resume()
