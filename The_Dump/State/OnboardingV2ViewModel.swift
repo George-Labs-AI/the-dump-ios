@@ -11,7 +11,8 @@ import Combine
 ///
 /// Progress is saved on the phone after every change, so a killed app comes
 /// back at the same step and never asks someone to record again once their
-/// words have been turned into text.
+/// words have been turned into text. Going back a screen keeps all of it
+/// too (THEDUMP-120).
 @MainActor
 final class OnboardingV2ViewModel: ObservableObject {
     /// Screen 2's in-between states.
@@ -42,6 +43,10 @@ final class OnboardingV2ViewModel: ObservableObject {
     @Published var recordMode: RecordMode = .idle {
         didSet { if recordMode != oldValue { recordNotice = nil } }
     }
+    /// Screen 2's typing box. Kept here rather than on the screen so it
+    /// survives going back to 1b, and filled with the words already saved
+    /// when someone comes back to add to them.
+    @Published var typedText = ""
     /// Shown on screen 2 when a recording came back empty.
     @Published private(set) var recordNotice: String?
     /// How many "Heard …" lines on 2b have appeared so far.
@@ -91,6 +96,10 @@ final class OnboardingV2ViewModel: ObservableObject {
         self.store = store
         self.recordingDirectory = recordingDirectory
         self.progress = store?.load() ?? OnboardingProgress()
+        if let transcript = progress.transcript {
+            typedText = transcript
+            recordMode = .typing
+        }
     }
 
     convenience init(uid: String) {
@@ -154,7 +163,47 @@ final class OnboardingV2ViewModel: ObservableObject {
     /// 1b's "Continue".
     func continueFromExplainer() {
         progress.step = .record
-        recordMode = .idle
+        recordMode = arrivalRecordMode
+    }
+
+    // MARK: - Going back (THEDUMP-120)
+
+    /// Where the back arrow goes, or nil when this screen has none.
+    var previousStep: OnboardingStep? {
+        OnboardingRules.previousStep(
+            from: progress.step, setupMode: progress.setupMode, hasFollowups: !progress.followups.isEmpty
+        )
+    }
+
+    /// The back arrow is hidden while a recording is running (leaving the
+    /// screen would drop it), while an answer is being typed (its text is
+    /// kept on its card), and while Finish is saving.
+    var canGoBack: Bool {
+        guard previousStep != nil, !isFinishing, recordMode != .recording, namesNoteState != .recording else {
+            return false
+        }
+        return !answerStates.values.contains { $0 == .recording || $0 == .typing }
+    }
+
+    /// Back one screen. Nothing is thrown away: the words, names, answers
+    /// and cards stay saved, and coming forward again reuses whatever still
+    /// matches. Something still on its way (a spoken note or answer) lands
+    /// where it belongs without moving the screen.
+    func goBack() {
+        guard canGoBack, let previous = previousStep else { return }
+        if previous == .record {
+            if let transcript = progress.transcript {
+                typedText = transcript
+            }
+            recordMode = arrivalRecordMode
+        }
+        progress.step = previous
+    }
+
+    /// Screen 2 opens on the typing box when there are words to show: ones
+    /// already saved, or ones typed before going back to 1b.
+    private var arrivalRecordMode: RecordMode {
+        progress.transcript != nil || !typedText.isEmpty ? .typing : .idle
     }
 
     // MARK: - Setting up by hand (4m)
@@ -185,7 +234,9 @@ final class OnboardingV2ViewModel: ObservableObject {
     func recordingDiscarded() { recordMode = .idle }
 
     /// The ramble was recorded; it is kept on the phone until it has been
-    /// turned into text, then deleted.
+    /// turned into text, then deleted. Back from a later step, it is added
+    /// to the words in the typing box (the saved ones, perhaps edited) once
+    /// its text is back.
     func submitRecording(fileURL: URL) async {
         progress.pendingRecordingName = fileURL.lastPathComponent
         progress.transcriptSource = .voice
@@ -197,11 +248,35 @@ final class OnboardingV2ViewModel: ObservableObject {
     func submitTyped(_ text: String) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        progress.transcript = trimmed
-        progress.transcriptSource = .typed
+        if trimmed != progress.transcript {
+            setTranscript(trimmed)
+            progress.transcriptSource = .typed
+        }
         progress.step = .listening
         recordMode = .idle
         await runListening()
+    }
+
+    /// Saves new words for the ramble. When they differ from what was
+    /// saved, everything the AI made from the old words is made again, and
+    /// what the person wrote is kept: name rows, the names box, answered
+    /// questions and cards. Name rows and questions holding nothing of
+    /// theirs are made afresh from the new words.
+    private func setTranscript(_ text: String) {
+        guard text != progress.transcript else { return }
+        progress.transcript = text
+        progress.extraction = nil
+        progress.gapCheck = nil
+        progress.initialDraft = nil
+        draftTask?.cancel()
+        draftTask = nil
+        heardLinesShown = 0
+        if progress.nameRows?.isEmpty == true, namesNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            progress.nameRows = nil
+        }
+        if answerTasks.isEmpty, !progress.followups.contains(where: \.isAnswered) {
+            progress.followups = []
+        }
     }
 
     /// Under about 20 words the typing screen suggests saying a bit more;
@@ -213,11 +288,17 @@ final class OnboardingV2ViewModel: ObservableObject {
     // MARK: - Screen 2b: listening back
 
     var heardPhrases: [String] {
-        Array((progress.extraction?.items ?? []).map(\.heardPhrase).prefix(Self.maxRevealedLines))
+        guard !isAddingRecording else { return [] }
+        return Array((progress.extraction?.items ?? []).map(\.heardPhrase).prefix(Self.maxRevealedLines))
     }
 
-    var isTranscribeDone: Bool { progress.transcript != nil }
-    var isReadDone: Bool { progress.extraction != nil }
+    /// Back from a later step, a new recording is still being turned into
+    /// text: the words and results saved before are kept until it is, but
+    /// the rows don't tick for them.
+    private var isAddingRecording: Bool { progress.pendingRecordingName != nil }
+
+    var isTranscribeDone: Bool { progress.transcript != nil && !isAddingRecording }
+    var isReadDone: Bool { progress.extraction != nil && !isAddingRecording }
     /// The check's row ticks only once the "Heard …" lines have all
     /// appeared, so the two ticks never land at once.
     var isCheckDone: Bool {
@@ -252,8 +333,8 @@ final class OnboardingV2ViewModel: ObservableObject {
     }
 
     private func prepareTranscript() async -> Bool {
-        if progress.transcript != nil { return true }
         guard let name = progress.pendingRecordingName else {
+            if progress.transcript != nil { return true }
             // Nothing was saved to work from: back to the recording screen.
             progress.step = .record
             return false
@@ -261,6 +342,7 @@ final class OnboardingV2ViewModel: ObservableObject {
         let file = recordingDirectory.appendingPathComponent(name)
         guard FileManager.default.fileExists(atPath: file.path) else {
             progress.pendingRecordingName = nil
+            if progress.transcript != nil { return true }
             progress.step = .record
             return false
         }
@@ -278,7 +360,13 @@ final class OnboardingV2ViewModel: ObservableObject {
                 recordNotice = "We didn’t catch anything. Try again, or type instead."
                 return false
             }
-            progress.transcript = text
+            // Back from a later step: what they said now is added to the
+            // typing box's words. The saved words stay until this point, so
+            // a silent or failed recording leaves them as they were.
+            let base = progress.transcript == nil ? "" : typedText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let combined = base.isEmpty ? text : "\(base)\n\n\(text)"
+            setTranscript(combined)
+            typedText = combined
             progress.pendingRecordingName = nil
             deleteRecording(named: name)
             return true
@@ -318,11 +406,10 @@ final class OnboardingV2ViewModel: ObservableObject {
     }
 
     /// On to the names step; the follow-up questions (if any) come after it.
+    /// Questions already answered before going back are kept.
     private func leaveListening() async {
         let questions = progress.gapCheck?.questions ?? []
-        if questions.isEmpty {
-            progress.followups = []
-        } else if progress.followups.isEmpty {
+        if progress.followups.isEmpty {
             progress.followups = questions.prefix(2).map { OnboardingFollowup(question: $0.question) }
         }
         prepareNameRows()
@@ -332,7 +419,13 @@ final class OnboardingV2ViewModel: ObservableObject {
     // MARK: - Screen 2h (or 2g): names only you'd know
 
     /// 2h lists the names heard; with fewer than two, 2g's open box shows.
-    var listsNames: Bool { OnboardingRules.listsNames(progress.extraction) }
+    /// After going back and changing the ramble, rows already there stay
+    /// listed and a box already written in stays open.
+    var listsNames: Bool {
+        if !nameRows.isEmpty { return true }
+        return OnboardingRules.listsNames(progress.extraction)
+            && namesNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var nameRows: [OnboardingNameRow] { progress.nameRows ?? [] }
 
@@ -405,10 +498,11 @@ final class OnboardingV2ViewModel: ObservableObject {
     /// there are none. Every row is optional.
     func continueFromNames() async {
         await namesNoteTask?.value
+        // Gone back while waiting: the late reply doesn't move them on.
+        guard progress.step == .names else { return }
         namesNoteState = nil
         if progress.followups.isEmpty {
-            progress.step = .building
-            await runBuilding()
+            await buildOrReturnToCards()
         } else {
             progress.step = .questions
         }
@@ -419,6 +513,7 @@ final class OnboardingV2ViewModel: ObservableObject {
         namesNoteTask?.cancel()
         // A recording already on its way would otherwise land after the clear.
         await namesNoteTask?.value
+        guard progress.step == .names else { return }
         progress.namesNote = nil
         await continueFromNames()
     }
@@ -443,6 +538,8 @@ final class OnboardingV2ViewModel: ObservableObject {
         draftTask = task
         Task { [weak self] in
             guard let cards = try? await task.value else { return }
+            // The words changed after going back: this draft is for the old ones.
+            guard self?.progress.transcript == transcript else { return }
             self?.progress.initialDraft = cards
         }
     }
@@ -534,10 +631,24 @@ final class OnboardingV2ViewModel: ObservableObject {
         for task in answerTasks.values {
             await task.value
         }
+        // Gone back while waiting: the late reply doesn't move them on.
+        guard progress.step == .questions else { return }
         for index in progress.followups.indices where progress.followups[index].source == nil {
             progress.followups[index].source = .skipped
         }
         answerStates = [:]
+        await buildOrReturnToCards()
+    }
+
+    /// On to 3b to draft, or straight back to the cards when they were
+    /// drafted from these same words and answers (someone went back to look
+    /// and changed nothing), so the cards aren't drafted again.
+    private func buildOrReturnToCards() async {
+        if !progress.cards.isEmpty, progress.draftedFrom != nil, progress.draftedFrom == draftInputs {
+            progress.step = .review
+            openCardId = openCardId ?? firstUnapprovedCardId()
+            return
+        }
         progress.step = .building
         await runBuilding()
     }
@@ -567,6 +678,7 @@ final class OnboardingV2ViewModel: ObservableObject {
         buildingDraft = nil
         buildingLinesShown = 0
         defer { isRunningStep = false }
+        let inputs = draftInputs
         do {
             let draft = try await finalDraft()
             buildingDraft = draft
@@ -575,8 +687,12 @@ final class OnboardingV2ViewModel: ObservableObject {
                 buildingLinesShown += 1
             }
             try? await client.sleep(Self.settleInterval)
-            // Categories added by hand before choosing the AI are kept (4m).
-            progress.cards = OnboardingRules.mergedCards(kept: progress.cards, draft: draft, hardMax: rules.hardMax)
+            // Categories added by hand before choosing the AI are kept (4m),
+            // and so are cards approved or edited before going back.
+            progress.cards = OnboardingRules.mergedCards(
+                kept: OnboardingRules.keptCards(progress.cards), draft: draft, hardMax: rules.hardMax
+            )
+            progress.draftedFrom = inputs
             progress.step = .review
             openCardId = firstUnapprovedCardId()
         } catch {
@@ -589,6 +705,10 @@ final class OnboardingV2ViewModel: ObservableObject {
     var draftAnswers: [OnboardingAnswer] {
         let names = OnboardingRules.namesAnswer(rows: nameRows, note: progress.namesNote)
         return (names.map { [$0] } ?? []) + OnboardingRules.answers(from: progress.followups)
+    }
+
+    private var draftInputs: OnboardingDraftInputs? {
+        progress.transcript.map { OnboardingDraftInputs(transcript: $0, answers: draftAnswers) }
     }
 
     private func finalDraft() async throws -> [OnboardingDraftCard] {

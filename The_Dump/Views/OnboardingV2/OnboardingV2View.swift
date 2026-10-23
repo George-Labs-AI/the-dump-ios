@@ -110,6 +110,7 @@ struct OnboardingExplainerScreen: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            OnboardingBackBar(isShown: viewModel.canGoBack, action: viewModel.goBack)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     Text("How sorting works")
@@ -127,7 +128,7 @@ struct OnboardingExplainerScreen: View {
                         .padding(.top, 4)
                 }
                 .padding(.horizontal, OnboardingStyle.gutter)
-                .padding(.top, 40)
+                .padding(.top, 16)
                 .padding(.bottom, 24)
             }
 

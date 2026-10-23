@@ -138,6 +138,32 @@ struct OnboardingProgressBar: View {
     }
 }
 
+/// The back arrow's row at the top of screens 1b to 4 (THEDUMP-120). The
+/// row keeps its height while the arrow is hidden, so nothing below jumps.
+struct OnboardingBackBar: View {
+    let isShown: Bool
+    let action: () -> Void
+
+    var body: some View {
+        HStack {
+            if isShown {
+                Button(action: action) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(OnboardingStyle.text)
+                        .frame(width: 44, height: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Back")
+            }
+            Spacer()
+        }
+        .frame(height: 44)
+        .padding(.horizontal, OnboardingStyle.gutter)
+    }
+}
+
 /// The "No mic? Type instead." card (2e), also shown on screen 3 when an
 /// answer is tapped without microphone access.
 struct OnboardingNoMicCard: View {

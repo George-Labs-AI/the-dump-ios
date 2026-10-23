@@ -13,6 +13,7 @@ struct OnboardingReviewScreen: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            OnboardingBackBar(isShown: viewModel.canGoBack, action: viewModel.goBack)
             if !isManual {
                 OnboardingProgressBar(filled: 3)
             }
@@ -29,7 +30,7 @@ struct OnboardingReviewScreen: View {
                             .fixedSize()
                             .padding(.bottom, 6)
                     }
-                    .padding(.top, isManual ? 48 : 40)
+                    .padding(.top, 24)
                     .padding(.bottom, 12)
 
                     // What the AI sorts with, so people know what to check

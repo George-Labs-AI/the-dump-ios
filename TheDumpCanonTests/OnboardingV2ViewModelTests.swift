@@ -5,9 +5,9 @@ import UIKit
 /// The voice onboarding's rules, run against a fake server: the order of
 /// the steps, resuming where the app was closed, which cards can be
 /// approved, skipping the questions screen, the questions headline,
-/// revising the draft only when an answer was given, the Finish save
-/// (catch-all included), the first note's reason line, and a reset from
-/// Settings starting again at the first screen. Every test is
+/// revising the draft only when an answer was given, going back a screen,
+/// the Finish save (catch-all included), the first note's reason line, and
+/// a reset from Settings starting again at the first screen. Every test is
 /// async on purpose: releasing a main-actor object at the end of a
 /// synchronous test crashes under Xcode 26.
 @MainActor
@@ -19,6 +19,8 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         var readFailures = 0
         var checkCalls = 0
         var transcribeKinds: [OnboardingTranscribeKind] = []
+        /// Awaited before each transcription answers, to hold one in flight.
+        var transcribeGate: (() async -> Void)?
         var transcriptText = "I run a newsletter and two clients."
         var heardNames: [OnboardingReadResult.Name] = [.init(name: "Priya", kind: "person", context: nil)]
         var draftRequests: [OnboardingDraftRequest] = []
@@ -62,6 +64,7 @@ final class OnboardingV2ViewModelTests: XCTestCase {
                 },
                 transcribe: { _, kind, _, _ in
                     self.transcribeKinds.append(kind)
+                    await self.transcribeGate?()
                     return OnboardingTranscription(text: self.transcriptText, durationSeconds: 3)
                 },
                 read: { _, _ in
@@ -427,6 +430,223 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         XCTAssertEqual(progress.step, .questions)
         XCTAssertNil(progress.nameRows)
         XCTAssertNil(progress.setupMode)
+    }
+
+    // MARK: - Going back (THEDUMP-120)
+
+    func testBackRules() async {
+        let back = { (step: OnboardingStep, mode: OnboardingSetupMode?, followups: Bool) in
+            OnboardingRules.previousStep(from: step, setupMode: mode, hasFollowups: followups)
+        }
+        XCTAssertNil(back(.promise, nil, false), "nothing before the first screen")
+        XCTAssertEqual(back(.explainer, .talk, false), .promise)
+        XCTAssertEqual(back(.record, .talk, false), .explainer)
+        XCTAssertEqual(back(.names, .talk, true), .record)
+        XCTAssertEqual(back(.questions, .talk, true), .names)
+        XCTAssertEqual(back(.review, .talk, true), .questions)
+        XCTAssertEqual(back(.review, .talk, false), .names, "no questions were asked, so back to the names step")
+        XCTAssertEqual(back(.review, nil, false), .names, "progress saved by an earlier build was talking")
+        XCTAssertEqual(back(.review, .manual, false), .promise, "set up by hand, back to the first screen")
+        for step in [OnboardingStep.listening, .building, .done, .first] {
+            XCTAssertNil(back(step, .talk, true), "no back from \(step)")
+        }
+    }
+
+    func testBackToTheRambleKeepsItAndChangingNothingCallsNothingAgain() async {
+        let server = FakeServer()
+        let viewModel = makeViewModel(server)
+        await reachQuestions(viewModel)
+        viewModel.submitTypedAnswer(0, text: "The kids")
+        let transcript = viewModel.progress.transcript
+
+        viewModel.goBack()
+        XCTAssertEqual(viewModel.step, .names)
+        viewModel.goBack()
+        XCTAssertEqual(viewModel.step, .record)
+        XCTAssertEqual(viewModel.recordMode, .typing, "their words are shown to add to, not a blank screen")
+        XCTAssertEqual(viewModel.typedText, transcript)
+
+        await viewModel.submitTyped(viewModel.typedText)
+        XCTAssertEqual(viewModel.step, .names)
+        XCTAssertEqual(server.readCalls, 1, "the same words are not read again")
+        XCTAssertEqual(server.checkCalls, 1)
+        XCTAssertEqual(server.draftRequests.count, 1)
+        await viewModel.continueFromNames()
+        XCTAssertEqual(viewModel.step, .questions)
+        XCTAssertEqual(viewModel.progress.followups[0].answer, "The kids", "the answer is kept")
+    }
+
+    func testBackFromTheCardsKeepsThemAndComesBackWithoutDraftingAgain() async {
+        let server = FakeServer()
+        let viewModel = await reachReview(server)
+        let card = viewModel.progress.cards[0]
+        viewModel.saveCard(cardId: card.id, name: "Letters", description: "Mine.", names: ["S&N"], examples: [])
+        let cards = viewModel.progress.cards
+
+        viewModel.goBack()
+        XCTAssertEqual(viewModel.step, .names, "no questions were asked, so back to the names step")
+        XCTAssertEqual(viewModel.progress.cards, cards)
+        await viewModel.continueFromNames()
+        XCTAssertEqual(viewModel.step, .review)
+        XCTAssertEqual(viewModel.progress.cards, cards, "the edit is still there")
+        XCTAssertEqual(server.draftRequests.count, 1, "nothing changed, so nothing is drafted again")
+    }
+
+    func testChangingTheRambleDraftsAgainButKeepsWhatTheyWrote() async {
+        let server = FakeServer()
+        server.heardNames = [
+            .init(name: "Priya", kind: "person", context: "client at Acme"),
+            .init(name: "Pocketly", kind: "other", context: nil)
+        ]
+        let viewModel = makeViewModel(server)
+        await reachNames(viewModel)
+        viewModel.updateNameRow(viewModel.nameRows[1].id, meaning: "my app")
+        await viewModel.continueFromNames()
+        viewModel.submitTypedAnswer(0, text: "The kids")
+        viewModel.skipQuestion(1)
+        await viewModel.buildCategories()
+        XCTAssertEqual(viewModel.step, .review)
+        let edited = viewModel.progress.cards[2]
+        viewModel.saveCard(cardId: edited.id, name: "House", description: "", names: ["Dave"], examples: [])
+
+        viewModel.goBack()
+        viewModel.goBack()
+        viewModel.goBack()
+        XCTAssertEqual(viewModel.step, .record)
+        viewModel.typedText += " Also Peter's school."
+        await viewModel.submitTyped(viewModel.typedText)
+        XCTAssertEqual(server.readCalls, 2, "new words are read again")
+        XCTAssertEqual(server.checkCalls, 2)
+        XCTAssertEqual(viewModel.step, .names)
+        XCTAssertEqual(viewModel.nameRows[1].meaning, "my app", "their names are kept")
+
+        await viewModel.continueFromNames()
+        XCTAssertEqual(viewModel.progress.followups[0].answer, "The kids", "their answer is kept")
+        await viewModel.buildCategories()
+        XCTAssertEqual(viewModel.step, .review)
+        XCTAssertEqual(server.draftRequests.last?.transcript, viewModel.progress.transcript)
+        XCTAssertEqual(
+            viewModel.progress.cards.map(\.name),
+            ["House", "Newsletter", "Client work", "Kitchen reno", "Kids"],
+            "the edited card comes first; the ones not looked at yet are drafted again"
+        )
+    }
+
+    func testRecordingMoreAddsToTheWordsAlreadySaved() async throws {
+        let server = FakeServer()
+        server.questions = []
+        let viewModel = makeViewModel(server)
+        await reachNames(viewModel)
+        viewModel.goBack()
+        XCTAssertEqual(viewModel.step, .record)
+        viewModel.talkInstead()
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("ramble-\(UUID().uuidString).m4a")
+        try Data("audio".utf8).write(to: file)
+
+        await viewModel.submitRecording(fileURL: file)
+        XCTAssertEqual(server.transcribeKinds, [.ramble])
+        XCTAssertEqual(
+            viewModel.progress.transcript,
+            "I run a newsletter, I have two clients, and we're redoing the kitchen.\n\nI run a newsletter and two clients."
+        )
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+        XCTAssertEqual(server.readCalls, 2)
+        XCTAssertEqual(viewModel.step, .names)
+    }
+
+    func testASilentRecordingAfterGoingBackKeepsTheSavedWords() async throws {
+        let server = FakeServer()
+        server.questions = []
+        let viewModel = makeViewModel(server)
+        await reachNames(viewModel)
+        let saved = viewModel.progress.transcript
+        viewModel.goBack()
+        viewModel.typedText = ""
+        viewModel.talkInstead()
+        server.transcriptText = "  "
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("ramble-\(UUID().uuidString).m4a")
+        try Data("audio".utf8).write(to: file)
+
+        await viewModel.submitRecording(fileURL: file)
+        XCTAssertEqual(viewModel.step, .record)
+        XCTAssertNotNil(viewModel.recordNotice)
+        XCTAssertEqual(viewModel.progress.transcript, saved, "clearing the box and recording silence deletes nothing")
+        XCTAssertNotNil(viewModel.progress.extraction, "the AI's results are kept too")
+        XCTAssertEqual(server.readCalls, 1)
+    }
+
+    func testListeningBackDoesNotTickWhileANewRecordingIsTurnedIntoText() async throws {
+        let server = FakeServer()
+        server.questions = []
+        let viewModel = makeViewModel(server)
+        await reachNames(viewModel)
+        viewModel.goBack()
+        viewModel.talkInstead()
+        var release: CheckedContinuation<Void, Never>?
+        server.transcribeGate = { await withCheckedContinuation { release = $0 } }
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("ramble-\(UUID().uuidString).m4a")
+        try Data("audio".utf8).write(to: file)
+
+        let recording = Task { await viewModel.submitRecording(fileURL: file) }
+        while release == nil {
+            await Task.yield()
+        }
+        XCTAssertEqual(viewModel.step, .listening)
+        XCTAssertFalse(viewModel.isTranscribeDone, "the new words aren't text yet")
+        XCTAssertFalse(viewModel.isReadDone)
+        XCTAssertFalse(viewModel.isCheckDone)
+        XCTAssertEqual(viewModel.heardPhrases, [], "no lines from the old words")
+        XCTAssertNotNil(viewModel.progress.extraction, "the old results are still saved meanwhile")
+
+        release?.resume()
+        await recording.value
+        XCTAssertEqual(viewModel.step, .names)
+        XCTAssertTrue(viewModel.isTranscribeDone)
+        XCTAssertTrue(viewModel.isCheckDone)
+    }
+
+    func testSetUpByHandGoesBackToTheFirstScreenKeepingTheCards() async {
+        let viewModel = makeViewModel(FakeServer())
+        await viewModel.resume()
+        viewModel.setUpMyself()
+        viewModel.saveCard(cardId: nil, name: "Clients", description: "", names: ["Acme"], examples: [])
+        viewModel.goBack()
+        XCTAssertEqual(viewModel.step, .promise)
+        XCTAssertFalse(viewModel.canGoBack, "nothing before the first screen")
+        viewModel.setUpMyself()
+        XCTAssertEqual(viewModel.progress.cards.map(\.name), ["Clients"])
+    }
+
+    func testNoBackAfterFinish() async {
+        let viewModel = await reachDone(FakeServer())
+        XCTAssertEqual(viewModel.step, .done)
+        XCTAssertFalse(viewModel.canGoBack)
+        viewModel.goBack()
+        XCTAssertEqual(viewModel.step, .done)
+    }
+
+    func testALateReplyAfterGoingBackDoesNotMoveThemOn() async throws {
+        let server = FakeServer()
+        server.questions = []
+        let viewModel = makeViewModel(server)
+        await reachNames(viewModel)
+        var release: CheckedContinuation<Void, Never>?
+        server.transcribeGate = { await withCheckedContinuation { release = $0 } }
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("names-\(UUID().uuidString).m4a")
+        try Data("audio".utf8).write(to: file)
+
+        viewModel.submitNamesRecording(fileURL: file)
+        let continuing = Task { await viewModel.continueFromNames() }
+        while release == nil {
+            await Task.yield()
+        }
+        viewModel.goBack()
+        XCTAssertEqual(viewModel.step, .record)
+        release?.resume()
+        await continuing.value
+        XCTAssertEqual(viewModel.step, .record, "they stay where they went")
+        XCTAssertEqual(viewModel.namesNote, "I run a newsletter and two clients.", "the spoken note still lands")
+        XCTAssertEqual(server.draftRequests.count, 1, "nothing was built")
     }
 
     // MARK: - Failures and resuming

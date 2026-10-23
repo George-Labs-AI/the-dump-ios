@@ -30,7 +30,6 @@ enum OnboardingMicrophone {
 struct OnboardingRecordScreen: View {
     @ObservedObject var viewModel: OnboardingV2ViewModel
     @StateObject private var recorder = AudioRecorderService()
-    @State private var typedText = ""
     @State private var exampleIndex = 0
     @State private var recordError: String?
     @FocusState private var isTyping: Bool
@@ -40,6 +39,7 @@ struct OnboardingRecordScreen: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            OnboardingBackBar(isShown: viewModel.canGoBack, action: viewModel.goBack)
             OnboardingProgressBar(filled: 1)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -52,7 +52,7 @@ struct OnboardingRecordScreen: View {
                         .padding(.top, 16)
                 }
                 .padding(.horizontal, OnboardingStyle.gutter)
-                .padding(.top, 40)
+                .padding(.top, 24)
             }
             .scrollDismissesKeyboard(.interactively)
             bottom
@@ -81,7 +81,9 @@ struct OnboardingRecordScreen: View {
     private var middle: some View {
         switch viewModel.recordMode {
         case .idle, .recording:
-            if !viewModel.trySaying.isEmpty {
+            if viewModel.progress.transcript != nil, !viewModel.typedText.isEmpty {
+                soFarCard
+            } else if !viewModel.trySaying.isEmpty {
                 trySayingCard
             }
         case .typing:
@@ -115,15 +117,29 @@ struct OnboardingRecordScreen: View {
         .onboardingCard()
     }
 
+    /// Back from a later step: the words saved so far, which a new
+    /// recording is added to.
+    private var soFarCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("What you’ve said so far").onboardingLabel()
+            Text(viewModel.typedText)
+                .onboardingBody(OnboardingStyle.text)
+                .lineLimit(6)
+            Text("Anything you record now is added to it.")
+                .onboardingCaption()
+        }
+        .onboardingCard()
+    }
+
     private var typingBox: some View {
         ZStack(alignment: .topLeading) {
-            if typedText.isEmpty {
+            if viewModel.typedText.isEmpty {
                 Text("I run a small design studio with two clients, we’re redoing the kitchen…")
                     .onboardingBody(OnboardingStyle.placeholder)
                     .padding(20)
                     .accessibilityHidden(true)
             }
-            TextEditor(text: $typedText)
+            TextEditor(text: $viewModel.typedText)
                 .font(OnboardingStyle.body)
                 .foregroundColor(OnboardingStyle.text)
                 .lineSpacing(6)
@@ -172,12 +188,12 @@ struct OnboardingRecordScreen: View {
             VStack(spacing: 16) {
                 typingHint
                 Button("Continue") {
-                    let text = typedText
+                    let text = viewModel.typedText
                     isTyping = false
                     Task { await viewModel.submitTyped(text) }
                 }
-                .buttonStyle(OnboardingPrimaryButtonStyle(isEnabled: !typedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
-                .disabled(typedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .buttonStyle(OnboardingPrimaryButtonStyle(isEnabled: !viewModel.typedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+                .disabled(viewModel.typedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 Button("Talk instead") {
                     isTyping = false
                     viewModel.talkInstead()
@@ -197,7 +213,7 @@ struct OnboardingRecordScreen: View {
     /// Under about 20 words the hint asks for a little more; it never
     /// blocks Continue.
     private var typingHint: some View {
-        let words = OnboardingV2ViewModel.wordCount(typedText)
+        let words = OnboardingV2ViewModel.wordCount(viewModel.typedText)
         return HStack(alignment: .firstTextBaseline) {
             Text(words > 0 && words < 20 ? "A sentence or two more helps." : "Work, home, ideas: all of it helps.")
                 .onboardingCaption()
