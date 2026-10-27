@@ -43,17 +43,16 @@ struct OnboardingEditCardScreen: View {
                     // Each field says what the AI does with it, because
                     // editing gave no guidance on how to think about a card.
                     OnboardingChipSection(
-                        title: "Keywords",
+                        title: "Specific names",
                         chips: names,
-                        hint: "Words or names that should always land here: people, places, nicknames only you use.",
-                        error: errors.names,
+                        hint: "Any words only you’d connect to this? A person, a company, a product, a nickname for a place. When one shows up in a note, the note lands here. Skip everyday words like “app”, and leave this empty if nothing comes to mind.",
                         onRemove: { chip in names.removeAll { $0 == chip } },
                         onAdd: { names = OnboardingRules.cleanedChips(names + [$0]) }
                     )
                     OnboardingChipSection(
                         title: "What you’ll dump here",
                         chips: examples,
-                        hint: "The kinds of notes you’ll save here. They help when a note doesn’t mention a keyword.",
+                        hint: "The kinds of notes you’ll save here. They help when a note doesn’t mention a specific name.",
                         onRemove: { chip in examples.removeAll { $0 == chip } },
                         onAdd: { examples = OnboardingRules.cleanedChips(examples + [$0]) }
                     )
@@ -181,12 +180,9 @@ struct OnboardingEditCardScreen: View {
 
     private func refreshErrors() {
         guard triedToSave else { return }
-        let current = viewModel.editErrors(cardId: isNew ? nil : card.id, name: name, names: names)
-        // Fixing a field clears its message; new problems wait for Save.
-        errors = OnboardingCardEditErrors(
-            name: errors.name == nil ? nil : current.name,
-            names: errors.names == nil ? nil : current.names
-        )
+        let current = viewModel.editErrors(cardId: isNew ? nil : card.id, name: name)
+        // Fixing the name clears its message; new problems wait for Save.
+        errors = OnboardingCardEditErrors(name: errors.name == nil ? nil : current.name)
     }
 
     private func save() {

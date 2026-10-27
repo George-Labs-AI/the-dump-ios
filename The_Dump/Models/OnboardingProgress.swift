@@ -138,9 +138,6 @@ struct OnboardingCard: Codable, Equatable, Identifiable {
     var draft: OnboardingDraftCard {
         OnboardingDraftCard(name: name, description: description, examples: examples, names: names)
     }
-
-    /// A card with no names cannot be approved.
-    var canApprove: Bool { !names.isEmpty }
 }
 
 /// A category as saved at Finish, kept for screens 5 and 6 (the counts, the

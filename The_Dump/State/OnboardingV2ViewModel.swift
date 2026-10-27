@@ -837,10 +837,9 @@ extension OnboardingV2ViewModel {
         openCardId = id
     }
 
-    /// "Looks right". A card with no names can't be approved.
+    /// "Looks right".
     func approveCard(_ id: UUID) {
-        guard let index = progress.cards.firstIndex(where: { $0.id == id }),
-              progress.cards[index].canApprove else { return }
+        guard let index = progress.cards.firstIndex(where: { $0.id == id }) else { return }
         progress.cards[index].approved = true
         openCardId = firstUnapprovedCardId()
     }
@@ -858,10 +857,9 @@ extension OnboardingV2ViewModel {
 
     /// What blocks these edits; empty when they can be saved. `cardId` is
     /// nil for a new card.
-    func editErrors(cardId: UUID?, name: String, names: [String]) -> OnboardingCardEditErrors {
+    func editErrors(cardId: UUID?, name: String) -> OnboardingCardEditErrors {
         OnboardingRules.editErrors(
             name: name,
-            names: names,
             others: progress.cards.filter { $0.id != cardId }.map(\.name),
             catchAllName: catchAllName,
             maxLength: rules.nameMaxChars
@@ -879,7 +877,7 @@ extension OnboardingV2ViewModel {
         names: [String],
         examples: [String]
     ) -> OnboardingCardEditErrors? {
-        let errors = editErrors(cardId: cardId, name: name, names: names)
+        let errors = editErrors(cardId: cardId, name: name)
         guard errors.isEmpty else { return errors }
         let card = OnboardingCard(
             id: cardId ?? UUID(),
