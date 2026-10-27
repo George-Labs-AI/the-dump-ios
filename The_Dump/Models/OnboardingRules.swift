@@ -3,9 +3,8 @@ import Foundation
 /// Why a card's edits can't be saved, one message per field.
 struct OnboardingCardEditErrors: Equatable {
     var name: String?
-    var names: String?
 
-    var isEmpty: Bool { name == nil && names == nil }
+    var isEmpty: Bool { name == nil }
 }
 
 /// The rules for onboarding's cards and the Finish save, kept apart from the
@@ -159,16 +158,12 @@ enum OnboardingRules {
 
     // MARK: - Screens 4b to 4d
 
-    /// Shown on a card with no keywords. The cards call a category's
-    /// keywords "Keywords", the word the app's settings screens use.
-    static let missingKeywordMessage = "Add at least one keyword so notes can find this category."
-
-    /// What blocks a card's edits, shown under the field it is about (4d).
-    /// The name field stops at the length limit, so "too long" only comes up
-    /// for a name that was already longer.
+    /// What blocks a card's edits, shown under the name field (4d). Specific
+    /// names are optional, so only the name can block a save. The name field
+    /// stops at the length limit, so "too long" only comes up for a name that
+    /// was already longer.
     static func editErrors(
         name: String,
-        names: [String],
         others: [String],
         catchAllName: String?,
         maxLength: Int
@@ -185,19 +180,16 @@ enum OnboardingRules {
         } else if let catchAllName, nameKey(catchAllName) == key {
             errors.name = "\(catchAllName) is added for you at the end."
         }
-        if cleanedChips(names).isEmpty {
-            errors.names = missingKeywordMessage
-        }
         return errors
     }
 
     // MARK: - Finish
 
     /// Finish is open once there are enough cards, not too many, and every
-    /// one is approved with at least one name.
+    /// one is approved. A card needs no specific names.
     static func canFinish(cards: [OnboardingCard], rules: OnboardingCategoryRules) -> Bool {
         guard cards.count >= rules.min, cards.count <= rules.hardMax else { return false }
-        return cards.allSatisfy { $0.approved && $0.canApprove }
+        return cards.allSatisfy(\.approved)
     }
 
     /// The description that is saved: what the card is for, plus

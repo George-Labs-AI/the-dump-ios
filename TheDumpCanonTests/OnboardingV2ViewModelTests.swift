@@ -755,7 +755,7 @@ final class OnboardingV2ViewModelTests: XCTestCase {
 
     // MARK: - Screen 4: approving and editing
 
-    func testCardWithoutNamesCannotBeApprovedAndFinishWaitsForEveryCard() async {
+    func testCardWithoutNamesCanBeApprovedAndFinishWaitsForEveryCard() async {
         let server = FakeServer()
         server.initialCards[2] = OnboardingDraftCard(name: "Kids", description: "", examples: [], names: [])
         let viewModel = await reachReview(server)
@@ -765,13 +765,11 @@ final class OnboardingV2ViewModelTests: XCTestCase {
         let cards = viewModel.progress.cards
         viewModel.approveCard(cards[0].id)
         viewModel.approveCard(cards[1].id)
-        viewModel.approveCard(cards[2].id)
-        XCTAssertFalse(viewModel.progress.cards[2].approved, "no names, so it can't be approved")
         XCTAssertEqual(viewModel.finishLabel, "Finish · 1 left")
-        XCTAssertEqual(viewModel.openCardId, cards[2].id, "the card still needing attention is open")
+        XCTAssertFalse(viewModel.canFinish)
 
-        viewModel.addChip(" Maya ", to: .names, cardId: cards[2].id)
         viewModel.approveCard(cards[2].id)
+        XCTAssertTrue(viewModel.progress.cards[2].approved, "specific names are optional")
         XCTAssertTrue(viewModel.canFinish)
         XCTAssertEqual(viewModel.finishLabel, "Finish")
     }
@@ -789,9 +787,8 @@ final class OnboardingV2ViewModelTests: XCTestCase {
             "names clash ignoring case and spaces"
         )
         XCTAssertNotNil(viewModel.saveCard(cardId: card.id, name: "everything else", description: "", names: ["a"], examples: [])?.name, "the catch-all's name is taken")
-        let noNames = viewModel.saveCard(cardId: card.id, name: "Letters", description: "", names: ["  "], examples: [])
-        XCTAssertNil(noNames?.name)
-        XCTAssertEqual(noNames?.names, "Add at least one keyword so notes can find this category.")
+        XCTAssertNil(viewModel.saveCard(cardId: card.id, name: "Letters", description: "", names: ["  "], examples: []), "specific names are optional")
+        XCTAssertEqual(viewModel.progress.cards[0].names, [])
         XCTAssertNil(viewModel.saveCard(cardId: card.id, name: " Letters ", description: "Mine.", names: ["S&N", "s&n"], examples: []))
         XCTAssertEqual(viewModel.progress.cards[0].name, "Letters")
         XCTAssertEqual(viewModel.progress.cards[0].names, ["S&N"])

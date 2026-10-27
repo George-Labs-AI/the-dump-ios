@@ -144,7 +144,7 @@ struct CategoryDetailView: View {
                 }
 
                 if !readonly {
-                    Text("After changing the name, description, or keywords, you'll be able to choose whether to re-categorize past notes with AI or keep them where they are.")
+                    Text("After changing the name, description, or specific names, you'll be able to choose whether to re-categorize past notes with AI or keep them where they are.")
                         .font(.system(size: Theme.fontSizeSM))
                         .foregroundColor(Theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -207,12 +207,12 @@ struct CategoryDetailView: View {
                         .disabled(readonly)
                 }
 
-                // Keywords
+                // Specific names (stored as the category's keywords)
                 VStack(alignment: .leading, spacing: Theme.spacingSM) {
-                    Text("Keywords (comma-separated)")
+                    Text("Specific names (comma-separated)")
                         .font(.system(size: Theme.fontSizeSM, weight: .medium))
                         .foregroundColor(Theme.textPrimary)
-                    TextField("e.g., launch, retro, planning", text: $keywordsText)
+                    TextField("e.g., Pocketly, Acme Co., Priya", text: $keywordsText)
                         .textFieldStyle(.plain)
                         .font(.system(size: Theme.fontSizeMD))
                         .foregroundColor(Theme.textPrimary)

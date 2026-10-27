@@ -306,7 +306,7 @@ private struct HelperRow: View {
                 .foregroundColor(Theme.accent)
                 .padding(.top, 2)
 
-            Text("These are the buckets the AI sorts new notes into. Edit a category to refine its description and keywords.")
+            Text("These are the buckets the AI sorts new notes into. Edit a category to refine its description and specific names.")
                 .font(.system(size: Theme.fontSizeSM))
                 .foregroundColor(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)

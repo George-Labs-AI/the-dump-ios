@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Screen 2h: what do these names mean (2g when fewer than two were heard)
 
-/// Right after the ramble: the keywords only this person would know. 2h
+/// Right after the ramble: the specific names only this person would know. 2h
 /// lists the names heard, each with the AI's guess filled in, plus a row
 /// for nicknames that were never said. 2g is an open box for typing or
 /// talking. Everything here is optional and goes to drafting as one answer.

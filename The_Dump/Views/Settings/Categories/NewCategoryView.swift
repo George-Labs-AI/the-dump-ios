@@ -76,10 +76,10 @@ struct NewCategoryView: View {
                         }
 
                         VStack(alignment: .leading, spacing: Theme.spacingSM) {
-                            Text("Keywords (comma-separated)")
+                            Text("Specific names (comma-separated)")
                                 .font(.system(size: Theme.fontSizeSM, weight: .medium))
                                 .foregroundColor(Theme.textPrimary)
-                            TextField("e.g., meeting, retro, planning", text: $keywordsText)
+                            TextField("e.g., Pocketly, Acme Co., Priya", text: $keywordsText)
                                 .textFieldStyle(.plain)
                                 .font(.system(size: Theme.fontSizeMD))
                                 .foregroundColor(Theme.textPrimary)
@@ -89,7 +89,7 @@ struct NewCategoryView: View {
                                 .autocorrectionDisabled()
                                 .textInputAutocapitalization(.never)
                                 .focused($focusedField, equals: .keywords)
-                            Text("Optional — helps the AI route notes here.")
+                            Text("Optional. Any words only you’d connect to this, like a person, a company or a nickname for a place. When one shows up in a note, the note lands here.")
                                 .font(.system(size: Theme.fontSizeXS))
                                 .foregroundColor(Theme.textTertiary)
                         }

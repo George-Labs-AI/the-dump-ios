@@ -36,8 +36,8 @@ struct OnboardingReviewScreen: View {
                     // What the AI sorts with, so people know what to check
                     // or fill in (Emily found editing gave no guidance).
                     Text(isManual
-                         ? "Add one for each part of your life you’ll dump notes about. Give each a short description and the keywords that should always land there, like a nickname for a place or a person’s name."
-                         : "Every note you dump is checked against each category’s description and keywords. Add any name that should always land in a category, even one only you would know.")
+                         ? "Add one for each part of your life you’ll dump notes about. Give each a short description and any specific names that should always land there, like a nickname for a place or a person’s name."
+                         : "Every note you dump is checked against each category’s description and specific names. Add any name that should always land in a category, even one only you would know.")
                         .font(.system(size: 15))
                         .foregroundColor(OnboardingStyle.secondary)
                         .lineSpacing(4)
@@ -138,8 +138,9 @@ struct OnboardingReviewScreen: View {
     }
 }
 
-/// A closed card, 52 tall: approved (grey, a check, "3 keywords"), missing
-/// keywords ("!" and "Add a keyword"), or not looked at yet ("Review").
+/// A closed card, 52 tall: approved (grey, a check, "3 names"), refused at
+/// Finish for its name ("!" and "Fix the name"), or not looked at yet
+/// ("Review").
 /// Tapping it opens it.
 struct OnboardingCollapsedCard: View {
     let card: OnboardingCard
@@ -172,17 +173,17 @@ struct OnboardingCollapsedCard: View {
         .accessibilityHint("Opens this category")
     }
 
-    private var needsAttention: Bool { !card.canApprove || card.errorMessage != nil }
+    private var needsAttention: Bool { card.errorMessage != nil }
 
     @ViewBuilder
     private var trailing: some View {
         if card.approved {
             let count = card.names.count
-            Text(count == 1 ? "1 keyword" : "\(count) keywords")
+            Text(count == 0 ? "No names" : count == 1 ? "1 name" : "\(count) names")
                 .onboardingCaption()
                 .monospacedDigit()
         } else if needsAttention {
-            Text(card.canApprove ? "Fix the name" : "Add a keyword")
+            Text("Fix the name")
                 .font(OnboardingStyle.captionMedium)
                 .foregroundColor(OnboardingStyle.text)
         } else {
@@ -234,9 +235,8 @@ struct OnboardingOpenCard: View {
                     .lineSpacing(2)
             }
             OnboardingChipSection(
-                title: "Keywords",
+                title: "Specific names",
                 chips: card.names,
-                error: card.canApprove ? nil : OnboardingRules.missingKeywordMessage,
                 onAdd: { viewModel.addChip($0, to: .names, cardId: card.id) }
             )
             OnboardingChipSection(
@@ -265,7 +265,7 @@ struct OnboardingOpenCard: View {
     }
 
     /// A card refused at Finish for its name has to be edited first.
-    private var canApprove: Bool { card.canApprove && card.errorMessage == nil }
+    private var canApprove: Bool { card.errorMessage == nil }
 }
 
 /// A label and a wrapping row of chips ending in "+ Add", which becomes a
@@ -275,7 +275,6 @@ struct OnboardingChipSection: View {
     let chips: [String]
     /// A line under the chips saying what the AI does with them (4b).
     var hint: String?
-    var error: String?
     var onRemove: ((String) -> Void)?
     let onAdd: (String) -> Void
     @State private var isAdding = false
@@ -328,11 +327,6 @@ struct OnboardingChipSection: View {
                 Text(hint)
                     .onboardingCaption()
                     .lineSpacing(3)
-            }
-            if let error {
-                Text(error)
-                    .onboardingCaption(OnboardingStyle.danger)
-                    .lineSpacing(2)
             }
         }
     }

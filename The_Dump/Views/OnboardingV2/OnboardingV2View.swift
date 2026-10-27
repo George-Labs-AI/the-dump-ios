@@ -118,7 +118,7 @@ struct OnboardingExplainerScreen: View {
                     Text("Every note is sorted by its clues.")
                         .onboardingHeadline(34, lineHeight: 36)
                         .accessibilityAddTraits(.isHeader)
-                    Text("When you dump something, the AI reads it and puts it in the category it fits best. Keywords help the most: the names only you would connect to one part of your life.")
+                    Text("When you dump something, the AI reads it and puts it in the category it fits best. Specific names help the most: the names only you would connect to one part of your life.")
                         .onboardingBody()
                     exampleCard
                         .padding(.top, 8)
@@ -167,7 +167,7 @@ struct OnboardingExplainerScreen: View {
                         .frame(height: 26)
                         .background(RoundedRectangle(cornerRadius: 6).fill(OnboardingStyle.text))
                 }
-                Text("Nothing in the note says “app”. It landed there because you told it Pocketly is a keyword for that category.")
+                Text("Nothing in the note says “app”. It landed there because you told it Pocketly is a specific name for that category.")
                     .font(.system(size: 14))
                     .foregroundColor(OnboardingStyle.secondary)
                     .lineSpacing(3)
