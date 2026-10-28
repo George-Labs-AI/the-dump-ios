@@ -91,7 +91,7 @@ struct RootView: View {
                     MainTabView()
                 } else if let uid = appState.currentUser?.uid {
                     OnboardingV2View(uid: uid)
-                        .id(uid)
+                        .id("\(uid)#\(appState.onboardingResetCount)")
                 }
             } else {
                 AuthView()

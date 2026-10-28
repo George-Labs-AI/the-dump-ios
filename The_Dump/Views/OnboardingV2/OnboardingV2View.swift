@@ -18,6 +18,11 @@ struct OnboardingV2View: View {
             screen
                 .transition(.opacity)
         }
+        // On every screen, in the back arrow's row (THEDUMP-132).
+        .overlay(alignment: .topTrailing) {
+            OnboardingMenu(viewModel: viewModel)
+                .padding(.trailing, OnboardingStyle.gutter)
+        }
         .animation(.easeInOut(duration: 0.25), value: viewModel.step)
         .environment(\.colorScheme, .dark)
         .preferredColorScheme(.dark)

@@ -59,6 +59,11 @@ struct OnboardingQuestionsScreen: View {
             .padding(.horizontal, OnboardingStyle.gutter)
             .padding(.bottom, 48)
         }
+        .onDisappear {
+            if recorder.state == .recording {
+                recorder.discardRecording()
+            }
+        }
     }
 
     /// The same notice as 2e, for an answer tapped without mic access.
