@@ -10,6 +10,9 @@ class AppState: ObservableObject {
     @Published var currentUser: User?
     @Published var hasCompletedOnboarding = false
     @Published var isCheckingOnboardingStatus = false
+    /// Goes up on every onboarding reset, so an onboarding already on screen
+    /// (reset from its own menu) is replaced by a fresh one.
+    @Published private(set) var onboardingResetCount = 0
 
     let subscriptionViewModel = SubscriptionViewModel()
 
@@ -161,6 +164,7 @@ class AppState: ObservableObject {
         // so the answer is already known.
         isCheckingOnboardingStatus = false
         hasCompletedOnboarding = false
+        onboardingResetCount += 1
     }
 
     /// Removes what marks onboarding as started or done for one account on

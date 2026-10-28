@@ -106,6 +106,8 @@ struct OnboardingFirstNoteScreen: View {
             Text(headline(for: note))
                 .onboardingHeadline()
                 .accessibilityAddTraits(.isHeader)
+                // Clear of the menu at the top right.
+                .padding(.top, 44)
             noteCard(note)
             VStack(alignment: .leading, spacing: 0) {
                 Text("Your categories")
@@ -364,6 +366,11 @@ struct OnboardingCaptureBar: View {
         .onChange(of: recorder.duration) { _, duration in
             if isRecording, duration >= viewModel.recordingLimits.hardStopSeconds {
                 stopRecording()
+            }
+        }
+        .onDisappear {
+            if isRecording {
+                recorder.discardRecording()
             }
         }
         .onChange(of: isFocused) { _, focused in

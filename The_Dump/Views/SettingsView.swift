@@ -281,7 +281,8 @@ struct SettingsView: View {
     }
 }
 
-private struct DeleteAccountSheet: View {
+/// Also opened from the onboarding's menu.
+struct DeleteAccountSheet: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var sessionStore: SessionStore
     @Environment(\.dismiss) private var dismiss
