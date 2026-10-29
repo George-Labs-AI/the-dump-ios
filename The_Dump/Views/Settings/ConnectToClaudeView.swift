@@ -15,6 +15,12 @@ struct ConnectToClaudeView: View {
     @Environment(\.openURL) private var openURL
     @State private var copied = false
 
+    /// The address as shown: "https://" dimmed, the rest in full colour. Both
+    /// halves come from `SharedConstants.mcpServerURL`, so what people see is
+    /// always what Copy puts on the clipboard.
+    private static let addressScheme = SharedConstants.mcpServerURL.hasPrefix("https://") ? "https://" : ""
+    private static let addressRest = String(SharedConstants.mcpServerURL.dropFirst(addressScheme.count))
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
@@ -69,7 +75,7 @@ struct ConnectToClaudeView: View {
         VStack(alignment: .leading, spacing: 10) {
             sectionLabel("The Dump's address")
             HStack(spacing: 12) {
-                Text("\(Text("https://").foregroundColor(Theme.textSecondary))\(Text("mcp.thedump.ai/mcp").foregroundColor(Theme.textPrimary))")
+                Text("\(Text(verbatim: Self.addressScheme).foregroundColor(Theme.textSecondary))\(Text(verbatim: Self.addressRest).foregroundColor(Theme.textPrimary))")
                     .font(.system(size: 13, design: .monospaced))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
