@@ -6,8 +6,8 @@ import PhotosUI
 struct OnboardingFirstNoteScreen: View {
     @ObservedObject var viewModel: OnboardingV2ViewModel
     let onLeave: () -> Void
-    @Environment(\.openURL) private var openURL
     @State private var showChangePicker = false
+    @State private var showConnectToClaude = false
     /// Screen 5c: while the first note is being typed, the stats and the
     /// category list make room for the keyboard; the headline stays.
     @State private var isTypingFirstNote = false
@@ -40,6 +40,11 @@ struct OnboardingFirstNoteScreen: View {
                 .presentationDragIndicator(.visible)
                 .presentationBackground(OnboardingStyle.surface)
                 .presentationCornerRadius(20)
+        }
+        .sheet(isPresented: $showConnectToClaude, onDismiss: onLeave) {
+            NavigationStack {
+                ConnectToClaudeView(showsDoneButton: true)
+            }
         }
     }
 
@@ -241,11 +246,10 @@ struct OnboardingFirstNoteScreen: View {
                 leaveBar
                 HStack {
                     if viewModel.progress.firstNote?.status == .sorted {
+                        // Opens the app's Claude setup screen; closing it
+                        // leaves onboarding, like the other links (D-024).
                         Button("Use your notes in Claude →") {
-                            if let url = URL(string: SharedConstants.mcpSetupGuideURL) {
-                                openURL(url)
-                            }
-                            onLeave()
+                            showConnectToClaude = true
                         }
                         .buttonStyle(OnboardingLinkStyle())
                     }

@@ -34,6 +34,10 @@ enum SharedConstants {
     /// setup guide). Like the legal links, it always opens thedump.ai.
     static let mcpSetupGuideURL = "https://thedump.ai/mcp"
 
+    /// The hosted MCP server's address, which people paste into Claude's
+    /// "Add custom connector" box (D-034: permanent).
+    static let mcpServerURL = "https://mcp.thedump.ai/mcp"
+
     /// Ingest endpoint path (text and links).
     static let ingestEndpoint = "/api/ingest"
 
