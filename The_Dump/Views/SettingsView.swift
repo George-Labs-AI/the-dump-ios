@@ -66,7 +66,20 @@ struct SettingsView: View {
                         Text("Categories")
                             .foregroundColor(Theme.textSecondary)
                     }
-                    
+
+                    // AI assistants section (THEDUMP-135)
+                    Section {
+                        NavigationLink("Connect to Claude", destination: ConnectToClaudeView())
+                            .foregroundColor(Theme.accent)
+                            .listRowBackground(Theme.surface)
+                    } header: {
+                        Text("AI assistants")
+                            .foregroundColor(Theme.textSecondary)
+                    } footer: {
+                        Text("Save chats here and ask Claude about your notes.")
+                            .foregroundColor(Theme.textSecondary)
+                    }
+
                     // Session section
                     Section {
                         HStack {

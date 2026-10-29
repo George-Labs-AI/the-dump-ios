@@ -16,6 +16,7 @@ struct ContentView: View {
     @State private var selectedLibraryItems: [PhotosPickerItem] = []
     @State private var showVoiceMemo = false
     @State private var showSettings = false
+    @State private var showConnectToClaude = false
     @State private var showFilePicker = false
     @State private var showTextNote = false
     @State private var showPaywall = false
@@ -125,10 +126,14 @@ struct ContentView: View {
                                 message: "Videos and zip files aren't supported yet."
                             )
 
-                            CaptureHintNote(
-                                icon: "square.and.arrow.up",
-                                message: "Saving an AI chat? Tap the share button in ChatGPT, Claude, or any other app and choose The Dump. Using Claude on your computer? Connect The Dump's MCP server to save conversations directly."
-                            )
+                            Button(action: { showConnectToClaude = true }, label: {
+                                CaptureHintNote(
+                                    icon: "square.and.arrow.up",
+                                    message: "Saving an AI chat? Tap the share button in ChatGPT, Claude, or any other app and choose The Dump. Using Claude on your computer? It can save conversations here directly.",
+                                    linkText: "Connect The Dump to Claude →"
+                                )
+                            })
+                            .buttonStyle(.plain)
 
                             Spacer(minLength: Theme.spacingXL)
                         }
@@ -170,6 +175,11 @@ struct ContentView: View {
             SettingsView()
                 .environmentObject(appState)
                 .environmentObject(sessionStore)
+        }
+        .sheet(isPresented: $showConnectToClaude) {
+            NavigationStack {
+                ConnectToClaudeView(showsDoneButton: true)
+            }
         }
         // Every file stays pickable ([.item]) so that a video or zip gets a
         // clear "not supported" message instead of just being greyed out;
@@ -451,6 +461,8 @@ struct CaptureButtonsSection: View {
 struct CaptureHintNote: View {
     let icon: String
     let message: String
+    /// Shown under the message when the whole note is tappable.
+    var linkText: String?
 
     var body: some View {
         HStack(alignment: .top, spacing: Theme.spacingSM) {
@@ -458,10 +470,18 @@ struct CaptureHintNote: View {
                 .font(.system(size: Theme.fontSizeSM))
                 .foregroundColor(Theme.textSecondary)
 
-            Text(message)
-                .font(.system(size: Theme.fontSizeXS))
-                .foregroundColor(Theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: Theme.spacingSM) {
+                Text(message)
+                    .font(.system(size: Theme.fontSizeXS))
+                    .foregroundColor(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let linkText {
+                    Text(linkText)
+                        .font(.system(size: Theme.fontSizeXS, weight: .semibold))
+                        .foregroundColor(Theme.accent)
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Theme.spacingMD)
