@@ -57,7 +57,9 @@ struct SettingsView: View {
                     // Subscription section
                     SubscriptionSettingsSection(viewModel: appState.subscriptionViewModel, showPaywall: $showPaywall)
 
-                    // Categories section
+                    // Categories section. The main way in is now the Edit
+                    // button on Browse (THEDUMP-123); this row stays so people
+                    // who learned to look here still find it.
                     Section {
                         NavigationLink("Manage Categories", destination: ManageCategoriesView())
                             .foregroundColor(Theme.accent)
@@ -80,29 +82,6 @@ struct SettingsView: View {
                             .foregroundColor(Theme.textSecondary)
                     }
 
-                    // Session section
-                    Section {
-                        HStack {
-                            Text("Uploads this session")
-                                .foregroundColor(Theme.textSecondary)
-                            Spacer()
-                            Text("\(sessionStore.items.count)")
-                                .foregroundColor(Theme.textPrimary)
-                        }
-                        .listRowBackground(Theme.surface)
-                        
-                        if !sessionStore.items.isEmpty {
-                            Button("Clear Session History") {
-                                sessionStore.clear()
-                            }
-                            .foregroundColor(Theme.accent)
-                            .listRowBackground(Theme.surface)
-                        }
-                    } header: {
-                        Text("Session")
-                            .foregroundColor(Theme.textSecondary)
-                    }
-                    
                     // Actions section
                     Section {
                         Button("Sign Out") {

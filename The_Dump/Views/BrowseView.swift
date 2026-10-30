@@ -11,6 +11,7 @@ struct BrowseView: View {
     @State private var isShowingSearchResults: Bool = false
     @State private var submittedSearchText: String = ""
     @State private var showSettings = false
+    @State private var showManageCategories = false
 
     var body: some View {
         NavigationStack {
@@ -50,7 +51,24 @@ struct BrowseView: View {
             .navigationDestination(isPresented: $isShowingSearchResults) {
                 SearchResultsView(initialQuery: submittedSearchText)
             }
+            // Categories are edited from the screen that lists them, the way
+            // the folder lists in Notes and Mail work (THEDUMP-123).
+            .navigationDestination(isPresented: $showManageCategories) {
+                ManageCategoriesView()
+            }
+            .onChange(of: showManageCategories) { _, isShowing in
+                if !isShowing {
+                    Task { await viewModel.loadCounts() }
+                }
+            }
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Edit") {
+                        showManageCategories = true
+                    }
+                    .foregroundColor(Theme.textPrimary)
+                    .accessibilityHint("Add, rename or archive your categories")
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         showSettings = true
