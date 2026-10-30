@@ -25,9 +25,15 @@ struct SubscriptionSettingsSection: View {
                             Text("Notes")
                                 .foregroundColor(Theme.textSecondary)
                             Spacer()
-                            Text("\(status.notesUsed.formatted()) / \(status.monthlyNoteLimit.formatted())")
-                                .font(.system(size: Theme.fontSizeXS))
-                                .foregroundColor(Theme.textSecondary)
+                            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                if status.notesPercentage >= 90 {
+                                    Image(systemName: "exclamationmark.circle")
+                                    Text("Almost full ·")
+                                }
+                                Text("\(status.notesUsed.formatted()) / \(status.monthlyNoteLimit.formatted())")
+                            }
+                            .font(.system(size: Theme.fontSizeXS))
+                            .foregroundColor(Theme.textSecondary)
                         }
 
                         GeometryReader { geo in
@@ -37,7 +43,7 @@ struct SubscriptionSettingsSection: View {
                                     .frame(height: 6)
 
                                 RoundedRectangle(cornerRadius: 4)
-                                    .fill(barColor(for: status.notesPercentage))
+                                    .fill(Theme.textPrimary)
                                     .frame(width: geo.size.width * min(status.notesPercentage / 100, 1.0), height: 6)
                             }
                         }
@@ -50,9 +56,15 @@ struct SubscriptionSettingsSection: View {
                             Text("Words")
                                 .foregroundColor(Theme.textSecondary)
                             Spacer()
-                            Text("\(status.wordsUsed.formatted()) / \(status.monthlyWordLimit.formatted())")
-                                .font(.system(size: Theme.fontSizeXS))
-                                .foregroundColor(Theme.textSecondary)
+                            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                if status.wordsPercentage >= 90 {
+                                    Image(systemName: "exclamationmark.circle")
+                                    Text("Almost full ·")
+                                }
+                                Text("\(status.wordsUsed.formatted()) / \(status.monthlyWordLimit.formatted())")
+                            }
+                            .font(.system(size: Theme.fontSizeXS))
+                            .foregroundColor(Theme.textSecondary)
                         }
 
                         GeometryReader { geo in
@@ -62,7 +74,7 @@ struct SubscriptionSettingsSection: View {
                                     .frame(height: 6)
 
                                 RoundedRectangle(cornerRadius: 4)
-                                    .fill(barColor(for: status.wordsPercentage))
+                                    .fill(Theme.textPrimary)
                                     .frame(width: geo.size.width * min(status.wordsPercentage / 100, 1.0), height: 6)
                             }
                         }
@@ -193,11 +205,5 @@ struct SubscriptionSettingsSection: View {
         case .trial: return Theme.warning
         case .paid, .preApproved: return Theme.success
         }
-    }
-
-    private func barColor(for percentage: Double) -> Color {
-        if percentage >= 90 { return Theme.accent }
-        if percentage >= 70 { return Theme.warning }
-        return Theme.success
     }
 }

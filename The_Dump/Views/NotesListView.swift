@@ -98,9 +98,9 @@ struct NotesListView: View {
                                     )
 
                                     if let actionErrorMessage {
-                                        Text(actionErrorMessage)
+                                        Label(actionErrorMessage, systemImage: "exclamationmark.circle")
                                             .font(.system(size: Theme.fontSizeSM))
-                                            .foregroundColor(.red)
+                                            .foregroundColor(Theme.textPrimary)
                                     }
                                 }
                             }

@@ -190,12 +190,6 @@ class AppState: ObservableObject {
         hasCompletedOnboarding = false
     }
 
-    /// Whether the onboarding is what's on screen, which is always dark
-    /// whatever the appearance setting (D-071).
-    var isShowingOnboarding: Bool {
-        isAuthenticated && !isCheckingOnboardingStatus && !hasCompletedOnboarding
-    }
-
     /// Called when the person leaves the onboarding's last screens.
     func markOnboardingComplete() {
         guard let userId = currentUser?.uid else { return }

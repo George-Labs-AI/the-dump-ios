@@ -179,7 +179,7 @@ private struct RoutineChooseNotesStepView: View {
                             .font(.system(size: Theme.fontSizeMD))
                             .foregroundColor(Theme.textPrimary)
                     }
-                    .tint(Theme.accent)
+                    .tint(Theme.textSecondary)
                 } footer: {
                     Text("Choose a whole category to include all its notes and future additions, or select individual subcategories. Selections are combined.")
                         .font(.system(size: Theme.fontSizeXS))
@@ -253,9 +253,9 @@ private struct RoutineChooseNotesStepView: View {
             }
         } else if let error = viewModel.optionsError {
             Section {
-                Text(error)
+                Label(error, systemImage: "exclamationmark.circle")
                     .font(.system(size: Theme.fontSizeSM))
-                    .foregroundColor(.red)
+                    .foregroundColor(Theme.textPrimary)
                 Button("Reload categories") {
                     Task { await viewModel.loadOptions() }
                 }
@@ -344,9 +344,9 @@ private struct RoutinePreviewStepView: View {
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: Theme.spacingXS) {
                 if let error = viewModel.createError {
-                    Text(error)
+                    Label(error, systemImage: "exclamationmark.circle")
                         .font(.system(size: Theme.fontSizeSM))
-                        .foregroundColor(.red)
+                        .foregroundColor(Theme.textPrimary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 Button {
@@ -394,9 +394,9 @@ private struct RoutinePreviewStepView: View {
                 .font(.system(size: Theme.fontSizeMD, weight: .medium))
                 .foregroundColor(Theme.textPrimary)
         case .failed(let message):
-            Text(message)
+            Label(message, systemImage: "exclamationmark.circle")
                 .font(.system(size: Theme.fontSizeSM))
-                .foregroundColor(.red)
+                .foregroundColor(Theme.textPrimary)
             Button("Retry preview") {
                 Task { await viewModel.loadPreview() }
             }

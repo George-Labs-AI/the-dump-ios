@@ -12,6 +12,7 @@ struct BrowseView: View {
     @State private var submittedSearchText: String = ""
     @State private var showSettings = false
     @State private var showManageCategories = false
+    @Environment(\.isActiveTab) private var isActiveTab
 
     var body: some View {
         NavigationStack {
@@ -32,11 +33,16 @@ struct BrowseView: View {
                     }
                 }
             }
+            .appTabBar()
             .navigationTitle("Folders")
             .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(Theme.background, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .task {
+            // Runs on appearing and again each time Browse comes back on
+            // screen: MainTabView keeps both tabs alive, so switching tabs
+            // no longer re-runs a plain .task the way the system tab bar did.
+            .task(id: isActiveTab) {
+                guard isActiveTab else { return }
                 await viewModel.loadCounts()
             }
             .onReceive(NotificationCenter.default.publisher(for: .categoryRecategorizationDidFinish)) { _ in

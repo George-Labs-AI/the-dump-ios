@@ -13,7 +13,7 @@ struct AuthStatusFooter: View {
     var body: some View {
         HStack(spacing: 8) {
             Circle()
-                .fill(email != nil ? Theme.success : Color.red)
+                .fill(email != nil ? Theme.textPrimary : Theme.textSecondary)
                 .frame(width: 8, height: 8)
             Text(email ?? "Not signed in")
                 .font(.system(size: 13))

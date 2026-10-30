@@ -122,9 +122,9 @@ struct SubCategoryDetailView: View {
                     }
 
                     if let clash = current.nameClash(among: viewModel.all) {
-                        Text(clash)
+                        Label(clash, systemImage: "exclamationmark.circle")
                             .font(.system(size: Theme.fontSizeXS))
-                            .foregroundColor(.red)
+                            .foregroundColor(Theme.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -162,9 +162,9 @@ struct SubCategoryDetailView: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let saveError {
-                    Text(saveError)
+                    Label(saveError, systemImage: "exclamationmark.circle")
                         .font(.system(size: Theme.fontSizeSM))
-                        .foregroundColor(.red)
+                        .foregroundColor(Theme.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -184,7 +184,7 @@ struct SubCategoryDetailView: View {
                             Spacer()
                         }
                         .font(.system(size: Theme.fontSizeMD))
-                        .foregroundColor(.red)
+                        .foregroundColor(Theme.destructive)
                         .padding(Theme.spacingMD)
                         .background(Theme.surface)
                         .cornerRadius(Theme.cornerRadiusSM)

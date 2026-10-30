@@ -53,9 +53,9 @@ struct NewCategoryView: View {
                                 }
 
                                 if collision {
-                                    Text("A category named \"\(name.trimmingCharacters(in: .whitespacesAndNewlines))\" already exists.")
+                                    Label("A category named \"\(name.trimmingCharacters(in: .whitespacesAndNewlines))\" already exists.", systemImage: "exclamationmark.circle")
                                         .font(.system(size: Theme.fontSizeXS))
-                                        .foregroundColor(.red)
+                                        .foregroundColor(Theme.textPrimary)
                                 }
                             }
                         }
@@ -95,14 +95,14 @@ struct NewCategoryView: View {
                         }
 
                         if let error = errorMessage {
-                            Text(error)
+                            Label(error, systemImage: "exclamationmark.circle")
                                 .font(.system(size: Theme.fontSizeSM))
-                                .foregroundColor(.red)
+                                .foregroundColor(Theme.textPrimary)
                         }
 
                         Button(action: submit) {
                             if isSubmitting {
-                                ProgressView().progressViewStyle(CircularProgressViewStyle(tint: Theme.background))
+                                ProgressView().progressViewStyle(CircularProgressViewStyle(tint: Theme.textPrimary))
                             } else {
                                 Text("Create category")
                             }

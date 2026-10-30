@@ -56,7 +56,7 @@ struct BulkDeleteConfirmView: View {
                                 dismiss()
                             }
                         }
-                        .foregroundColor(canDelete ? .red : Theme.textSecondary)
+                        .foregroundColor(canDelete ? Theme.destructive : Theme.textSecondary)
                         .disabled(!canDelete)
                     }
                 }

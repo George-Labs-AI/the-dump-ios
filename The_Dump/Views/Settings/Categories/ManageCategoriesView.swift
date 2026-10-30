@@ -238,7 +238,7 @@ private struct CategoryRecategorizationPill: View {
     private var foregroundColor: Color {
         switch status {
         case .failed:
-            return .red
+            return Theme.textPrimary
         case .pending, .running:
             return Theme.warning
         case .done:
@@ -249,7 +249,7 @@ private struct CategoryRecategorizationPill: View {
     private var backgroundColor: Color {
         switch status {
         case .failed:
-            return Color.red.opacity(0.12)
+            return Theme.textPrimary.opacity(0.12)
         case .pending, .running:
             return Theme.warning.opacity(0.14)
         case .done:
@@ -276,9 +276,9 @@ private struct CapMeterRow: View {
                     .font(.system(size: Theme.fontSizeSM, weight: .medium))
                     .foregroundColor(Theme.textSecondary)
                 Spacer()
-                Text("\(used) / \(cap)")
+                Text(used >= cap ? "\(used) / \(cap) · Full" : "\(used) / \(cap)")
                     .font(.system(size: Theme.fontSizeSM, weight: .semibold))
-                    .foregroundColor(used >= cap ? Theme.warning : Theme.textPrimary)
+                    .foregroundColor(Theme.textPrimary)
             }
 
             GeometryReader { geo in
@@ -286,7 +286,7 @@ private struct CapMeterRow: View {
                     Capsule()
                         .fill(Theme.surface2)
                     Capsule()
-                        .fill(used >= cap ? Theme.warning : Theme.textPrimary)
+                        .fill(Theme.textPrimary)
                         .frame(width: geo.size.width * progress)
                 }
             }
@@ -335,7 +335,7 @@ private struct RefreshErrorBanner: View {
     var body: some View {
         HStack(alignment: .top, spacing: Theme.spacingSM) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundColor(.red)
+                .foregroundColor(Theme.textPrimary)
                 .padding(.top, 2)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -355,7 +355,7 @@ private struct RefreshErrorBanner: View {
                 .foregroundColor(Theme.accent)
         }
         .padding(Theme.spacingMD)
-        .background(Color.red.opacity(0.08))
+        .background(Theme.surface)
         .cornerRadius(Theme.cornerRadius)
     }
 }

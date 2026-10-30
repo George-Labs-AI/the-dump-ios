@@ -183,9 +183,9 @@ struct CategoryDetailView: View {
                         }
 
                         if nameCollides {
-                            Text("A category named \"\(name.trimmingCharacters(in: .whitespacesAndNewlines))\" already exists.")
+                            Label("A category named \"\(name.trimmingCharacters(in: .whitespacesAndNewlines))\" already exists.", systemImage: "exclamationmark.circle")
                                 .font(.system(size: Theme.fontSizeXS))
-                                .foregroundColor(.red)
+                                .foregroundColor(Theme.textPrimary)
                         }
                     }
                 }
@@ -226,9 +226,9 @@ struct CategoryDetailView: View {
                 }
 
                 if let error = saveError {
-                    Text(error)
+                    Label(error, systemImage: "exclamationmark.circle")
                         .font(.system(size: Theme.fontSizeSM))
-                        .foregroundColor(.red)
+                        .foregroundColor(Theme.textPrimary)
                 }
 
                 // Archiving a category archives its sub-categories with it,
@@ -602,15 +602,17 @@ private struct CategoryRecategorizationNotice: View {
         switch job.status {
         case .failed:
             return "exclamationmark.triangle.fill"
-        case .pending, .running, .done:
+        case .pending, .running:
             return "arrow.triangle.2.circlepath"
+        case .done:
+            return "checkmark.circle"
         }
     }
 
     private var iconColor: Color {
         switch job.status {
         case .failed:
-            return .red
+            return Theme.textPrimary
         case .pending, .running:
             return Theme.warning
         case .done:
@@ -621,7 +623,7 @@ private struct CategoryRecategorizationNotice: View {
     private var backgroundColor: Color {
         switch job.status {
         case .failed:
-            return Color.red.opacity(0.08)
+            return Theme.textPrimary.opacity(0.12)
         case .pending, .running:
             return Theme.warning.opacity(0.12)
         case .done:

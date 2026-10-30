@@ -14,7 +14,6 @@ struct SettingsView: View {
     @State private var isResettingOnboarding = false
     @State private var resetOnboardingErrorMessage = ""
     @State private var showResetOnboardingError = false
-    @AppStorage("appearance") private var appearance: AppAppearance = .system
 
     var body: some View {
         NavigationStack {
@@ -37,20 +36,6 @@ struct SettingsView: View {
                             .listRowBackground(Theme.surface)
                     } header: {
                         Text("Account")
-                            .foregroundColor(Theme.textSecondary)
-                    }
-
-                    // Appearance section
-                    Section {
-                        Picker("Appearance", selection: $appearance) {
-                            ForEach(AppAppearance.allCases, id: \.self) { option in
-                                Text(option.label).tag(option)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .listRowBackground(Theme.surface)
-                    } header: {
-                        Text("Appearance")
                             .foregroundColor(Theme.textSecondary)
                     }
 
@@ -103,7 +88,7 @@ struct SettingsView: View {
                                     }
                                 }
                             }
-                            .foregroundColor(.red)
+                            .foregroundColor(Theme.destructive)
                             .disabled(isResettingOnboarding)
                             .listRowBackground(Theme.surface)
                         }
@@ -111,7 +96,7 @@ struct SettingsView: View {
                         Button("Delete Account") {
                             showDeleteConfirmation = true
                         }
-                        .foregroundColor(.red)
+                        .foregroundColor(Theme.destructive)
                         .listRowBackground(Theme.surface)
                     }
 
@@ -292,7 +277,7 @@ struct DeleteAccountSheet: View {
                 VStack(spacing: Theme.spacingLG) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 48))
-                        .foregroundColor(.red)
+                        .foregroundColor(Theme.textPrimary)
                         .padding(.top, Theme.spacingXL)
 
                     Text("Enter your password to confirm account deletion")
@@ -320,7 +305,7 @@ struct DeleteAccountSheet: View {
                                 .padding(.vertical, Theme.spacingSMPlus)
                         }
                         .buttonStyle(.borderedProminent)
-                        .tint(.red)
+                        .tint(Theme.destructive)
                         .disabled(password.isEmpty)
                         .padding(.horizontal, Theme.spacingLG)
                     }

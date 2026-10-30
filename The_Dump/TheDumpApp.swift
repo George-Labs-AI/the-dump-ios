@@ -6,29 +6,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         FirebaseApp.configure()
+        DesignFonts.register()
         return true
-    }
-}
-
-enum AppAppearance: String, CaseIterable {
-    case system
-    case light
-    case dark
-
-    var colorScheme: ColorScheme? {
-        switch self {
-        case .system: return nil
-        case .light: return .light
-        case .dark: return .dark
-        }
-    }
-
-    var label: String {
-        switch self {
-        case .system: return "System"
-        case .light: return "Light"
-        case .dark: return "Dark"
-        }
     }
 }
 
@@ -37,7 +16,6 @@ struct TheDumpApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var appState = AppState()
     @StateObject private var recategorizationTracker = CategoryRecategorizationTracker.shared
-    @AppStorage("appearance") private var appearance: AppAppearance = .system
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -45,7 +23,10 @@ struct TheDumpApp: App {
             RootView()
                 .environmentObject(appState)
                 .environmentObject(recategorizationTracker)
-                .preferredColorScheme(appState.isShowingOnboarding ? .dark : appearance.colorScheme)
+                // Dark-only for now: the design system is drawn dark, and light
+                // mode comes back later (THEDUMP-143). Info.plist also sets
+                // UIUserInterfaceStyle = Dark so system sheets and alerts match.
+                .preferredColorScheme(.dark)
                 .task {
                     recategorizationTracker.bootstrap()
                     recategorizationTracker.setPollingEnabled(scenePhase == .active)

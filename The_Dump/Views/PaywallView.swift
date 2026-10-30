@@ -20,9 +20,9 @@ struct PaywallView: View {
                         pricingSection
 
                         if let error = viewModel.errorMessage {
-                            Text(error)
+                            Label(error, systemImage: "exclamationmark.circle")
                                 .font(.system(size: Theme.fontSizeSM))
-                                .foregroundColor(Theme.accent)
+                                .foregroundColor(Theme.textPrimary)
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal, Theme.spacingMD)
                         }
@@ -166,16 +166,16 @@ struct PaywallView: View {
                 Group {
                     if viewModel.isPurchasing {
                         ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: Theme.textPrimary))
+                            .progressViewStyle(CircularProgressViewStyle(tint: Theme.buttonPrimaryForeground))
                     } else {
                         Text("Subscribe")
                     }
                 }
                 .font(.system(size: Theme.fontSizeMD, weight: .semibold))
-                .foregroundColor(Theme.textPrimary)
+                .foregroundColor(Theme.buttonPrimaryForeground)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, Theme.spacingMD)
-                .background(Theme.accent)
+                .background(Theme.buttonPrimaryBackground)
                 .cornerRadius(Theme.cornerRadius)
             }
             .disabled(viewModel.isPurchasing)

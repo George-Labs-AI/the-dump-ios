@@ -112,9 +112,9 @@ struct RoutineDetailView: View {
                     .disabled(viewModel.isUpdatingPause || viewModel.isLoading)
 
                     if let pauseError = viewModel.pauseErrorMessage {
-                        Text("Couldn't update: \(pauseError)")
+                        Label("Couldn't update: \(pauseError)", systemImage: "exclamationmark.circle")
                             .font(.system(size: Theme.fontSizeXS))
-                            .foregroundColor(.red)
+                            .foregroundColor(Theme.textPrimary)
                     }
                 }
 
