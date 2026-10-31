@@ -120,9 +120,9 @@ struct BrowseView: View {
     private var errorSection: some View {
         if let error = viewModel.errorMessage {
             Section {
-                Text(error)
+                Label(error, systemImage: "exclamationmark.circle")
                     .font(.system(size: Theme.fontSizeSM))
-                    .foregroundColor(Theme.accent)
+                    .foregroundColor(Theme.textPrimary)
             }
             .listRowBackground(Theme.surface)
         }

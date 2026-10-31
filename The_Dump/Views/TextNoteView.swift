@@ -31,9 +31,9 @@ struct TextNoteView: View {
                     // Footer with character count and error
                     VStack(spacing: Theme.spacingSM) {
                         if let error = uploadError {
-                            Text(error)
+                            Label(error, systemImage: "exclamationmark.circle")
                                 .font(.system(size: Theme.fontSizeSM))
-                                .foregroundColor(Theme.accent)
+                                .foregroundColor(Theme.textPrimary)
                         }
 
                         HStack {

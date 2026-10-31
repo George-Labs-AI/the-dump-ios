@@ -23,6 +23,11 @@ struct MainTabView: View {
         .environment(\.appTabSelection, Binding(
             get: { selection },
             set: { newTab in
+                // A hidden tab stays in the window, so end any typing first;
+                // otherwise Browse's search field keeps the keyboard.
+                if newTab != selection {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }
                 if newTab == .browse { hasOpenedBrowse = true }
                 selection = newTab
             }

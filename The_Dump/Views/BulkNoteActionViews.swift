@@ -87,9 +87,9 @@ struct BulkCategoryPickerView: View {
                         .foregroundColor(Theme.textPrimary)
                 } else if let loadError, categories.isEmpty {
                     VStack(spacing: Theme.spacingMD) {
-                        Text(loadError)
+                        Label(loadError, systemImage: "exclamationmark.circle")
                             .font(.system(size: Theme.fontSizeSM))
-                            .foregroundColor(Theme.accent)
+                            .foregroundColor(Theme.textPrimary)
                             .multilineTextAlignment(.center)
                         Button("Retry") {
                             Task { await load() }

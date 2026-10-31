@@ -124,17 +124,17 @@ extension Font {
 extension Text {
     /// td-hero: 52, for the promise and done moments.
     func tdHero() -> some View {
-        self.font(.display(52)).tracking(52 * -0.04)
+        self.font(.display(52)).tracking(52 * -0.04).lineHeight(.exact(points: 52))
     }
 
     /// td-headline: 40, every screen headline.
     func tdHeadline() -> some View {
-        self.font(.display(40)).tracking(40 * -0.04)
+        self.font(.display(40)).tracking(40 * -0.04).lineHeight(.exact(points: 40))
     }
 
     /// td-title: 22, secondary headlines.
     func tdTitle() -> some View {
-        self.font(.display(22)).tracking(22 * -0.04)
+        self.font(.display(22)).tracking(22 * -0.04).lineHeight(.exact(points: 22))
     }
 
     /// td-body: 16 on a 24 line. Note text is always regular.

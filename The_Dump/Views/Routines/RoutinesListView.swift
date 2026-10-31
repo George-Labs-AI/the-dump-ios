@@ -17,9 +17,9 @@ struct RoutinesListView: View {
                         .foregroundColor(Theme.textPrimary)
                 } else if let error = viewModel.errorMessage, viewModel.routines.isEmpty {
                     VStack(spacing: Theme.spacingMD) {
-                        Text(error)
+                        Label(error, systemImage: "exclamationmark.circle")
                             .font(.system(size: Theme.fontSizeSM))
-                            .foregroundColor(Theme.accent)
+                            .foregroundColor(Theme.textPrimary)
                             .multilineTextAlignment(.center)
 
                         Button("Retry") {

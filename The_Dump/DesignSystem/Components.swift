@@ -87,6 +87,17 @@ struct TDChip: View {
     let title: String
     var count: Int?
     var isSelected = false
+    @Environment(\.isEnabled) private var isEnabled
+
+    private var titleColor: Color {
+        if isSelected { return Theme.buttonPrimaryForeground }
+        return isEnabled ? Theme.textPrimary : Theme.placeholder
+    }
+
+    private var countColor: Color {
+        if isSelected { return Theme.buttonPrimaryForeground }
+        return isEnabled ? Theme.textSecondary : Theme.placeholder
+    }
 
     var body: some View {
         HStack(spacing: Theme.spacingXS) {
@@ -98,18 +109,22 @@ struct TDChip: View {
             if let count {
                 Text("\(count)")
                     .monospacedDigit()
-                    .foregroundStyle(isSelected ? Theme.buttonPrimaryForeground : Theme.textSecondary)
+                    .foregroundStyle(countColor)
             }
         }
         .font(.system(size: 13))
         .lineLimit(1)
-        .foregroundStyle(isSelected ? Theme.buttonPrimaryForeground : Theme.textPrimary)
+        .foregroundStyle(titleColor)
         .padding(.horizontal, Theme.spacingSMPlus)
         .frame(height: 36)
         .background(
             RoundedRectangle(cornerRadius: Theme.radiusTag)
                 .fill(isSelected ? Theme.buttonPrimaryBackground : Theme.raised)
         )
+        // Drawn 36pt tall, tapped as 44pt. In a wrapping row, 0 line spacing
+        // gives the design's 8pt gap between rows.
+        .padding(.vertical, (Theme.touchMin - 36) / 2)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
@@ -133,6 +148,8 @@ struct TDAddChip: View {
             RoundedRectangle(cornerRadius: Theme.radiusTag)
                 .strokeBorder(Theme.placeholder, style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
         )
+        .padding(.vertical, (Theme.touchMin - 36) / 2)
+        .contentShape(Rectangle())
     }
 }
 

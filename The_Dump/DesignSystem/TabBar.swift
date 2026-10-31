@@ -57,11 +57,16 @@ private struct AppTabBarModifier: ViewModifier {
     @Environment(\.appTabSelection) private var selection
 
     func body(content: Content) -> some View {
-        content.safeAreaInset(edge: .bottom, spacing: 0) {
-            if let selection {
-                TDTabBar(selection: selection)
+        content
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if let selection {
+                    TDTabBar(selection: selection)
+                }
             }
-        }
+            // Stay under the keyboard, as the system tab bar did, so the bar
+            // can't be tapped mid-search. Only the two roots get this; pushed
+            // screens still move out of the keyboard's way.
+            .ignoresSafeArea(.keyboard, edges: .bottom)
     }
 }
 
@@ -70,6 +75,11 @@ private struct AppTabBarModifier: ViewModifier {
 /// amber.
 struct TDTabBar: View {
     @Binding var selection: AppTab
+    @Environment(\.isActiveTab) private var isActiveTab
+    /// Each root draws its own bar, so a switch shows a different bar.
+    /// VoiceOver focus is moved onto it, as with the system tab bar.
+    @AccessibilityFocusState private var focusedTab: AppTab?
+    @State private var hasAppeared = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -90,8 +100,22 @@ struct TDTabBar: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(TDPressStyle())
+                .accessibilityLabel(tab.title)
                 .accessibilityAddTraits(isActive ? .isSelected : [])
+                .accessibilityShowsLargeContentViewer {
+                    Label(tab.title, systemImage: tab.systemImage)
+                }
+                .accessibilityFocused($focusedTab, equals: tab)
             }
+        }
+        .onChange(of: isActiveTab) { _, nowActive in
+            if nowActive { focusedTab = selection }
+        }
+        .onAppear {
+            // Browse is built the moment it's first chosen, so it starts out
+            // active and the onChange above never fires for it.
+            if !hasAppeared && selection != .dump { focusedTab = selection }
+            hasAppeared = true
         }
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isTabBar)

@@ -33,9 +33,9 @@ struct StackDetailView: View {
                         .padding(Theme.spacingLG)
                 } else if let error = viewModel.errorMessage, viewModel.notes.isEmpty {
                     VStack(spacing: Theme.spacingMD) {
-                        Text(error)
+                        Label(error, systemImage: "exclamationmark.circle")
                             .font(.system(size: Theme.fontSizeSM))
-                            .foregroundColor(Theme.accent)
+                            .foregroundColor(Theme.textPrimary)
                             .multilineTextAlignment(.center)
 
                         Button("Retry") {
@@ -48,9 +48,9 @@ struct StackDetailView: View {
                     List {
                         Section {
                             if let error = viewModel.errorMessage {
-                                Text(error)
+                                Label(error, systemImage: "exclamationmark.circle")
                                     .font(.system(size: Theme.fontSizeSM))
-                                    .foregroundColor(Theme.accent)
+                                    .foregroundColor(Theme.textPrimary)
                                     .listRowBackground(Theme.surface)
                             }
 

@@ -146,9 +146,9 @@ struct AuthView: View {
 
                 // Error message
                 if let error = errorMessage {
-                    Text(error)
+                    Label(error, systemImage: "exclamationmark.circle")
                         .font(.system(size: Theme.fontSizeSM))
-                        .foregroundColor(Theme.accent)
+                        .foregroundColor(Theme.textPrimary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, Theme.spacingLG)
                 }
@@ -319,9 +319,9 @@ struct ForgotPasswordView: View {
                         .padding(.top, Theme.spacingLG)
 
                         if let error = errorMessage {
-                            Text(error)
+                            Label(error, systemImage: "exclamationmark.circle")
                                 .font(.system(size: Theme.fontSizeSM))
-                                .foregroundColor(Theme.accent)
+                                .foregroundColor(Theme.textPrimary)
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal, Theme.spacingLG)
                         }

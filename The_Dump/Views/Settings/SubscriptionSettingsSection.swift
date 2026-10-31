@@ -26,9 +26,9 @@ struct SubscriptionSettingsSection: View {
                                 .foregroundColor(Theme.textSecondary)
                             Spacer()
                             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                if status.notesPercentage >= 90 {
+                                if let warning = usageWarning(status.notesPercentage) {
                                     Image(systemName: "exclamationmark.circle")
-                                    Text("Almost full ·")
+                                    Text(warning)
                                 }
                                 Text("\(status.notesUsed.formatted()) / \(status.monthlyNoteLimit.formatted())")
                             }
@@ -57,9 +57,9 @@ struct SubscriptionSettingsSection: View {
                                 .foregroundColor(Theme.textSecondary)
                             Spacer()
                             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                if status.wordsPercentage >= 90 {
+                                if let warning = usageWarning(status.wordsPercentage) {
                                     Image(systemName: "exclamationmark.circle")
-                                    Text("Almost full ·")
+                                    Text(warning)
                                 }
                                 Text("\(status.wordsUsed.formatted()) / \(status.monthlyWordLimit.formatted())")
                             }
@@ -205,5 +205,14 @@ struct SubscriptionSettingsSection: View {
         case .trial: return Theme.warning
         case .paid, .preApproved: return Theme.success
         }
+    }
+
+    /// The words beside a usage count. The bars are monochrome, so the
+    /// warning is said in words: from 70% (the design system's meter
+    /// threshold) and again at the limit.
+    private func usageWarning(_ percentage: Double) -> String? {
+        if percentage >= 100 { return "Full ·" }
+        if percentage >= 70 { return "Almost full ·" }
+        return nil
     }
 }

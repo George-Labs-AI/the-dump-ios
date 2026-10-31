@@ -181,7 +181,7 @@ struct SettingsView: View {
             isPresented: $showLogoutConfirmation,
             titleVisibility: .visible
         ) {
-            Button("Sign Out", role: .destructive) {
+            Button("Sign Out") {
                 signOut()
             }
             Button("Cancel", role: .cancel) {}
