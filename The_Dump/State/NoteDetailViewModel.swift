@@ -205,7 +205,7 @@ final class NoteDetailViewModel: ObservableObject {
         guard !isSaving else { return false }
         errorMessage = nil
 
-        guard draft.isTitleValid else {
+        guard draft.isTitleSaveable else {
             errorMessage = "Title is required."
             return false
         }
@@ -273,67 +273,108 @@ final class NoteDetailViewModel: ObservableObject {
     }
 
     /// Called on every change to the title or body: save once typing pauses.
+    /// A cleared title shows "Title required" but doesn't hold the body back;
+    /// the title is simply left as it was until one is typed.
     func textDidChange() {
         guard isEditingText else { return }
-        if !draft.isTitleValid {
-            autosaveTask?.cancel()
+        if !draft.isTitleSaveable {
             saveState = .titleRequired
-            return
         }
         scheduleAutosave(after: Self.autosaveDelay)
     }
 
-    /// Done: save what's left now, then show the note formatted again. If
-    /// that save fails, or the title is empty, the text stays open so
+    /// Done: save until nothing typed is left, then show the note formatted
+    /// again. With a cleared title or a failed save the text stays open, so
     /// nothing typed is lost.
     func finishEditingText() async {
         autosaveTask?.cancel()
-        if draft.titleChanged || draft.contentChanged {
-            guard draft.isTitleValid else {
+        // The fields stay editable while a save is in flight, so keep saving
+        // until nothing typed is left.
+        while isEditingText, draft.titleChanged || draft.contentChanged {
+            guard draft.isTitleSaveable else {
                 saveState = .titleRequired
                 return
             }
-            // Let a save already in flight finish, then save the rest.
-            while isSaving {
-                try? await Task.sleep(for: .milliseconds(100))
-            }
-            if draft.titleChanged || draft.contentChanged {
-                await autosave()
-            }
+            await waitForSaveInFlight()
+            autosaveTask?.cancel()
+            await autosave()
             guard saveState != .failed else { return }
         }
+        guard isEditingText else { return }
+        // Parse first, then leave edit mode in one step, so the old body
+        // doesn't flash before the new one.
+        if let note { await show(note) }
         autosaveTask?.cancel()
         isEditingText = false
         isEditing = false
         saveState = .idle
-        if let note { await show(note) }
+        errorMessage = nil
     }
 
+    /// Leaving the screen mid-edit (back button or swipe): keep trying to
+    /// save for a while, even though the screen is gone. A cleared title
+    /// goes back to the stored one, so the body still saves.
+    func finishEditingOnLeave() async {
+        guard isEditingText else { return }
+        if !draft.isTitleSaveable {
+            draft.title = draft.originalTitle
+        }
+        for _ in 0..<3 {
+            await savePendingTextNow()
+            guard saveState == .failed else { return }
+            autosaveTask?.cancel()
+            try? await Task.sleep(for: Self.retryDelay)
+        }
+    }
+
+    /// Save what's typed now, without leaving edit mode: when the app goes to
+    /// the background, and before leaving the screen.
+    func savePendingTextNow() async {
+        guard isEditingText else { return }
+        autosaveTask?.cancel()
+        await waitForSaveInFlight()
+        if draft.titleChanged || draft.contentChanged {
+            await autosave()
+        }
+    }
+
+    private func waitForSaveInFlight() async {
+        while isSaving {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+    }
+
+    /// The timer and the save are separate tasks, so typing, Done or a
+    /// cleared title cancel only the wait, never a save already sent.
     private func scheduleAutosave(after delay: Duration) {
         autosaveTask?.cancel()
         autosaveTask = Task { [weak self] in
             try? await Task.sleep(for: delay)
-            guard !Task.isCancelled else { return }
-            await self?.autosave()
+            guard !Task.isCancelled, let self else { return }
+            Task { await self.autosave() }
         }
     }
 
     /// Save the title and body as they are now. One save runs at a time;
-    /// a change typed meanwhile is saved right after. A failure retries
-    /// quietly a few seconds later. Like the Save button before it, a save
-    /// replaces the server's copy, so an edit made elsewhere in the meantime
-    /// is overwritten.
+    /// a change typed meanwhile is saved right after. A failure that can go
+    /// away (no connection) retries quietly a few seconds later; one that
+    /// can't (note gone, request refused) says why and waits for the next
+    /// change. Like the Save button before it, a save replaces the server's
+    /// copy, so an edit made elsewhere in the meantime is overwritten.
     private func autosave() async {
         guard let current = note, isEditingText else { return }
-        guard draft.isTitleValid else {
-            saveState = .titleRequired
+        let sentTitle = draft.titleChanged && draft.isTitleValid ? draft.trimmedTitle : nil
+        let sentContent = draft.contentChanged ? draft.content : nil
+        guard sentTitle != nil || sentContent != nil else {
+            if !draft.isTitleSaveable {
+                saveState = .titleRequired
+            } else if saveState == .saving || saveState == .failed {
+                saveState = .saved
+                errorMessage = nil
+            }
             return
         }
-        guard draft.titleChanged || draft.contentChanged else {
-            if saveState == .saving { saveState = .saved }
-            return
-        }
-        guard !draft.contentChanged || draft.isContentSizeOK else {
+        guard sentContent == nil || draft.isContentSizeOK else {
             saveState = .failed
             errorMessage = "This note is too long to save. Notes can be up to 500 KB."
             return
@@ -345,8 +386,6 @@ final class NoteDetailViewModel: ObservableObject {
 
         isSaving = true
         saveState = .saving
-        let sentTitle = draft.titleChanged ? draft.trimmedTitle : nil
-        let sentContent = draft.contentChanged ? draft.content : nil
 
         do {
             let updated = try await NotesService.shared.editNote(
@@ -372,15 +411,25 @@ final class NoteDetailViewModel: ObservableObject {
                 has_asset: current.has_asset
             )
             note = saved
-            // What was just saved becomes the baseline; anything typed
-            // during the save stays in the draft and is saved next.
-            var rebased = NoteEditDraft(note: saved, noteTypes: NoteTypeCatalog.shared.types)
+            // A field this save sent gets the sent text as its baseline; one
+            // it didn't send keeps its old baseline, so text never touched
+            // isn't resent. Anything typed during the save stays changed and
+            // is saved next.
+            var rebased = NoteEditDraft(
+                title: sentTitle ?? draft.originalTitle,
+                content: sentContent ?? draft.originalContent,
+                categoryId: saved.category_id,
+                categoryName: saved.category_name,
+                subCategories: saved.sub_cat_names ?? [],
+                noteType: saved.note_type ?? "",
+                noteTypes: NoteTypeCatalog.shared.types
+            )
             rebased.title = draft.title
             rebased.content = draft.content
             draft = rebased
             errorMessage = nil
             isSaving = false
-            saveState = .saved
+            saveState = draft.isTitleSaveable ? .saved : .titleRequired
             if autosaveQueued || draft.titleChanged || draft.contentChanged {
                 autosaveQueued = false
                 scheduleAutosave(after: .zero)
@@ -389,7 +438,23 @@ final class NoteDetailViewModel: ObservableObject {
             isSaving = false
             autosaveQueued = false
             saveState = .failed
-            scheduleAutosave(after: Self.retryDelay)
+            errorMessage = error.localizedDescription
+            if !Self.isPermanentSaveError(error) {
+                scheduleAutosave(after: Self.retryDelay)
+            }
+        }
+    }
+
+    /// A refusal (note gone, bad request, conflict) won't succeed on retry;
+    /// the next change or Done tries again.
+    private static func isPermanentSaveError(_ error: Error) -> Bool {
+        switch error as? APIError {
+        case .notFound, .badRequest, .conflict:
+            return true
+        case .httpError(let code, _):
+            return (400..<500).contains(code)
+        default:
+            return false
         }
     }
 
@@ -425,11 +490,20 @@ final class NoteDetailViewModel: ObservableObject {
         return fresh.categoryChoices(from: editOptions)
     }
 
+    /// The note's category ID, with the active category's ID adopted when an
+    /// older note has only its name (see NoteEditDraft.adoptCategoryID).
+    var currentCategoryID: Int? {
+        guard let note else { return nil }
+        var fresh = NoteEditDraft(note: note, noteTypes: NoteTypeCatalog.shared.types)
+        fresh.adoptCategoryID(from: editOptions)
+        return fresh.originalCategoryId
+    }
+
     /// Sub-categories the note would lose by moving to `category`: the ones
     /// that category doesn't have, matched ignoring case. Empty until the
     /// category list has loaded, so the warning never guesses.
     func subCategoriesDropped(movingTo category: NoteCategoryChoice) -> [String] {
-        guard editOptions.isLoaded, let note, category.id != note.category_id else { return [] }
+        guard editOptions.isLoaded, let note, category.id != currentCategoryID else { return [] }
         let kept = Set(editOptions.subCategories(forCategoryNamed: category.name).map(NoteEditDraft.normalized))
         return (note.sub_cat_names ?? []).filter { !kept.contains(NoteEditDraft.normalized($0)) }
     }
