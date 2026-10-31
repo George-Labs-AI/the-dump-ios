@@ -158,7 +158,9 @@ struct NotesListView: View {
                 }
             }
         }
-        .toolbar(viewModel.isSelecting ? .hidden : .automatic, for: .tabBar)
+        // The app draws its own tab bar on the two root screens only; the
+        // system one stays hidden here too (MainTabView).
+        .toolbar(.hidden, for: .tabBar)
         .task {
             // Only load once per navigation
             if viewModel.notes.isEmpty {
