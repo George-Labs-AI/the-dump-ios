@@ -70,6 +70,9 @@ struct NotesListView: View {
         }
         .background(Theme.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
+        // Not shown here; it names this screen in the next one's back menu
+        // and for VoiceOver.
+        .navigationTitle(title)
         // The app draws its own tab bar on the two root screens only; the
         // system one stays hidden here too (MainTabView).
         .toolbar(.hidden, for: .tabBar)
@@ -176,10 +179,13 @@ struct NotesListView: View {
             .padding(.horizontal, Theme.screenH)
         } else {
             TDTopBar(backTitle: backTitle) {
-                Menu {
-                    menuItems
-                } label: {
-                    TDMoreLabel()
+                // Only when the menu has something in it (see menuItems).
+                if isCategoryFilter || !viewModel.notes.isEmpty {
+                    Menu {
+                        menuItems
+                    } label: {
+                        TDMoreLabel()
+                    }
                 }
             }
         }
@@ -301,7 +307,7 @@ struct NotesListView: View {
                 .foregroundStyle(Theme.textSecondary)
                 .padding(.top, Theme.spacingLG)
         } else {
-            ForEach(Array(groupedNotes.enumerated()), id: \.element.label) { index, group in
+            ForEach(Array(groupedNotes.enumerated()), id: \.offset) { index, group in
                 TDSectionLabel(title: group.label)
                     // The chips keep 4pt below them, so 16 here reads as
                     // Paper's 20.
@@ -330,7 +336,11 @@ struct NotesListView: View {
     }
 
     /// The notes in date groups, newest first, as the list is ordered.
+    /// Search results come by relevance, so they show as one group.
     private var groupedNotes: [(label: String, notes: [NotePreview])] {
+        if !viewModel.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return viewModel.notes.isEmpty ? [] : [(label: "Results", notes: viewModel.notes)]
+        }
         var groups: [(label: String, notes: [NotePreview])] = []
         for note in viewModel.notes {
             let label = NoteListDates.groupLabel(for: NoteDates.parse(note.note_content_modified))
@@ -529,7 +539,7 @@ struct NotesListView: View {
                 bulkNoteCount = count
                 showBulkDelete = true
             }
-            .foregroundStyle(count == 0 || busy ? Theme.placeholder : Theme.destructive)
+            .buttonStyle(TDTextLinkStyle(color: Theme.destructive, size: 16))
             .disabled(count == 0 || busy)
         }
         .buttonStyle(TDTextLinkStyle(color: Theme.textPrimary, size: 16))
@@ -581,7 +591,7 @@ struct NoteListRowView: View {
                 .foregroundStyle(Theme.textSecondary)
                 .frame(width: 18, height: 18)
                 .padding(.top, 3)
-                .accessibilityHidden(true)
+                .accessibilityLabel(kindLabel)
 
             VStack(alignment: .leading, spacing: Theme.spacingXS) {
                 HStack(alignment: .firstTextBaseline, spacing: Theme.spacingSM) {
@@ -652,6 +662,14 @@ struct NoteListRowView: View {
             parts.append("from \(author)")
         }
         return parts
+    }
+
+    private var kindLabel: String {
+        guard let mime = note.mime_type?.lowercased() else { return "Text note" }
+        if mime.hasPrefix("image") { return "Photo" }
+        if mime.hasPrefix("audio") || mime.hasPrefix("voice") { return "Voice note" }
+        if mime.hasPrefix("document") || mime.hasPrefix("application") { return "Document" }
+        return "Text note"
     }
 
     private var kindSymbol: String {

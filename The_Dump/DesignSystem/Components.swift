@@ -31,18 +31,30 @@ struct TDPrimaryButtonStyle: ButtonStyle {
     }
 }
 
-/// A secondary action: grey text, never boxed, with a 44pt hit area.
+/// A secondary action: grey text, never boxed, with a 44pt hit area. A
+/// disabled one turns placeholder grey.
 struct TDTextLinkStyle: ButtonStyle {
     var color: Color = Theme.textSecondary
     var size: CGFloat = 17
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: size))
-            .foregroundStyle(color)
-            .frame(minHeight: Theme.touchMin)
-            .contentShape(Rectangle())
-            .opacity(configuration.isPressed ? 0.4 : 1)
+        TextLinkBody(configuration: configuration, color: color, size: size)
+    }
+
+    private struct TextLinkBody: View {
+        let configuration: Configuration
+        let color: Color
+        let size: CGFloat
+        @Environment(\.isEnabled) private var isEnabled
+
+        var body: some View {
+            configuration.label
+                .font(.system(size: size))
+                .foregroundStyle(isEnabled ? color : Theme.placeholder)
+                .frame(minHeight: Theme.touchMin)
+                .contentShape(Rectangle())
+                .opacity(configuration.isPressed ? 0.4 : 1)
+        }
     }
 }
 

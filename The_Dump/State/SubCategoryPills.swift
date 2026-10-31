@@ -68,7 +68,7 @@ enum SubCategoryPills {
             insert(name, replacing: false)
         }
 
-        // The counts' spelling is what notes store; when the same name is
+        // The counts' spelling is usually what notes store; when the same name is
         // stored in two spellings, prefer the one more notes use.
         if let counts {
             for key in spellingByKey.keys {
@@ -87,9 +87,15 @@ enum SubCategoryPills {
             insert(name, replacing: true)
         }
 
+        // The exact spelling first; the category's own list may spell a name
+        // differently from the notes, so then any spelling of it.
         func count(for name: String) -> Int? {
             guard let counts else { return nil }
-            return counts.first { $0.key.trimmingCharacters(in: .whitespacesAndNewlines) == name }?.value ?? 0
+            if let exact = counts.first(where: { $0.key.trimmingCharacters(in: .whitespacesAndNewlines) == name }) {
+                return exact.value
+            }
+            let key = CategoryMapResponse.key(name)
+            return counts.first { CategoryMapResponse.key($0.key) == key }?.value ?? 0
         }
 
         return spellingByKey.values

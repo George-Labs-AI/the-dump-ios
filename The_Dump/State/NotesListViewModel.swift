@@ -148,14 +148,16 @@ final class NotesListViewModel: ObservableObject {
         }
     }
 
-    /// Note counts of this category's active sub-categories, by name; nil
-    /// when the list couldn't be loaded.
+    /// Note counts of this category's sub-categories, by name; nil when the
+    /// list couldn't be loaded. Archived ones are kept (an archived category's
+    /// chips need them, and a sub-category archived on its own counts 0), and
+    /// two with the same name are added together. Counts never add chips.
     private func ownSubCategoryCounts() async -> [String: Int]? {
         guard let categoryId,
               let items = try? await NotesService.shared.fetchSubCategories(categoryId: categoryId) else { return nil }
         var counts: [String: Int] = [:]
-        for item in items where !item.archived {
-            counts[item.name] = item.noteCount
+        for item in items {
+            counts[item.name, default: 0] += item.noteCount
         }
         return counts
     }
