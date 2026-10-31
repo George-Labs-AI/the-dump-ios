@@ -34,12 +34,23 @@ nonisolated enum NoteListDates {
         return formatter(format, calendar: calendar).string(from: date)
     }
 
+    /// Formatters are slow to make and every row asks for one, so they are
+    /// kept, one per template, calendar, time zone and locale.
+    private static let cacheLock = NSLock()
+    nonisolated(unsafe) private static var cache: [String: DateFormatter] = [:]
+
     private static func formatter(_ template: String, calendar: Calendar) -> DateFormatter {
+        let locale = calendar.locale ?? .current
+        let key = "\(template)|\(calendar.identifier)|\(calendar.timeZone.identifier)|\(locale.identifier)"
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        if let cached = cache[key] { return cached }
         let formatter = DateFormatter()
         formatter.calendar = calendar
         formatter.timeZone = calendar.timeZone
-        formatter.locale = calendar.locale ?? .current
+        formatter.locale = locale
         formatter.setLocalizedDateFormatFromTemplate(template)
+        cache[key] = formatter
         return formatter
     }
 }
