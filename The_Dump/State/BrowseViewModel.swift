@@ -34,9 +34,15 @@ final class BrowseViewModel: ObservableObject {
     @Published private(set) var routineCount: Int = 0
     @Published private(set) var routineOpenAskCount: Int = 0
     private var routineSummaryTask: Task<Void, Never>?
+    /// A reload asked for while one was running; it runs once that finishes,
+    /// so a note that landed mid-load is still counted.
+    private var reloadRequested = false
 
     func loadCounts() async {
-        guard !isLoading else { return }
+        guard !isLoading else {
+            reloadRequested = true
+            return
+        }
         isLoading = true
         errorMessage = nil
 
@@ -77,6 +83,10 @@ final class BrowseViewModel: ObservableObject {
         }
 
         isLoading = false
+        if reloadRequested {
+            reloadRequested = false
+            await loadCounts()
+        }
     }
 
     /// Refresh the Routines row independently of the folder counts. One

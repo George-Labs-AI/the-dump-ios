@@ -40,6 +40,9 @@ actor PendingNotesStore {
     private let legacyDefaults: UserDefaults?
     private let storageKey: String
     private var recordsByUuid: [String: PendingNoteRecord] = [:]
+    /// Notes opened in this process (see acknowledge(organizedNoteId:)),
+    /// kept for the same 24h as records.
+    private var openedNoteIds: [String: Date] = [:]
     private var hasLoadedPersistedRecords = false
 
     /// - Parameters:
@@ -72,6 +75,9 @@ actor PendingNotesStore {
         loadPersistedRecordsIfNeeded()
         guard var record = recordsByUuid[fileUuid] else { return }
         mutation(&record)
+        if let noteId = record.organizedNoteId, openedNoteIds[noteId] != nil {
+            record.acknowledged = true
+        }
         recordsByUuid[fileUuid] = record
         persist()
     }
@@ -84,9 +90,12 @@ actor PendingNotesStore {
 
     /// Mark every organized record that became this note as acknowledged:
     /// opening a note anywhere counts as seeing it, which clears its "+1" on
-    /// Browse and its row on the Dump tab.
+    /// Browse and its row on the Dump tab. The id is also remembered, so a
+    /// record the status check only marks organized later (after the note was
+    /// already opened, say from the web's list) is acknowledged then.
     func acknowledge(organizedNoteId: String) {
         loadPersistedRecordsIfNeeded()
+        openedNoteIds[organizedNoteId] = Date()
         let matches = recordsByUuid.values.filter {
             $0.organizedNoteId == organizedNoteId && !$0.acknowledged
         }
@@ -115,6 +124,7 @@ actor PendingNotesStore {
     func prune(now: Date = Date()) {
         loadPersistedRecordsIfNeeded()
         let cutoff = now.addingTimeInterval(-Self.timeToLive)
+        openedNoteIds = openedNoteIds.filter { $0.value > cutoff }
         let kept = recordsByUuid.filter { _, record in
             record.createdAt > cutoff && !(record.isTerminal && record.acknowledged)
         }
