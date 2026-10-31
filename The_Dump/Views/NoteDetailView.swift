@@ -78,11 +78,11 @@ struct NoteDetailView: View {
         .onChange(of: scenePhase) { _, phase in
             // Save what's typed before iOS may end the app in the background.
             guard phase == .background, viewModel.isEditingText else { return }
-            let backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "Save note")
+            let backgroundTime = BackgroundSaveTime(name: "Save note")
             let model = viewModel
             Task {
                 await model.savePendingTextNow()
-                UIApplication.shared.endBackgroundTask(backgroundTask)
+                backgroundTime.end()
             }
         }
         .onChange(of: viewModel.draft.content) { _, _ in
@@ -130,12 +130,9 @@ struct NoteDetailView: View {
             await PendingNotesStore.shared.acknowledge(organizedNoteId: noteID)
         }
         .onDisappear {
-            // Leaving mid-edit (the back button or a swipe) still saves; the
-            // task keeps the model alive until it has saved or given up.
-            if viewModel.isEditingText {
-                let model = viewModel
-                Task { await model.finishEditingOnLeave() }
-            }
+            // Leaving mid-edit (the back button or a swipe) still saves, and
+            // opening this note again waits for that save.
+            viewModel.saveOnLeave()
         }
     }
 
@@ -546,6 +543,41 @@ enum NoteDetailDates {
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return formatter.string(from: date)
+    }
+}
+
+/// Extra time asked of iOS so a save can finish after the app leaves the
+/// screen. iOS ends an app that keeps this time past its limit, and a save on
+/// a slow connection can take longer than that, so the time is handed back
+/// when the save ends or when iOS asks for it, whichever comes first. Handing
+/// it back early only pauses the app: the typed text stays, and is saved when
+/// the app comes back.
+final class BackgroundSaveTime {
+    private var task = UIBackgroundTaskIdentifier.invalid
+    private let endTask: @MainActor (UIBackgroundTaskIdentifier) -> Void
+
+    convenience init(name: String) {
+        self.init(
+            begin: { UIApplication.shared.beginBackgroundTask(withName: name, expirationHandler: $0) },
+            end: { UIApplication.shared.endBackgroundTask($0) }
+        )
+    }
+
+    /// Tests pass their own `begin` and `end` in place of iOS.
+    init(
+        begin: (@escaping @MainActor @Sendable () -> Void) -> UIBackgroundTaskIdentifier,
+        end: @escaping @MainActor (UIBackgroundTaskIdentifier) -> Void
+    ) {
+        endTask = end
+        task = begin { [weak self] in self?.end() }
+    }
+
+    /// Hands the time back. Only the first call does anything, and none does
+    /// when iOS gave no time to begin with.
+    func end() {
+        guard task != .invalid else { return }
+        endTask(task)
+        task = .invalid
     }
 }
 

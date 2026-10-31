@@ -361,13 +361,21 @@ struct NoteMoveSheet: View {
     }
 
     private func loadCurrent() {
-        guard !didLoad, !userChanged, let note = viewModel.note else { return }
-        let choices = viewModel.moveCategoryChoices
-        // When the note's id is unknown, the choices hold one entry without an
-        // id for its category, which this also finds.
-        category = choices.first { $0.id == viewModel.currentCategoryID }
-        subCategories = note.sub_cat_names?.filter { !$0.isEmpty } ?? []
-        noteType = baseDraft?.noteType ?? (note.note_type ?? "")
+        guard !didLoad, let note = viewModel.note else { return }
+        // A type picked while the categories were still loading is kept, but
+        // the note's category is still filled in, or Done would stay off.
+        // Sub-categories can't be picked before there is a category, so they
+        // are filled in with it.
+        if !userChanged || category == nil {
+            let choices = viewModel.moveCategoryChoices
+            // When the note's id is unknown, the choices hold one entry without
+            // an id for its category, which this also finds.
+            category = choices.first { $0.id == viewModel.currentCategoryID }
+            subCategories = note.sub_cat_names?.filter { !$0.isEmpty } ?? []
+        }
+        if !userChanged {
+            noteType = baseDraft?.noteType ?? (note.note_type ?? "")
+        }
         didLoad = viewModel.editOptions.isLoaded
     }
 
