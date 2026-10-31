@@ -56,6 +56,20 @@ final class PendingNotesStoreTests: XCTestCase {
         XCTAssertEqual(records.first { $0.fileUuid == "b" }?.acknowledged, false)
     }
 
+    func test_noteOpenedBeforeItIsOrganized_isAcknowledgedWhenItIs() async {
+        let store = makeStore()
+        await store.add(makeRecord("a"))
+
+        await store.acknowledge(organizedNoteId: "note-1")
+        await store.update(fileUuid: "a") {
+            $0.lifecycleStatus = .organized
+            $0.organizedNoteId = "note-1"
+        }
+
+        let records = await store.allRecords()
+        XCTAssertEqual(records.first?.acknowledged, true)
+    }
+
     func test_completedStatus_keepsTheCategoryId() {
         let entry = FileStatusEntry(fileUuid: "a", status: "completed", organizedNoteId: "note-1",
                                     title: "Hotel vending", categoryId: 42, categoryName: "Business Ideas")

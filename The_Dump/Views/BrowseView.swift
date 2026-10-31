@@ -58,6 +58,14 @@ struct BrowseView: View {
             .onReceive(NotificationCenter.default.publisher(for: .categoryRecategorizationDidFinish)) { _ in
                 Task { await viewModel.loadCounts() }
             }
+            .onChange(of: organizedRecordIDs) { old, new in
+                // A capture just landed: the server counts it now, so reload
+                // so the count (or a first note's new row) matches its "+1".
+                // A record only disappearing (opened or dismissed) needs none.
+                if !Set(new).isSubset(of: Set(old)) {
+                    Task { await viewModel.loadCounts() }
+                }
+            }
             .navigationDestination(isPresented: $isShowingSearchResults) {
                 SearchResultsView(initialQuery: submittedSearchText)
             }
@@ -111,6 +119,8 @@ struct BrowseView: View {
                 .foregroundStyle(Theme.textPrimary)
                 .submitLabel(.search)
                 .autocorrectionDisabled()
+                .accessibilityLabel("Search all notes")
+                .accessibilityAddTraits(.isSearchField)
                 .onSubmit {
                     guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
                     submittedSearchText = searchText
@@ -168,6 +178,7 @@ struct BrowseView: View {
                         systemImage: "repeat",
                         title: "Routines",
                         count: viewModel.routineCount,
+                        unit: "routines",
                         detail: viewModel.routineOpenAskCount > 0
                             ? "\(viewModel.routineOpenAskCount) to review"
                             : nil
@@ -207,20 +218,22 @@ struct BrowseView: View {
         }
     }
 
+    /// The label sets the header's height, so Paper's 32 above and 4 below
+    /// hold; Edit hangs off it on the same baseline, with its 44pt tap area.
     private func sectionHeader(_ title: String, showsEdit: Bool) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            TDSectionLabel(title: title)
-            Spacer()
-            if showsEdit {
-                Button("Edit") {
-                    showManageCategories = true
+        TDSectionLabel(title: title)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: Alignment(horizontal: .trailing, vertical: .firstTextBaseline)) {
+                if showsEdit {
+                    Button("Edit") {
+                        showManageCategories = true
+                    }
+                    .buttonStyle(TDTextLinkStyle(size: 13))
+                    .accessibilityHint("Add, rename or archive your categories")
                 }
-                .buttonStyle(TDTextLinkStyle(size: 13))
-                .accessibilityHint("Add, rename or archive your categories")
             }
-        }
-        .padding(.top, Theme.spacingXL)
-        .padding(.bottom, Theme.spacingXS)
+            .padding(.top, Theme.spacingXL)
+            .padding(.bottom, Theme.spacingXS)
     }
 
     @ViewBuilder
@@ -297,6 +310,10 @@ struct BrowseView: View {
     private func categoryStatusText(for row: BrowseViewModel.FolderRow) -> String? {
         guard let categoryId = row.categoryId else { return nil }
         return recategorizationTracker.isRecategorizing(categoryId: categoryId) ? "Re-categorizing" : nil
+    }
+
+    private var organizedRecordIDs: [String] {
+        pendingNotes.records.filter { $0.lifecycleStatus == .organized }.map(\.id)
     }
 
     /// Notes captured on this phone that landed in this category and haven't
@@ -469,11 +486,14 @@ private struct BrowseRow: View {
     let count: Int
     var justLanded = 0
     var detail: String?
+    /// What the count counts, for VoiceOver.
+    var unit = "notes"
 
-    init(systemImage: String, title: String, count: Int, detail: String? = nil) {
+    init(systemImage: String, title: String, count: Int, unit: String = "notes", detail: String? = nil) {
         self.systemImage = systemImage
         self.title = title
         self.count = count
+        self.unit = unit
         self.detail = detail
     }
 
@@ -518,20 +538,23 @@ private struct BrowseRow: View {
                     .font(.system(size: 13))
                     .monospacedDigit()
                     .foregroundStyle(Theme.amber)
+                    .accessibilityHidden(true)
             }
             Text("\(count)")
                 .font(.system(size: 16))
                 .monospacedDigit()
                 .foregroundStyle(justLanded > 0 ? Theme.amber : Theme.textSecondary)
+                .accessibilityHidden(true)
             Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .regular))
+                .font(.system(size: 11, weight: .regular))
                 .foregroundStyle(Theme.textSecondary)
+                .frame(width: 16, height: 16)
                 .accessibilityHidden(true)
         }
         .frame(minHeight: 48)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityValue(justLanded > 0 ? "\(count) notes, \(justLanded) just landed" : "\(count) notes")
+        .accessibilityValue(justLanded > 0 ? "\(count) \(unit), \(justLanded) just landed" : "\(count) \(unit)")
     }
 }
 
