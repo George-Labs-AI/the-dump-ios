@@ -25,23 +25,11 @@ private struct AppTabSelectionKey: EnvironmentKey {
     static let defaultValue: Binding<AppTab>? = nil
 }
 
-private struct IsActiveTabKey: EnvironmentKey {
-    static let defaultValue = true
-}
-
 extension EnvironmentValues {
     /// Set by MainTabView. Nil in previews and sheets, where no tab bar shows.
     var appTabSelection: Binding<AppTab>? {
         get { self[AppTabSelectionKey.self] }
         set { self[AppTabSelectionKey.self] = newValue }
-    }
-
-    /// Whether this tab is the one on screen. MainTabView keeps both tabs
-    /// alive so each keeps its place, so a hidden tab never "disappears";
-    /// a screen that refreshed on appearing watches this instead.
-    var isActiveTab: Bool {
-        get { self[IsActiveTabKey.self] }
-        set { self[IsActiveTabKey.self] = newValue }
     }
 }
 
@@ -75,11 +63,6 @@ private struct AppTabBarModifier: ViewModifier {
 /// amber.
 struct TDTabBar: View {
     @Binding var selection: AppTab
-    @Environment(\.isActiveTab) private var isActiveTab
-    /// Each root draws its own bar, so a switch shows a different bar.
-    /// VoiceOver focus is moved onto it, as with the system tab bar.
-    @AccessibilityFocusState private var focusedTab: AppTab?
-    @State private var hasAppeared = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -105,17 +88,7 @@ struct TDTabBar: View {
                 .accessibilityShowsLargeContentViewer {
                     Label(tab.title, systemImage: tab.systemImage)
                 }
-                .accessibilityFocused($focusedTab, equals: tab)
             }
-        }
-        .onChange(of: isActiveTab) { _, nowActive in
-            if nowActive { focusedTab = selection }
-        }
-        .onAppear {
-            // Browse is built the moment it's first chosen, so it starts out
-            // active and the onChange above never fires for it.
-            if !hasAppeared && selection != .dump { focusedTab = selection }
-            hasAppeared = true
         }
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isTabBar)
