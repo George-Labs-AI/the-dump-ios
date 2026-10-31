@@ -56,7 +56,7 @@ struct StackDetailView: View {
 
                             ForEach(viewModel.notes) { note in
                                 NavigationLink {
-                                    NoteDetailView(noteID: note.id)
+                                    NoteDetailView(noteID: note.id, backTitle: "Stack")
                                 } label: {
                                     NoteListRowView(note: note)
                                 }

@@ -142,7 +142,7 @@ struct RoutineDocumentView: View {
         }
         .navigationDestination(isPresented: $showNote) {
             if let selectedNoteID {
-                NoteDetailView(noteID: selectedNoteID)
+                NoteDetailView(noteID: selectedNoteID, backTitle: "Document")
             }
         }
         .task {

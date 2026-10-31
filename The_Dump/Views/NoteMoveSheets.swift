@@ -44,29 +44,17 @@ struct NoteCategorySheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SheetHeader(title: "Category", onCancel: { dismiss() }) { EmptyView() }
+            SheetHeader(title: "Category", onCancel: { dismiss() }, trailing: { EmptyView() })
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    let current = viewModel.note?.sub_cat_names?.filter { !$0.isEmpty } ?? []
-                    if !current.isEmpty {
-                        Text("Moving removes the sub-categories \(spokenList(current)).")
-                            .tdCaption()
-                            .foregroundStyle(Theme.textSecondary)
-                            .padding(.bottom, Theme.spacingXS)
-                    }
                     if let errorMessage {
                         Label(errorMessage, systemImage: "exclamationmark.circle")
                             .font(.system(size: Theme.fontSizeSM))
                             .foregroundStyle(Theme.textPrimary)
                             .padding(.vertical, Theme.spacingSM)
                     }
-                    if !viewModel.editOptions.isLoaded {
-                        Text(viewModel.editOptionsError ?? "Loading…")
-                            .tdCaption()
-                            .foregroundStyle(Theme.textSecondary)
-                            .padding(.vertical, Theme.spacingSMPlus)
-                    }
+                    CategoriesLoadState(viewModel: viewModel)
                     let choices = viewModel.moveCategoryChoices
                     ForEach(Array(choices.enumerated()), id: \.element.key) { index, choice in
                         if index > 0 {
@@ -91,18 +79,28 @@ struct NoteCategorySheet: View {
     }
 
     private func categoryRow(_ choice: NoteCategoryChoice) -> some View {
-        let isCurrent = choice.id == viewModel.note?.category_id
+        let isCurrent = choice.id == viewModel.currentCategoryID
+        // Each category says what moving there drops, as the Move panel does.
+        let dropped = viewModel.subCategoriesDropped(movingTo: choice)
         return Button {
             Task { await pick(choice, isCurrent: isCurrent) }
         } label: {
             HStack(spacing: Theme.spacingSMPlus) {
-                HStack(spacing: 6) {
-                    CategoryGlyph(emoji: choice.id.flatMap { viewModel.categoryEmojis[$0] }, size: 16)
-                        .frame(width: 20)
-                    Text(choice.label)
-                        .tdBody()
-                        .foregroundStyle(Theme.textPrimary)
-                        .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        CategoryGlyph(emoji: choice.id.flatMap { viewModel.categoryEmojis[$0] }, size: 16)
+                            .frame(width: 20)
+                        Text(choice.label)
+                            .tdBody()
+                            .foregroundStyle(Theme.textPrimary)
+                            .lineLimit(1)
+                    }
+                    if !dropped.isEmpty {
+                        Text("Removes \(spokenList(dropped))")
+                            .tdCaption()
+                            .foregroundStyle(Theme.textSecondary)
+                            .padding(.leading, 26)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 if savingCategoryKey == choice.key {
@@ -115,6 +113,7 @@ struct NoteCategorySheet: View {
                         .foregroundStyle(Theme.textPrimary)
                 }
             }
+            .padding(.vertical, dropped.isEmpty ? 0 : Theme.spacingSM)
             .frame(minHeight: 48)
             .contentShape(Rectangle())
         }
@@ -150,19 +149,21 @@ struct NoteMoveSheet: View {
     @State private var subCategories: [String] = []
     @State private var noteType: String = ""
     @State private var didLoad = false
+    /// Once the person changes anything, a late category list doesn't reset it.
+    @State private var userChanged = false
     @State private var isSaving = false
     @State private var errorMessage: String?
 
     var body: some View {
         VStack(spacing: 0) {
-            SheetHeader(title: "Move note", onCancel: { dismiss() }) {
+            SheetHeader(title: "Move note", onCancel: { dismiss() }, trailing: {
                 Button("Done") {
                     Task { await save() }
                 }
                 .buttonStyle(TDTextLinkStyle(color: Theme.textPrimary, size: 16))
                 .fontWeight(.medium)
                 .disabled(isSaving || category == nil)
-            }
+            })
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -175,6 +176,7 @@ struct NoteMoveSheet: View {
 
                     TDSectionLabel(title: "Category")
                         .padding(.bottom, Theme.spacingSM)
+                    CategoriesLoadState(viewModel: viewModel)
                     categoryPicker
 
                     TDSectionLabel(title: "Sub-categories")
@@ -236,9 +238,14 @@ struct NoteMoveSheet: View {
     private var subCategoryPicker: some View {
         let choices = availableSubCategories
         if choices.isEmpty {
-            Text("\(category?.name ?? "This category") has no sub-categories.")
-                .tdCaption()
-                .foregroundStyle(Theme.textSecondary)
+            // Said only once the categories have loaded, and never with an
+            // empty name.
+            if viewModel.editOptions.isLoaded {
+                let name = category?.name ?? ""
+                Text("\(name.isEmpty ? "This category" : name) has no sub-categories.")
+                    .tdCaption()
+                    .foregroundStyle(Theme.textSecondary)
+            }
         } else {
             FlowLayout(spacing: Theme.spacingSM) {
                 ForEach(choices, id: \.self) { name in
@@ -271,6 +278,7 @@ struct NoteMoveSheet: View {
             ForEach(typeChoices, id: \.value) { choice in
                 Button {
                     noteType = choice.value
+                    userChanged = true
                 } label: {
                     if NoteEditDraft.normalized(choice.value) == NoteEditDraft.normalized(noteType) {
                         Label(choice.label, systemImage: "checkmark")
@@ -310,7 +318,7 @@ struct NoteMoveSheet: View {
     private var availableSubCategories: [String] {
         guard let category else { return [] }
         var names = viewModel.editOptions.subCategories(forCategoryNamed: category.name)
-        if category.id == viewModel.note?.category_id {
+        if category.id == viewModel.currentCategoryID {
             for name in viewModel.note?.sub_cat_names ?? [] where !names.contains(where: {
                 NoteEditDraft.normalized($0) == NoteEditDraft.normalized(name)
             }) {
@@ -330,6 +338,7 @@ struct NoteMoveSheet: View {
     }
 
     private func toggle(_ name: String) {
+        userChanged = true
         if isSelected(name) {
             subCategories.removeAll { NoteEditDraft.normalized($0) == NoteEditDraft.normalized(name) }
         } else if subCategories.count < NoteEditDraft.maxSubCategories {
@@ -339,10 +348,11 @@ struct NoteMoveSheet: View {
 
     private func select(_ choice: NoteCategoryChoice) {
         guard choice.key != category?.key else { return }
+        userChanged = true
         category = choice
         // Keep the sub-categories the new category also has; going back to
         // the note's own category puts its sub-categories back.
-        if choice.id == viewModel.note?.category_id {
+        if choice.id == viewModel.currentCategoryID {
             subCategories = viewModel.note?.sub_cat_names?.filter { !$0.isEmpty } ?? []
         } else {
             let kept = Set(viewModel.editOptions.subCategories(forCategoryNamed: choice.name).map(NoteEditDraft.normalized))
@@ -351,19 +361,21 @@ struct NoteMoveSheet: View {
     }
 
     private func loadCurrent() {
-        guard !didLoad, let note = viewModel.note else { return }
+        guard !didLoad, !userChanged, let note = viewModel.note else { return }
         let choices = viewModel.moveCategoryChoices
-        category = choices.first { $0.id != nil && $0.id == note.category_id } ?? choices.first { $0.id == nil }
+        // When the note's id is unknown, the choices hold one entry without an
+        // id for its category, which this also finds.
+        category = choices.first { $0.id == viewModel.currentCategoryID }
         subCategories = note.sub_cat_names?.filter { !$0.isEmpty } ?? []
         noteType = baseDraft?.noteType ?? (note.note_type ?? "")
         didLoad = viewModel.editOptions.isLoaded
     }
 
     private func save() async {
-        guard let note = viewModel.note, let category else { return }
+        guard viewModel.note != nil, let category else { return }
         errorMessage = nil
         isSaving = true
-        let categoryChanged = category.id != nil && category.id != note.category_id
+        let categoryChanged = category.id != nil && category.id != viewModel.currentCategoryID
         let saved = await viewModel.applyMove(
             category: categoryChanged ? category : nil,
             subCategories: subCategories,
@@ -374,6 +386,31 @@ struct NoteMoveSheet: View {
             dismiss()
         } else {
             errorMessage = viewModel.errorMessage ?? "Couldn't move the note."
+        }
+    }
+}
+
+/// "Loading…" while the categories load, or why they couldn't with Retry.
+private struct CategoriesLoadState: View {
+    @ObservedObject var viewModel: NoteDetailViewModel
+
+    var body: some View {
+        if let loadError = viewModel.editOptionsError {
+            HStack(spacing: Theme.spacingSM) {
+                Text(loadError)
+                    .tdCaption()
+                    .foregroundStyle(Theme.textSecondary)
+                Button("Retry") {
+                    Task { await viewModel.loadEditOptions() }
+                }
+                .buttonStyle(TDTextLinkStyle(size: 13))
+            }
+            .padding(.vertical, Theme.spacingXS)
+        } else if !viewModel.editOptions.isLoaded {
+            Text("Loading…")
+                .tdCaption()
+                .foregroundStyle(Theme.textSecondary)
+                .padding(.vertical, Theme.spacingSMPlus)
         }
     }
 }

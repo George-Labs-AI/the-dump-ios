@@ -12,6 +12,7 @@ struct NoteDetailView: View {
     @StateObject private var viewModel: NoteDetailViewModel
     @ObservedObject private var noteTypes = NoteTypeCatalog.shared
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showOriginalAsset = false
     @State private var showAssetError = false
     @State private var showDeleteConfirmation = false
@@ -64,8 +65,25 @@ struct NoteDetailView: View {
                 showAssetError = true
             }
         }
-        .onChange(of: viewModel.draft.title) { _, _ in
+        .onChange(of: viewModel.draft.title) { _, newValue in
+            if newValue.contains(where: \.isNewline) {
+                // Return in the wrapping title field adds a line break;
+                // titles are one line, so it moves on to the body instead.
+                viewModel.draft.title = String(newValue.map { $0.isNewline ? " " : $0 })
+                focusedField = .body
+                return // the change above calls this again
+            }
             viewModel.textDidChange()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // Save what's typed before iOS may end the app in the background.
+            guard phase == .background, viewModel.isEditingText else { return }
+            let backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "Save note")
+            let model = viewModel
+            Task {
+                await model.savePendingTextNow()
+                UIApplication.shared.endBackgroundTask(backgroundTask)
+            }
         }
         .onChange(of: viewModel.draft.content) { _, _ in
             viewModel.textDidChange()
@@ -112,9 +130,11 @@ struct NoteDetailView: View {
             await PendingNotesStore.shared.acknowledge(organizedNoteId: noteID)
         }
         .onDisappear {
-            // Leaving mid-edit (the back button or a swipe) still saves.
+            // Leaving mid-edit (the back button or a swipe) still saves; the
+            // task keeps the model alive until it has saved or given up.
             if viewModel.isEditingText {
-                Task { await viewModel.finishEditingText() }
+                let model = viewModel
+                Task { await model.finishEditingOnLeave() }
             }
         }
     }
@@ -268,6 +288,7 @@ struct NoteDetailView: View {
                 .foregroundStyle(Theme.textPrimary)
                 .focused($focusedField, equals: .title)
                 .textInputAutocapitalization(.sentences)
+                .submitLabel(.next)
         } else {
             Text(displayTitle(for: note))
                 .font(.display(40))
