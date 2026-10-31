@@ -24,9 +24,30 @@ final class NoteDetailViewModel: ObservableObject {
     @Published private(set) var editOptions: NoteEditOptions = .empty
     @Published private(set) var isLoadingEditOptions: Bool = false
     @Published private(set) var editOptionsError: String?
+    /// Each category's own emoji, by id, for the category chip and sheets.
+    @Published private(set) var categoryEmojis: [Int: String] = [:]
 
     @Published private(set) var isDeleting: Bool = false
     @Published var deleteErrorMessage: String?
+
+    /// What the top bar says while the title or body is being edited.
+    enum SaveState: Equatable {
+        case idle
+        case saving
+        case saved
+        case titleRequired
+        case failed
+    }
+
+    @Published private(set) var saveState: SaveState = .idle
+    /// The title or body is being typed into (tap to edit, Done to finish).
+    @Published private(set) var isEditingText: Bool = false
+
+    private var autosaveTask: Task<Void, Never>?
+    /// A change typed while a save was in flight; saved when it finishes.
+    private var autosaveQueued = false
+    private static let autosaveDelay: Duration = .milliseconds(800)
+    private static let retryDelay: Duration = .seconds(5)
 
     private let noteID: String
     private var subCategoryObserver: NSObjectProtocol?
@@ -145,6 +166,10 @@ final class NoteDetailViewModel: ObservableObject {
             // Sub-categories are optional: the note's own still show without them.
             let map = try? await mapResponse
             editOptions = NoteEditOptions(categories: categories.categories, map: map)
+            categoryEmojis = Dictionary(
+                categories.categories.compactMap { category in category.emoji.map { (category.categoryId, $0) } },
+                uniquingKeysWith: { first, _ in first }
+            )
             draft.adoptCategoryID(from: editOptions)
         } catch {
             editOptionsError = "Couldn't load your categories."
@@ -231,6 +256,182 @@ final class NoteDetailViewModel: ObservableObject {
             isSaving = false
             return false
         }
+    }
+
+    // MARK: - Editing in place (Paper, 04 Note)
+
+    /// Tap the title or body: edit it as plain text, saved as you go.
+    func beginEditingText() {
+        guard let note, !isEditingText else { return }
+        errorMessage = nil
+        if !isEditing {
+            draft = NoteEditDraft(note: note, noteTypes: NoteTypeCatalog.shared.types)
+        }
+        isEditing = true
+        isEditingText = true
+        saveState = .idle
+    }
+
+    /// Called on every change to the title or body: save once typing pauses.
+    func textDidChange() {
+        guard isEditingText else { return }
+        if !draft.isTitleValid {
+            autosaveTask?.cancel()
+            saveState = .titleRequired
+            return
+        }
+        scheduleAutosave(after: Self.autosaveDelay)
+    }
+
+    /// Done: save what's left now, then show the note formatted again. If
+    /// that save fails, or the title is empty, the text stays open so
+    /// nothing typed is lost.
+    func finishEditingText() async {
+        autosaveTask?.cancel()
+        if draft.titleChanged || draft.contentChanged {
+            guard draft.isTitleValid else {
+                saveState = .titleRequired
+                return
+            }
+            // Let a save already in flight finish, then save the rest.
+            while isSaving {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            if draft.titleChanged || draft.contentChanged {
+                await autosave()
+            }
+            guard saveState != .failed else { return }
+        }
+        autosaveTask?.cancel()
+        isEditingText = false
+        isEditing = false
+        saveState = .idle
+        if let note { await show(note) }
+    }
+
+    private func scheduleAutosave(after delay: Duration) {
+        autosaveTask?.cancel()
+        autosaveTask = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled else { return }
+            await self?.autosave()
+        }
+    }
+
+    /// Save the title and body as they are now. One save runs at a time;
+    /// a change typed meanwhile is saved right after. A failure retries
+    /// quietly a few seconds later. Like the Save button before it, a save
+    /// replaces the server's copy, so an edit made elsewhere in the meantime
+    /// is overwritten.
+    private func autosave() async {
+        guard let current = note, isEditingText else { return }
+        guard draft.isTitleValid else {
+            saveState = .titleRequired
+            return
+        }
+        guard draft.titleChanged || draft.contentChanged else {
+            if saveState == .saving { saveState = .saved }
+            return
+        }
+        guard !draft.contentChanged || draft.isContentSizeOK else {
+            saveState = .failed
+            errorMessage = "This note is too long to save. Notes can be up to 500 KB."
+            return
+        }
+        guard !isSaving else {
+            autosaveQueued = true
+            return
+        }
+
+        isSaving = true
+        saveState = .saving
+        let sentTitle = draft.titleChanged ? draft.trimmedTitle : nil
+        let sentContent = draft.contentChanged ? draft.content : nil
+
+        do {
+            let updated = try await NotesService.shared.editNote(
+                noteId: current.organized_note_id,
+                entries: sentContent,
+                title: sentTitle,
+                categoryId: nil,
+                subCategories: nil,
+                type: nil
+            )
+            let saved = NoteDetail(
+                organized_note_id: current.organized_note_id,
+                title: updated.title ?? sentTitle ?? current.title,
+                note_content: updated.note_content ?? sentContent ?? current.note_content,
+                note_content_modified: current.note_content_modified,
+                category_id: current.category_id,
+                category_name: current.category_name,
+                sub_cat_names: current.sub_cat_names,
+                tags: current.tags,
+                mime_type: current.mime_type,
+                note_type: current.note_type,
+                author: current.author,
+                has_asset: current.has_asset
+            )
+            note = saved
+            // What was just saved becomes the baseline; anything typed
+            // during the save stays in the draft and is saved next.
+            var rebased = NoteEditDraft(note: saved, noteTypes: NoteTypeCatalog.shared.types)
+            rebased.title = draft.title
+            rebased.content = draft.content
+            draft = rebased
+            errorMessage = nil
+            isSaving = false
+            saveState = .saved
+            if autosaveQueued || draft.titleChanged || draft.contentChanged {
+                autosaveQueued = false
+                scheduleAutosave(after: .zero)
+            }
+        } catch {
+            isSaving = false
+            autosaveQueued = false
+            saveState = .failed
+            scheduleAutosave(after: Self.retryDelay)
+        }
+    }
+
+    // MARK: - Move (category, sub-categories, type)
+
+    /// Save a new category, sub-categories or type from the Category sheet or
+    /// the Move panel. Nil leaves that part as it is. A move sends the
+    /// sub-categories with it, because the server drops any the new category
+    /// doesn't have and a move that sends none clears them all.
+    func applyMove(category: NoteCategoryChoice?, subCategories: [String]?, type: String?) async -> Bool {
+        guard let note else { return false }
+        var moveDraft = NoteEditDraft(note: note, noteTypes: NoteTypeCatalog.shared.types)
+        moveDraft.adoptCategoryID(from: editOptions)
+        if let category {
+            moveDraft.selectCategory(category, availableSubCategories: editOptions.subCategories(forCategoryNamed: category.name))
+        }
+        if let subCategories {
+            moveDraft.setSubCategories(subCategories)
+        }
+        if let type {
+            moveDraft.noteType = type
+        }
+        draft = moveDraft
+        return await saveEdits()
+    }
+
+    /// The categories the note can move to: the active ones, plus its own
+    /// even if that one has been archived.
+    var moveCategoryChoices: [NoteCategoryChoice] {
+        guard let note else { return [] }
+        var fresh = NoteEditDraft(note: note, noteTypes: NoteTypeCatalog.shared.types)
+        fresh.adoptCategoryID(from: editOptions)
+        return fresh.categoryChoices(from: editOptions)
+    }
+
+    /// Sub-categories the note would lose by moving to `category`: the ones
+    /// that category doesn't have, matched ignoring case. Empty until the
+    /// category list has loaded, so the warning never guesses.
+    func subCategoriesDropped(movingTo category: NoteCategoryChoice) -> [String] {
+        guard editOptions.isLoaded, let note, category.id != note.category_id else { return [] }
+        let kept = Set(editOptions.subCategories(forCategoryNamed: category.name).map(NoteEditDraft.normalized))
+        return (note.sub_cat_names ?? []).filter { !kept.contains(NoteEditDraft.normalized($0)) }
     }
 
     // MARK: - Delete

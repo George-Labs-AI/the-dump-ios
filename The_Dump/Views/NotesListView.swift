@@ -470,7 +470,7 @@ struct NotesListView: View {
             }
         } else {
             NavigationLink {
-                NoteDetailView(noteID: note.id)
+                NoteDetailView(noteID: note.id, backTitle: title)
             } label: {
                 row
             }

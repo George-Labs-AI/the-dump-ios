@@ -365,7 +365,7 @@ struct SearchResultsView: View {
                     List {
                         ForEach(viewModel.notes) { note in
                             NavigationLink {
-                                NoteDetailView(noteID: note.id)
+                                NoteDetailView(noteID: note.id, backTitle: "Search")
                             } label: {
                                 SearchResultRowView(note: note)
                             }

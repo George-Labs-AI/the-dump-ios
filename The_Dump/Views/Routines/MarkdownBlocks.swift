@@ -283,38 +283,62 @@ nonisolated enum MarkdownBlockParser {
 // MARK: - Block view
 
 struct MarkdownBlockView: View {
+    /// Routine documents keep their look; notes use the design system's
+    /// (Paper, 04 Note): Instrument Sans headings, 16/24 body text, and the
+    /// spacing below each block built in, so the list around it uses none.
+    enum Style {
+        case document
+        case note
+    }
+
     let block: MarkdownBlock
+    var style: Style = .document
 
     var body: some View {
         switch block {
         case .heading(let level, let text):
-            Text(MarkdownBlockParser.attributed(text))
-                .font(headingFont(level))
-                .foregroundColor(Theme.textPrimary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, level <= 2 ? Theme.spacingSM : Theme.spacingXS)
-                .textSelection(.enabled)
+            if style == .note {
+                Text(MarkdownBlockParser.attributed(text))
+                    .font(.display(level <= 2 ? 22 : 18))
+                    .tracking((level <= 2 ? 22 : 18) * -0.04)
+                    .lineHeight(.exact(points: 24))
+                    .foregroundColor(Theme.textPrimary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, Theme.spacingSM)
+                    .textSelection(.enabled)
+            } else {
+                Text(MarkdownBlockParser.attributed(text))
+                    .font(headingFont(level))
+                    .foregroundColor(Theme.textPrimary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, level <= 2 ? Theme.spacingSM : Theme.spacingXS)
+                    .textSelection(.enabled)
+            }
 
         case .paragraph(let text):
             Text(MarkdownBlockParser.attributed(text))
                 .font(.system(size: Theme.fontSizeMD))
+                .lineSpacing(style == .note ? 5 : 0)
                 .foregroundColor(Theme.textPrimary)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, style == .note ? Theme.spacingMD : 0)
                 .textSelection(.enabled)
 
         case .listItem(let indent, _, let marker, let text):
-            HStack(alignment: .firstTextBaseline, spacing: Theme.spacingSM) {
+            HStack(alignment: .firstTextBaseline, spacing: style == .note ? 10 : Theme.spacingSM) {
                 Text(marker)
                     .font(.system(size: Theme.fontSizeMD))
                     .foregroundColor(Theme.textSecondary)
-                    .frame(minWidth: 18, alignment: .trailing)
+                    .frame(minWidth: style == .note ? 9 : 18, alignment: .trailing)
                 Text(MarkdownBlockParser.attributed(text))
                     .font(.system(size: Theme.fontSizeMD))
+                    .lineSpacing(style == .note ? 5 : 0)
                     .foregroundColor(Theme.textPrimary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
             }
             .padding(.leading, CGFloat(min(indent, 6)) * Theme.spacingMD)
+            .padding(.bottom, style == .note ? Theme.spacingSM : 0)
 
         case .code(let code):
             ScrollView(.horizontal, showsIndicators: false) {

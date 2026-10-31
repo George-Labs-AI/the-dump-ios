@@ -221,6 +221,11 @@ struct NoteEditDraft: Equatable {
         return true
     }
 
+    /// Replace the chosen sub-categories (up to 3), as the Move panel does.
+    mutating func setSubCategories(_ names: [String]) {
+        subCategories = Array(names.prefix(Self.maxSubCategories))
+    }
+
     var subCategoriesChanged: Bool {
         Set(subCategories.map(Self.normalized)) != Set(originalSubCategories.map(Self.normalized))
     }
