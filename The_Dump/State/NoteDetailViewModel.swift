@@ -18,6 +18,9 @@ final class NoteDetailViewModel: ObservableObject {
     @Published private(set) var isLoadingAsset: Bool = false
     @Published private(set) var assetResponse: NoteAssetResponse? = nil
     @Published var assetErrorMessage: String? = nil
+    /// The original file's own media type, asked for only when the server
+    /// calls the note "text" (see checkOriginalFileType). Nil until known.
+    @Published private(set) var originalContentType: String?
 
     @Published private(set) var isEditing: Bool = false
     @Published var draft = NoteEditDraft()
@@ -48,6 +51,11 @@ final class NoteDetailViewModel: ObservableObject {
     private var autosaveQueued = false
     private static let autosaveDelay: Duration = .milliseconds(800)
     private static let retryDelay: Duration = .seconds(5)
+    /// Saves still running from screens left mid-edit, by note ID. Each
+    /// opening builds a new model, so without this a note opened again
+    /// could load before the save lands, show the text from before the
+    /// edit, and then autosave that older text over it.
+    private static var savesOnLeave: [String: Task<Void, Never>] = [:]
 
     private let noteID: String
     private var subCategoryObserver: NSObjectProtocol?
@@ -107,6 +115,11 @@ final class NoteDetailViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // Opened again while the last visit's edit is still saving: wait for
+        // that save (the screen says "Loading…"), so this one shows the
+        // saved text rather than the text from before it.
+        await Self.waitForSaveOnLeave(of: noteID)
+
         do {
             let notes = try await NotesService.shared.fetchFullNote(ids: [noteID])
             if let loaded = notes.first {
@@ -119,6 +132,22 @@ final class NoteDetailViewModel: ObservableObject {
         }
 
         isLoading = false
+        // Not awaited, so the category list the screen loads next isn't
+        // held up by it.
+        Task { [weak self] in await self?.checkOriginalFileType() }
+    }
+
+    /// The server calls every file type it doesn't recognise "text" (videos,
+    /// Keynote files, zips, web pages), so on its own the note looks like a
+    /// typed one. For a "text" note with a file, ask what the file really
+    /// is; the row stays hidden until the answer comes, so typed notes never
+    /// flash it. If the check fails, the row stays hidden until the note is
+    /// opened again.
+    private func checkOriginalFileType() async {
+        guard originalContentType == nil, let note, note.has_asset == true,
+              Self.originalFileKind(for: note) == .text,
+              let asset = try? await NotesService.shared.fetchNoteAsset(noteId: noteID) else { return }
+        originalContentType = asset.content_type
     }
 
     /// Set the note together with its parsed body, so read mode never shows
@@ -242,7 +271,12 @@ final class NoteDetailViewModel: ObservableObject {
                     ?? currentNote.category_name,
                 sub_cat_names: updated.sub_cat_names ?? changes.subCategories ?? currentNote.sub_cat_names,
                 tags: currentNote.tags,
-                mime_type: updated.mime_type ?? currentNote.mime_type,
+                // A move never changes the original file, so keep the media
+                // type the note loaded with ("image", "voice", "document" or
+                // "text"). This reply sends the raw stored value instead
+                // ("svg+xml", "x-aiff"), and the app doesn't recognise all
+                // of those, so the original-file row would vanish.
+                mime_type: currentNote.mime_type,
                 note_type: updated.note_type ?? changes.type ?? currentNote.note_type,
                 author: currentNote.author,
                 has_asset: currentNote.has_asset
@@ -277,10 +311,17 @@ final class NoteDetailViewModel: ObservableObject {
     /// the title is simply left as it was until one is typed.
     func textDidChange() {
         guard isEditingText else { return }
-        if !draft.isTitleSaveable {
-            saveState = .titleRequired
-        }
+        saveState = Self.saveState(afterTextChangeFrom: saveState, isTitleSaveable: draft.isTitleSaveable)
         scheduleAutosave(after: Self.autosaveDelay)
+    }
+
+    /// The top bar's status after a change to the title or body. "Title
+    /// required" shows while a changed title is blank and goes as soon as
+    /// it has text again. It can't wait for a save to replace it, because a
+    /// title put back as it was leaves nothing to save.
+    static func saveState(afterTextChangeFrom current: SaveState, isTitleSaveable: Bool) -> SaveState {
+        if !isTitleSaveable { return .titleRequired }
+        return current == .titleRequired ? .idle : current
     }
 
     /// Done: save until nothing typed is left, then show the note formatted
@@ -311,20 +352,47 @@ final class NoteDetailViewModel: ObservableObject {
         errorMessage = nil
     }
 
-    /// Leaving the screen mid-edit (back button or swipe): keep trying to
-    /// save for a while, even though the screen is gone. A cleared title
-    /// goes back to the stored one, so the body still saves.
+    /// Leaving the screen mid-edit (back button or swipe): save what's typed
+    /// even though the screen is gone. The task keeps this model alive until
+    /// it has saved or given up, and opening the note again waits for it.
+    func saveOnLeave() {
+        guard isEditingText else { return }
+        Self.track(Task { await self.finishEditingOnLeave() }, asSaveOnLeaveOf: noteID)
+    }
+
+    /// Keep trying to save for a while, even though the screen is gone. A
+    /// cleared title goes back to the stored one, so the body still saves.
     func finishEditingOnLeave() async {
         guard isEditingText else { return }
         if !draft.isTitleSaveable {
             draft.title = draft.originalTitle
         }
-        for _ in 0..<3 {
+        for attempt in 1...3 {
             await savePendingTextNow()
             guard saveState == .failed else { return }
             autosaveTask?.cancel()
+            // A reopened note waits for this, so no pause after the last try.
+            guard attempt < 3 else { return }
             try? await Task.sleep(for: Self.retryDelay)
         }
+    }
+
+    /// Remember `save` as the one still running for `noteID` until it ends.
+    static func track(_ save: Task<Void, Never>, asSaveOnLeaveOf noteID: String) {
+        Self.savesOnLeave[noteID] = save
+        Task {
+            await save.value
+            // A later visit's save may have taken this one's place.
+            if Self.savesOnLeave[noteID] == save {
+                Self.savesOnLeave[noteID] = nil
+            }
+        }
+    }
+
+    /// Wait for a save still running for `noteID` from a screen that was
+    /// left mid-edit, if there is one.
+    static func waitForSaveOnLeave(of noteID: String) async {
+        await Self.savesOnLeave[noteID]?.value
     }
 
     /// Save what's typed now, without leaving edit mode: when the app goes to
@@ -531,7 +599,9 @@ final class NoteDetailViewModel: ObservableObject {
 
     // MARK: - Original file
 
-    var hasOriginalAsset: Bool { Self.showsOriginalButton(for: note) }
+    var hasOriginalAsset: Bool {
+        Self.showsOriginalButton(for: note, originalContentType: originalContentType)
+    }
 
     var assetIconName: String { Self.originalButtonIcon(for: note) }
 
@@ -539,19 +609,33 @@ final class NoteDetailViewModel: ObservableObject {
     /// an original file (has_asset), except plain text. A typed or shared
     /// note's original is the same text again, so Paper shows the button
     /// only for photos, recordings and files; the web still shows it for
-    /// all of them. Servers that don't send has_asset fall back to the old
-    /// guess from the media type. A file missing from storage still answers
-    /// "No original file available for this note."
-    static func showsOriginalButton(for note: NoteDetail?) -> Bool {
+    /// all of them. The server also calls files it doesn't recognise "text",
+    /// so for those the file's own media type (`originalContentType`)
+    /// decides, and the button stays hidden until it is known. Servers that
+    /// don't send has_asset fall back to the old guess from the media type.
+    /// A file missing from storage still answers "No original file available
+    /// for this note."
+    static func showsOriginalButton(for note: NoteDetail?, originalContentType: String? = nil) -> Bool {
         guard let note else { return false }
         if let hasAsset = note.has_asset {
-            return hasAsset && originalFileKind(for: note) != .text
+            guard hasAsset else { return false }
+            if originalFileKind(for: note) != .text { return true }
+            guard let originalContentType else { return false }
+            return !isPlainTextFile(contentType: originalContentType)
         }
         let mt = note.mime_type?.lowercased() ?? ""
         let nt = note.note_type?.lowercased() ?? ""
         if mt.hasPrefix("image") || mt.hasPrefix("photo") || nt == "photo" { return true }
         if mt.hasPrefix("audio") || mt.hasPrefix("voice") || nt == "voice" { return true }
         return false
+    }
+
+    /// Typed notes (iPhone and web), shared text, notes saved from Claude and
+    /// plain email bodies are stored as .txt or .md files, which the server
+    /// reports as text/plain or text/markdown. Anything else is a real file.
+    static func isPlainTextFile(contentType: String) -> Bool {
+        let type = contentType.trimmingCharacters(in: .whitespaces).lowercased()
+        return type == "text/plain" || type == "text/markdown"
     }
 
     /// What kind of original a note has. The app's older words for photos

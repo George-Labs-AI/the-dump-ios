@@ -26,6 +26,31 @@ final class OriginalButtonRuleTests: XCTestCase {
         }
     }
 
+    // The server also calls files it doesn't recognise "text", so for a
+    // "text" note the file's own media type decides.
+    func testTextNoteWithAPlainTextFileStaysHidden() throws {
+        for type in ["text/plain", "text/markdown", "TEXT/PLAIN "] {
+            XCTAssertFalse(NoteDetailViewModel.showsOriginalButton(
+                for: try note(mime: "text", hasAsset: true), originalContentType: type), type)
+        }
+    }
+
+    func testTextNoteWithAnyOtherFileShowsIt() throws {
+        for type in ["video/mp4", "video/quicktime", "text/html", "application/zip", "key", ""] {
+            XCTAssertTrue(NoteDetailViewModel.showsOriginalButton(
+                for: try note(mime: "text", hasAsset: true), originalContentType: type), type)
+        }
+    }
+
+    func testPhotosRecordingsAndDocumentsDontNeedTheFilesType() throws {
+        for mime in ["image", "voice", "document"] {
+            XCTAssertTrue(NoteDetailViewModel.showsOriginalButton(
+                for: try note(mime: mime, hasAsset: true), originalContentType: "text/plain"), mime)
+        }
+        XCTAssertFalse(NoteDetailViewModel.showsOriginalButton(
+            for: try note(mime: "text", hasAsset: false), originalContentType: "video/mp4"))
+    }
+
     func testHiddenWhenTheServerSaysThereIsNoFile() throws {
         for mime in ["image", "voice", "document", "text"] {
             XCTAssertFalse(NoteDetailViewModel.showsOriginalButton(for: try note(mime: mime, hasAsset: false)), mime)
