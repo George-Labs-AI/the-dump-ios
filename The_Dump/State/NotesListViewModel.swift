@@ -126,18 +126,40 @@ final class NotesListViewModel: ObservableObject {
     }
 
     /// Ask the server for this category's sub-categories (the category map)
-    /// and their note counts. Either can fail on its own and then keeps what
+    /// and their note counts. Each can fail on its own and then keeps what
     /// an earlier load got; with nothing loaded yet the pills fall back to the
     /// names on the loaded notes, so a failure never hides the notes.
+    ///
+    /// The counts come from this category's own sub-category list, which
+    /// counts notes in this category only. /api/note_counts counts by name
+    /// across all categories, so it is only the fallback.
     private func loadSubCategoryData() async {
         async let mapTask = NotesService.shared.fetchCategoryMap()
         async let countsTask = NotesService.shared.fetchCounts()
+        async let ownCountsTask = ownSubCategoryCounts()
         if let map = try? await mapTask {
             categoryMap = map
         }
         if let counts = try? await countsTask {
             subCategoryCounts = counts.subCategoryCounts
         }
+        if let own = await ownCountsTask {
+            subCategoryCounts = own
+        }
+    }
+
+    /// Note counts of this category's sub-categories, by name; nil when the
+    /// list couldn't be loaded. Archived ones are kept (an archived category's
+    /// chips need them, and a sub-category archived on its own counts 0), and
+    /// two with the same name are added together. Counts never add chips.
+    private func ownSubCategoryCounts() async -> [String: Int]? {
+        guard let categoryId,
+              let items = try? await NotesService.shared.fetchSubCategories(categoryId: categoryId) else { return nil }
+        var counts: [String: Int] = [:]
+        for item in items {
+            counts[item.name, default: 0] += item.noteCount
+        }
+        return counts
     }
 
     /// Rebuild the pills from the category map, the counts and the names on

@@ -247,7 +247,8 @@ struct BrowseView: View {
                         name: row.name,
                         count: row.count,
                         categoryId: row.categoryId,
-                        isArchivedCategory: isArchived
+                        isArchivedCategory: isArchived,
+                        emoji: row.emoji
                     )
                 } label: {
                     BrowseRow(
