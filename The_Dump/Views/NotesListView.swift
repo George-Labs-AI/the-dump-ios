@@ -320,6 +320,10 @@ struct NotesListView: View {
                         }
                         noteRow(note)
                     }
+                    // On the list row itself, so the swipe always shows.
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        swipeButtons(note)
+                    }
                     .onAppear {
                         Task { await viewModel.loadMoreIfNeeded(currentItem: note) }
                     }
@@ -468,16 +472,6 @@ struct NotesListView: View {
                 row
             }
             .buttonStyle(TDPressStyle())
-            // Swipe-to-delete would delete only the note that stands for the
-            // stack, so a stack row offers Unstack instead.
-            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                Button {
-                    Task { await viewModel.unstack(stackId: stackId) }
-                } label: {
-                    Label("Unstack", systemImage: "square.stack.3d.up.slash")
-                }
-                .tint(Theme.textSecondary)
-            }
         } else {
             NavigationLink {
                 NoteDetailView(noteID: note.id, backTitle: title)
@@ -485,15 +479,31 @@ struct NotesListView: View {
                 row
             }
             .buttonStyle(TDPressStyle())
-            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                Button(role: .destructive) {
-                    noteToDelete = note
-                    showDeleteConfirmation = true
-                } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-                .tint(Theme.destructive)
+        }
+    }
+
+    /// Swipe on a row: Delete for a note; Unstack for a stack, because
+    /// deleting would delete only the note that stands for it. None while
+    /// selecting.
+    @ViewBuilder
+    private func swipeButtons(_ note: NotePreview) -> some View {
+        if viewModel.isSelecting {
+            EmptyView()
+        } else if note.isStack, let stackId = note.stack_id {
+            Button {
+                Task { await viewModel.unstack(stackId: stackId) }
+            } label: {
+                Label("Unstack", systemImage: "square.stack.3d.up.slash")
             }
+            .tint(Theme.textSecondary)
+        } else {
+            Button(role: .destructive) {
+                noteToDelete = note
+                showDeleteConfirmation = true
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            .tint(Theme.destructive)
         }
     }
 
