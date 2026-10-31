@@ -55,7 +55,8 @@ struct VoiceMemoView: View {
 
                 controls
 
-                if let error = uploadError ?? recorder.errorMessage {
+                // When recording never started, the caption already says so.
+                if recorder.state != .idle, let error = uploadError ?? recorder.errorMessage {
                     Label(error, systemImage: "exclamationmark.circle")
                         .font(.system(size: Theme.fontSizeSM))
                         .foregroundStyle(Theme.textPrimary)
