@@ -32,6 +32,8 @@ struct InteractiveCanonView: UIViewRepresentable {
         webView.allowsLinkPreview = false
         webView.isOpaque = false
         webView.backgroundColor = .white
+        // The panel is white, so keep documents on their light styles now that the app is always dark.
+        webView.overrideUserInterfaceStyle = .light
         // CSS fixes the host viewport; keep native scrolling enabled so long
         // iframe documents still respond to touch and accessibility gestures.
         webView.scrollView.bounces = false

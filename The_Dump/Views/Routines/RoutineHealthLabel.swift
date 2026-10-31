@@ -41,7 +41,7 @@ struct RoutineHealthLabel: View {
         case .partial, .unknown:
             return Theme.warning
         case .failed, .silent:
-            return .red
+            return Theme.textPrimary
         case .paused:
             return Theme.textSecondary
         }

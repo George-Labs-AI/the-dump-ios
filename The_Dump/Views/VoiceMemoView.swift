@@ -48,9 +48,9 @@ struct VoiceMemoView: View {
                     
                     // Error display
                     if let error = uploadError ?? recorder.errorMessage {
-                        Text(error)
+                        Label(error, systemImage: "exclamationmark.circle")
                             .font(.system(size: Theme.fontSizeSM))
-                            .foregroundColor(Theme.accent)
+                            .foregroundColor(Theme.textPrimary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
                     }

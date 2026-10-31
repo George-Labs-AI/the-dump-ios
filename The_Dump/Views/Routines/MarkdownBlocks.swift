@@ -261,7 +261,11 @@ nonisolated enum MarkdownBlockParser {
         var options = AttributedString.MarkdownParsingOptions()
         options.interpretedSyntax = .inlineOnlyPreservingWhitespace
         options.failurePolicy = .returnPartiallyParsedIfPossible
-        if let parsed = try? AttributedString(markdown: safe, options: options) {
+        if var parsed = try? AttributedString(markdown: safe, options: options) {
+            let linkRanges = parsed.runs.filter { $0.link != nil }.map(\.range)
+            for range in linkRanges {
+                parsed[range].underlineStyle = Text.LineStyle.single
+            }
             return parsed
         }
         return AttributedString(safe)

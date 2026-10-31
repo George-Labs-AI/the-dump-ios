@@ -145,9 +145,9 @@ struct RoutineConnectView: View {
                         .foregroundColor(Theme.textSecondary)
                 }
             } else if let error = viewModel.errorMessage {
-                Text("Couldn't load the runner instructions: \(error)")
+                Label("Couldn't load the runner instructions: \(error)", systemImage: "exclamationmark.circle")
                     .font(.system(size: Theme.fontSizeSM))
-                    .foregroundColor(.red)
+                    .foregroundColor(Theme.textPrimary)
                 Button("Retry") {
                     Task { await viewModel.load() }
                 }

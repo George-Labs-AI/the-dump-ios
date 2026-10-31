@@ -117,15 +117,15 @@ struct RecategorizeChoiceView: View {
                             .fixedSize(horizontal: false, vertical: true)
 
                         if let error = errorMessage {
-                            Text(error)
+                            Label(error, systemImage: "exclamationmark.circle")
                                 .font(.system(size: Theme.fontSizeSM))
-                                .foregroundColor(.red)
+                                .foregroundColor(Theme.textPrimary)
                         }
 
                         Button(action: confirm) {
                             if isSubmitting {
                                 ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: Theme.background))
+                                    .progressViewStyle(CircularProgressViewStyle(tint: Theme.textPrimary))
                             } else {
                                 Text(confirmTitle)
                             }

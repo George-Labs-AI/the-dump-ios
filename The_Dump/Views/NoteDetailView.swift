@@ -32,9 +32,9 @@ struct NoteDetailView: View {
                         .foregroundColor(Theme.textPrimary)
                 } else if let error = viewModel.errorMessage, viewModel.note == nil {
                     VStack(spacing: Theme.spacingMD) {
-                        Text(error)
+                        Label(error, systemImage: "exclamationmark.circle")
                             .font(.system(size: Theme.fontSizeSM))
-                            .foregroundColor(Theme.accent)
+                            .foregroundColor(Theme.textPrimary)
                             .multilineTextAlignment(.center)
 
                         Button("Retry") {
@@ -222,9 +222,9 @@ struct NoteDetailView: View {
     private var editForm: some View {
         VStack(alignment: .leading, spacing: Theme.spacingSM) {
             if let error = viewModel.errorMessage {
-                Text(error)
+                Label(error, systemImage: "exclamationmark.circle")
                     .font(.system(size: Theme.fontSizeSM))
-                    .foregroundColor(Theme.accent)
+                    .foregroundColor(Theme.textPrimary)
             }
 
             fieldLabel("Title")
@@ -298,9 +298,9 @@ struct NoteDetailView: View {
 
             if let error = viewModel.editOptionsError {
                 HStack(spacing: Theme.spacingSM) {
-                    Text(error)
+                    Label(error, systemImage: "exclamationmark.circle")
                         .font(.system(size: Theme.fontSizeXS))
-                        .foregroundColor(Theme.accent)
+                        .foregroundColor(Theme.textPrimary)
                     Button("Retry") {
                         Task { await viewModel.loadEditOptions() }
                     }

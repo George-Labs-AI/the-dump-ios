@@ -1,3 +1,4 @@
+<!-- Archived 2026-10-30: replaced by The Dump Design System (dark, monochrome, Instrument Sans) for the iPhone restyle, THEDUMP-140. Kept as history only. -->
 <!DOCTYPE html>
 <html lang="en">
 <head>

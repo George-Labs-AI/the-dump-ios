@@ -113,9 +113,9 @@ struct AddSubCategoryView: View {
                         }
 
                         if let error = errorMessage {
-                            Text(error)
+                            Label(error, systemImage: "exclamationmark.circle")
                                 .font(.system(size: Theme.fontSizeSM))
-                                .foregroundColor(Theme.accent)
+                                .foregroundColor(Theme.textPrimary)
                                 .padding(.top, Theme.spacingSM)
                         }
 

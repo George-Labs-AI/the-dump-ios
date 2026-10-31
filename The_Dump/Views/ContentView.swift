@@ -146,6 +146,7 @@ struct ContentView: View {
                     }
                 }
             }
+            .appTabBar()
             .navigationTitle("")
         // Photo has two sources: the camera, or the photo library (where
         // screenshots and saved images live — the Files picker can't see
