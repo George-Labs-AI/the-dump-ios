@@ -17,6 +17,16 @@ class SessionStore: ObservableObject {
         items[index].status = status
     }
 
+    /// Upload progress arrives many times a second; only steps of 2% or
+    /// more (and the finish) are published, so the list isn't redrawn for
+    /// every packet.
+    func updateProgress(id: String, progress: Double) {
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+        let previous = items[index].progress ?? 0
+        guard progress >= 1 || progress - previous >= 0.02 else { return }
+        items[index].progress = progress
+    }
+
     func markUploading(id: String) {
         updateStatus(id: id, status: .uploading)
     }

@@ -39,7 +39,9 @@ struct SessionItem: Identifiable {
     let originalFilename: String
     var localFileURL: URL?
     var status: UploadStatus
-    var thumbnailData: Data?
+    /// How much of the upload has been sent, from 0 to 1; nil until the
+    /// first bytes go out.
+    var progress: Double?
 
     init(
         id: String = UUID().uuidString,
@@ -47,8 +49,7 @@ struct SessionItem: Identifiable {
         kind: SessionItemKind,
         originalFilename: String,
         localFileURL: URL? = nil,
-        status: UploadStatus = .pending,
-        thumbnailData: Data? = nil
+        status: UploadStatus = .pending
     ) {
         self.id = id
         self.createdAt = createdAt
@@ -56,6 +57,5 @@ struct SessionItem: Identifiable {
         self.originalFilename = originalFilename
         self.localFileURL = localFileURL
         self.status = status
-        self.thumbnailData = thumbnailData
     }
 }

@@ -46,11 +46,14 @@ struct TDTextLinkStyle: ButtonStyle {
     }
 }
 
-/// Rows and icon buttons: the content as drawn, at 0.4 opacity while pressed.
+/// Rows and icon buttons: the content as drawn, at 0.4 opacity while
+/// pressed. White buttons such as the mic use 0.7.
 struct TDPressStyle: ButtonStyle {
+    var pressedOpacity: Double = 0.4
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .opacity(configuration.isPressed ? 0.4 : 1)
+            .opacity(configuration.isPressed ? pressedOpacity : 1)
     }
 }
 
