@@ -70,6 +70,10 @@ struct NotesListView: View {
         }
         .background(Theme.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
+        // The bar is hidden, so nothing shows; this sets the screen's
+        // hidesBackButton, which stops the edge swipe back (TopBar.swift)
+        // while notes are selected, as the system back button used to.
+        .navigationBarBackButtonHidden(viewModel.isSelecting)
         // Not shown here; it names this screen in the next one's back menu
         // and for VoiceOver.
         .navigationTitle(title)
