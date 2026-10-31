@@ -3,6 +3,10 @@ import UIKit
 import Combine
 import UniformTypeIdentifiers
 
+/// How much of an upload's body has been sent, from 0 to 1. Called off the
+/// main thread, often; the Dump tab's progress bar listens to it.
+typealias UploadProgressHandler = @Sendable (Double) -> Void
+
 class UploadService {
     static let shared = UploadService()
     
@@ -21,7 +25,8 @@ class UploadService {
     func uploadPhoto(
         image: UIImage,
         userEmail: String,
-        idToken: String
+        idToken: String,
+        onProgress: UploadProgressHandler? = nil
     ) async throws -> UploadResponse {
         guard let jpegData = image.jpegData(compressionQuality: 0.85) else {
             throw APIError.encodingFailed
@@ -35,7 +40,8 @@ class UploadService {
             contentType: "image/jpeg",
             isQuickNote: false,
             kind: .photo,
-            idToken: idToken
+            idToken: idToken,
+            onProgress: onProgress
         )
     }
     
@@ -44,7 +50,8 @@ class UploadService {
     func uploadAudio(
         fileURL: URL,
         userEmail: String,
-        idToken: String
+        idToken: String,
+        onProgress: UploadProgressHandler? = nil
     ) async throws -> UploadResponse {
         let audioData = try Data(contentsOf: fileURL)
 
@@ -62,7 +69,8 @@ class UploadService {
             contentType: "audio/m4a",
             isQuickNote: false,
             kind: .voice,
-            idToken: idToken
+            idToken: idToken,
+            onProgress: onProgress
         )
     }
 
@@ -71,7 +79,8 @@ class UploadService {
     func uploadFile(
         fileURL: URL,
         userEmail: String,
-        idToken: String
+        idToken: String,
+        onProgress: UploadProgressHandler? = nil
     ) async throws -> UploadResponse {
         // Start security-scoped access for files from document picker
         let didStartAccess = fileURL.startAccessingSecurityScopedResource()
@@ -109,7 +118,8 @@ class UploadService {
             contentType: contentType,
             isQuickNote: false,
             kind: .file,
-            idToken: idToken
+            idToken: idToken,
+            onProgress: onProgress
         )
     }
 
@@ -161,7 +171,8 @@ class UploadService {
         isQuickNote: Bool = false,
         kind: PendingNoteKind,
         localText: String? = nil,
-        idToken: String
+        idToken: String,
+        onProgress: UploadProgressHandler? = nil
     ) async throws -> UploadResponse {
         // Get signed URL from backend
         let response = try await requestSignedURL(
@@ -175,7 +186,8 @@ class UploadService {
         try await uploadToGCS(
             data: data,
             uploadURL: response.uploadUrl,
-            contentType: contentType
+            contentType: contentType,
+            onProgress: onProgress
         )
 
         // Upload fully succeeded (signed URL obtained and GCS PUT accepted):
@@ -241,7 +253,8 @@ class UploadService {
     private func uploadToGCS(
         data: Data,
         uploadURL: String,
-        contentType: String
+        contentType: String,
+        onProgress: UploadProgressHandler? = nil
     ) async throws {
         guard let url = URL(string: uploadURL) else {
             throw APIError.invalidURL
@@ -250,9 +263,9 @@ class UploadService {
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         request.setValue(contentType, forHTTPHeaderField: "Content-Type")
-        request.httpBody = data
-        
-        let (_, response) = try await URLSession.shared.data(for: request)
+
+        let delegate = onProgress.map(UploadProgressDelegate.init)
+        let (_, response) = try await URLSession.shared.upload(for: request, from: data, delegate: delegate)
         
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.unknownError
@@ -262,5 +275,25 @@ class UploadService {
         guard (200...299).contains(httpResponse.statusCode) else {
             throw APIError.gcsUploadFailed(statusCode: httpResponse.statusCode)
         }
+    }
+}
+
+/// Passes an upload's sent-bytes count on as a fraction, for one task.
+nonisolated private final class UploadProgressDelegate: NSObject, URLSessionTaskDelegate, Sendable {
+    private let onProgress: UploadProgressHandler
+
+    init(_ onProgress: @escaping UploadProgressHandler) {
+        self.onProgress = onProgress
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didSendBodyData bytesSent: Int64,
+        totalBytesSent: Int64,
+        totalBytesExpectedToSend: Int64
+    ) {
+        guard totalBytesExpectedToSend > 0 else { return }
+        onProgress(min(1, Double(totalBytesSent) / Double(totalBytesExpectedToSend)))
     }
 }

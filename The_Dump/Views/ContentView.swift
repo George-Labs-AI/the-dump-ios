@@ -24,8 +24,11 @@ struct ContentView: View {
     @State private var showErrorAlert = false
     @State private var errorAlertTitle = ""
     @State private var errorAlertMessage = ""
-    /// Set by tapping an organized Processing row; pushes that note.
+    /// Set by Open on an organized Processing row; pushes that note.
     @State private var openedNoteID: String?
+    /// The "Send notes from Claude or ChatGPT" card stays closed once its ×
+    /// is tapped.
+    @AppStorage("dumpClaudeHintDismissed") private var isClaudeHintDismissed = false
     
 // a view is a type of struct that is called out as a view, and it must provide a body variable that contains the layout
     // "some" view is used to not have to tell the compiler the exact type name of what is in the view, since it would be too complex. There can only be one body property per View
@@ -33,127 +36,91 @@ struct ContentView: View {
     var body: some View {
         // navigation stack is like a history so the app remembers where you came from to populate values that rely on previos screen actions
         NavigationStack {
-            ZStack {
-                Theme.background.ignoresSafeArea()
-                
-                VStack(spacing: 0) {
-                    HStack {
-                       Text("The Dump")
-                           .font(.system(size: Theme.fontSizeXL, weight: .bold))
-                           .foregroundColor(Theme.textPrimary)
-                       
-                       Spacer()
-                       
-                       Button(action: { showSettings = true }, label: {
-                           Image(systemName: "gearshape")
-                               .font(.system(size: Theme.fontSizeLG))
-                               .foregroundColor(Theme.textSecondary)
-                               .padding(Theme.spacingSM)
-                               .background(Theme.surface)
-                               .clipShape(Circle())
-                       })
-                   }
-                   .padding(.horizontal, Theme.spacingMD)
-                   .padding(.top, Theme.spacingSM)
-                   .padding(.bottom, Theme.spacingMD)
-                    // Status bar (hidden while loading to avoid flash before real tier is known)
-                    if appState.subscriptionViewModel.isBlocked && !appState.subscriptionViewModel.isLoading {
-                        BlockedBanner(
-                            reason: appState.subscriptionViewModel.usageStatus?.blockedReason,
-                            onUpgradeTap: { showPaywall = true }
-                        )
-                    } else if appState.subscriptionViewModel.isBillingRetry {
-                        BillingRetryBanner()
-                    } else if appState.subscriptionViewModel.usagePercentage >= 80 {
-                        UsageWarningBanner(label: appState.subscriptionViewModel.limitingFactorLabel)
-                    }
+            VStack(spacing: 0) {
+                topBar
 
-                    // Main content
-                    Text("Your brain dump, organized by AI.")
-                        .font(.system(size: Theme.fontSizeLG))
-                        .foregroundColor(Theme.textPrimary)
-                        .padding()
-                    ScrollView {
-                        VStack(spacing: Theme.spacingLG) {
-                            // Capture buttons
-                            CaptureButtonsSection(
-                                photoSourceDialogPresented: $showPhotoSourceDialog,
-                                onPhotoTap: { guardCapture { showPhotoSourceDialog = true } },
-                                onTakePhoto: { showCamera = true },
-                                onChooseFromLibrary: { showPhotoLibraryPicker = true },
-                                onVoiceTap: { guardCapture { showVoiceMemo = true } },
-                                onFileTap: { guardCapture { showFilePicker = true } },
-                                onTextTap: { guardCapture { showTextNote = true } }
+                // Status bar (hidden while loading to avoid flash before real tier is known)
+                if appState.subscriptionViewModel.isBlocked && !appState.subscriptionViewModel.isLoading {
+                    BlockedBanner(
+                        reason: appState.subscriptionViewModel.usageStatus?.blockedReason,
+                        onUpgradeTap: { showPaywall = true }
+                    )
+                } else if appState.subscriptionViewModel.isBillingRetry {
+                    BillingRetryBanner()
+                } else if appState.subscriptionViewModel.usagePercentage >= 80 {
+                    UsageWarningBanner(label: appState.subscriptionViewModel.limitingFactorLabel)
+                }
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("Your Dump")
+                            .tdHeadline()
+                            .foregroundStyle(Theme.textPrimary)
+                            .accessibilityAddTraits(.isHeader)
+                            .padding(.bottom, Theme.spacingLG)
+
+                        if !isClaudeHintDismissed {
+                            ClaudeHintCard(
+                                onOpen: { showConnectToClaude = true },
+                                onDismiss: { isClaudeHintDismissed = true }
                             )
-                            .padding(.top, Theme.spacingLG)
-
-                            // Upload + processing feedback sits directly
-                            // under the capture grid, above the hint cards:
-                            // the grid plus both hints already fill an
-                            // iPhone screen, so anything placed after them
-                            // is below the fold and a capture looks like it
-                            // did nothing (QA 2026-10-06).
-                            //
-                            // One Processing section holds both: captures
-                            // still uploading (session rows), then captures
-                            // the server is working on (pending-note records,
-                            // note-status contract Phase 1). Session rows are
-                            // removed on upload success, so each capture
-                            // shows once (modulo a 1-2 frame gap while the
-                            // view model mirrors the store).
-                            if !sessionStore.items.isEmpty || !pendingNotesViewModel.records.isEmpty {
-                                ProcessingSection(
-                                    sessionItems: sessionStore.items,
-                                    records: pendingNotesViewModel.records,
-                                    onDismissUpload: { id in
-                                        sessionStore.removeItem(id: id)
-                                    },
-                                    onOpen: { record in
-                                        // Opening an organized note also
-                                        // clears its row, as tapping it
-                                        // always has.
-                                        openedNoteID = record.openableNoteId
-                                        pendingNotesViewModel.acknowledge(fileUuid: record.fileUuid)
-                                    },
-                                    onAcknowledge: { fileUuid in
-                                        pendingNotesViewModel.acknowledge(fileUuid: fileUuid)
-                                    }
-                                )
-                            }
-
-                            CaptureHintNote(
-                                icon: "info.circle",
-                                message: "Videos and zip files aren't supported yet."
-                            )
-
-                            Button(action: { showConnectToClaude = true }, label: {
-                                CaptureHintNote(
-                                    icon: "square.and.arrow.up",
-                                    message: "Saving an AI chat? Tap the share button in ChatGPT, Claude, or any other app and choose The Dump. Using Claude on your computer? It can save conversations here directly.",
-                                    linkText: "Connect The Dump to Claude →"
-                                )
-                            })
-                            .buttonStyle(.plain)
-
-                            Spacer(minLength: Theme.spacingXL)
                         }
-                        .padding(.horizontal, Theme.screenH)
+
+                        // One Processing section holds both: captures still
+                        // uploading (session rows), then captures the server
+                        // is working on (pending-note records, note-status
+                        // contract Phase 1). Session rows are removed on
+                        // upload success, so each capture shows once (modulo
+                        // a 1-2 frame gap while the view model mirrors the
+                        // store).
+                        if !sessionStore.items.isEmpty || !pendingNotesViewModel.records.isEmpty {
+                            ProcessingSection(
+                                sessionItems: sessionStore.items,
+                                records: pendingNotesViewModel.records,
+                                onDismissUpload: { id in
+                                    sessionStore.removeItem(id: id)
+                                },
+                                onOpen: { record in
+                                    // Opening an organized note also clears
+                                    // its row.
+                                    openedNoteID = record.openableNoteId
+                                    pendingNotesViewModel.acknowledge(fileUuid: record.fileUuid)
+                                },
+                                onAcknowledge: { fileUuid in
+                                    pendingNotesViewModel.acknowledge(fileUuid: fileUuid)
+                                }
+                            )
+                            .padding(.top, Theme.spacingXL)
+                        }
                     }
-                    .safeAreaInset(edge: .bottom) {
-                        AuthStatusFooter(email: appState.userEmail)
-                            .padding()
-                            .background(Theme.background)
-                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, Theme.screenH)
+                    .padding(.top, Theme.spacingSM)
+                    .padding(.bottom, Theme.spacingLG)
                 }
             }
+            .background(Theme.background.ignoresSafeArea())
+            // The capture bar sits above the tab bar, which .appTabBar()
+            // adds below it.
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                CaptureBar(
+                    photoSourceDialogPresented: $showPhotoSourceDialog,
+                    onPhotoTap: { guardCapture { showPhotoSourceDialog = true } },
+                    onTakePhoto: { showCamera = true },
+                    onChooseFromLibrary: { showPhotoLibraryPicker = true },
+                    onFileTap: { guardCapture { showFilePicker = true } },
+                    onTextTap: { guardCapture { showTextNote = true } },
+                    onVoiceTap: { guardCapture { showVoiceMemo = true } }
+                )
+            }
             .appTabBar()
-            .navigationTitle("")
+            .toolbar(.hidden, for: .navigationBar)
         // Photo has two sources: the camera, or the photo library (where
         // screenshots and saved images live — the Files picker can't see
         // those). The library picker runs out of process, so it needs no
         // photo-library permission prompt. The source dialog itself is
-        // attached to the Photo tile (CaptureButtonsSection) so that where
-        // iOS presents it as a popover it anchors to that tile.
+        // attached to the "+" menu in CaptureBar so that where iOS presents
+        // it as a popover it anchors to that button.
         .sheet(isPresented: $showCamera) {
             CameraView(image: $capturedImage)
         }
@@ -221,6 +188,26 @@ struct ContentView: View {
             Text(errorAlertMessage)
         }
     }
+    }
+
+    /// Settings sits alone at the right of a 44pt bar (Paper, 01 Dump).
+    private var topBar: some View {
+        HStack {
+            Spacer()
+            Button {
+                showSettings = true
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 20, weight: .regular))
+                    .foregroundStyle(Theme.textSecondary)
+                    .frame(width: Theme.touchMin, height: Theme.touchMin)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(TDPressStyle())
+            .accessibilityLabel("Settings")
+        }
+        .frame(height: 44)
+        .padding(.horizontal, Theme.spacingSMPlus)
     }
 
     /// Upper bound on photos picked from the library in one go. Each one
@@ -294,13 +281,10 @@ struct ContentView: View {
             return
         }
 
-        // Create session item with thumbnail
-        let thumbnailData = image.jpegData(compressionQuality: 0.3)
         let item = SessionItem(
             kind: .photo,
             originalFilename: "photo_\(UUID().uuidString).jpg",
-            status: .uploading,
-            thumbnailData: thumbnailData
+            status: .uploading
         )
 
         sessionStore.addItem(item)
@@ -309,7 +293,8 @@ struct ContentView: View {
             _ = try await UploadService.shared.uploadPhoto(
                 image: image,
                 userEmail: email,
-                idToken: idToken
+                idToken: idToken,
+                onProgress: progressHandler(for: item.id)
             )
             // The PendingNoteRecord is added before uploadPhoto returns,
             // so the Processing row replaces this transient one — remove
@@ -317,6 +302,16 @@ struct ContentView: View {
             sessionStore.removeItem(id: item.id)
         } catch {
             sessionStore.markFailed(id: item.id, error: error.localizedDescription)
+        }
+    }
+
+    /// Feeds an upload's progress, which arrives off the main thread, to its
+    /// row's bar.
+    private func progressHandler(for sessionItemID: String) -> UploadProgressHandler {
+        { [sessionStore] progress in
+            Task { @MainActor in
+                sessionStore.updateProgress(id: sessionItemID, progress: progress)
+            }
         }
     }
 
@@ -388,7 +383,8 @@ struct ContentView: View {
             _ = try await UploadService.shared.uploadFile(
                 fileURL: url,
                 userEmail: email,
-                idToken: idToken
+                idToken: idToken,
+                onProgress: progressHandler(for: sessionItemID)
             )
             // Hand off to the Processing row (see uploadPhoto).
             sessionStore.removeItem(id: sessionItemID)
@@ -400,30 +396,36 @@ struct ContentView: View {
 
 // MARK: - Subviews
 
-struct CaptureButtonsSection: View {
-    /// Drives the "Add a photo" source dialog, attached to the Photo tile.
+/// The bar at the bottom of the Dump tab (Paper, 01 Dump): a field that opens
+/// the note sheet, with "+" for a photo or file, and the white mic for voice.
+struct CaptureBar: View {
+    /// Drives the "Add a photo" source dialog, attached to the "+" button.
     @Binding var photoSourceDialogPresented: Bool
     let onPhotoTap: () -> Void
     let onTakePhoto: () -> Void
     let onChooseFromLibrary: () -> Void
-    let onVoiceTap: () -> Void
     let onFileTap: () -> Void
     let onTextTap: () -> Void
+    let onVoiceTap: () -> Void
 
     var body: some View {
-        VStack(spacing: Theme.spacingMD) {
-            Text("Capture")
-                .sectionLabel()
-                .foregroundColor(Theme.textSecondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Theme.spacingMD) {
-                CaptureButton(
-                    emoji: "📸",
-                    label: "Photo",
-                    subLabel: "Camera or library",
-                    action: onPhotoTap
-                )
+        HStack(spacing: Theme.spacingSM) {
+            HStack(spacing: 0) {
+                Menu {
+                    Button(action: onPhotoTap) {
+                        Label("Photo", systemImage: "photo")
+                    }
+                    Button(action: onFileTap) {
+                        Label("File", systemImage: "doc")
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 20, weight: .regular))
+                        .foregroundStyle(Theme.textSecondary)
+                        .frame(width: Theme.touchMin, height: Theme.touchMin)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("Add a photo or file")
                 .confirmationDialog(
                     "Add a photo",
                     isPresented: $photoSourceDialogPresented,
@@ -434,295 +436,283 @@ struct CaptureButtonsSection: View {
                     Button("Cancel", role: .cancel) {}
                 }
 
-                CaptureButton(
-                    emoji: "🎤",
-                    label: "Voice",
-                    subLabel: "Record audio",
-                    action: onVoiceTap
-                )
+                Button(action: onTextTap) {
+                    Text("Dump something…")
+                        .font(.system(size: 16))
+                        .foregroundStyle(Theme.placeholder)
+                        .padding(.horizontal, Theme.spacingXS)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(TDPressStyle())
+                .accessibilityLabel("Write a note")
+            }
+            .padding(.leading, 6)
+            .padding(.trailing, Theme.spacingSMPlus)
+            .frame(height: Theme.buttonHeight)
+            .background(Capsule().fill(Theme.surface))
 
-                CaptureButton(
-                    emoji: "📄",
-                    label: "File",
-                    subLabel: "Upload file",
-                    action: onFileTap
-                )
+            Button(action: onVoiceTap) {
+                Image(systemName: "mic")
+                    .font(.system(size: 20, weight: .regular))
+                    .foregroundStyle(Theme.buttonPrimaryForeground)
+                    .frame(width: Theme.buttonHeight, height: Theme.buttonHeight)
+                    .background(Circle().fill(Theme.buttonPrimaryBackground))
+                    .contentShape(Circle())
+            }
+            .buttonStyle(TDPressStyle(pressedOpacity: 0.7))
+            .accessibilityLabel("Record a voice note")
+        }
+        .padding(.horizontal, Theme.screenH)
+        .padding(.top, Theme.spacingSM)
+        .padding(.bottom, Theme.spacingSMPlus)
+        .background(Theme.background)
+    }
+}
 
-                CaptureButton(
-                    emoji: "✍️",
-                    label: "Note",
-                    subLabel: "Write text",
-                    action: onTextTap
-                )
+/// The card that points to the Claude setup screen. Tapping it opens that
+/// screen; the × closes the card for good.
+struct ClaudeHintCard: View {
+    let onOpen: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 6) {
+            Button(action: onOpen) {
+                HStack(alignment: .top, spacing: Theme.spacingSMPlus) {
+                    Image(systemName: "bubble.left")
+                        .font(.system(size: 16, weight: .regular))
+                        .foregroundStyle(Theme.textSecondary)
+                        .frame(width: 18, height: 18)
+                        .padding(.top, 3)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: Theme.spacingXS) {
+                        // The padding gives each line Paper's full line
+                        // box: 24 for the title, 18 for the caption.
+                        Text("Send notes from Claude or ChatGPT.")
+                            .tdBody()
+                            .padding(.vertical, 2.5)
+                            .foregroundStyle(Theme.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text("Set it up in Settings → Connect to Claude.")
+                            .tdCaption()
+                            .padding(.vertical, 1.25)
+                            .foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .multilineTextAlignment(.leading)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(TDPressStyle())
+            .accessibilityHint("Opens the Connect to Claude setup")
+
+            // Paper draws it in a 32pt slot; it is tapped as 44pt, using the
+            // card's right padding.
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundStyle(Theme.textSecondary)
+                    .frame(width: Theme.touchMin, height: Theme.touchMin)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(TDPressStyle())
+            .padding(.top, -Theme.spacingSMPlus)
+            .accessibilityLabel("Dismiss")
+        }
+        .padding(.vertical, Theme.spacingMD)
+        .padding(.leading, Theme.spacingMD)
+        .padding(.trailing, 3)
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.radiusCard)
+                .strokeBorder(Theme.hairline, lineWidth: 1)
+        )
+    }
+}
+
+/// The Dump tab's Processing list: captures still uploading, then captures
+/// the server is working on, as flat rows with hairlines between them. Both
+/// kinds use the same words (ProcessingStatusText).
+struct ProcessingSection: View {
+    let sessionItems: [SessionItem]
+    let records: [PendingNoteRecord]
+    /// Session item id of a failed upload the user dismissed.
+    let onDismissUpload: (String) -> Void
+    /// Open on an organized row.
+    let onOpen: (PendingNoteRecord) -> Void
+    /// File uuid of a row the user dismissed.
+    let onAcknowledge: (String) -> Void
+
+    private enum Entry: Identifiable {
+        case upload(SessionItem)
+        case note(PendingNoteRecord)
+
+        var id: String {
+            switch self {
+            case .upload(let item): return "upload-\(item.id)"
+            case .note(let record): return "note-\(record.id)"
+            }
+        }
+    }
+
+    private var entries: [Entry] {
+        sessionItems.map(Entry.upload) + records.map(Entry.note)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            TDSectionLabel(title: "Processing")
+                .padding(.bottom, Theme.spacingXS)
+
+            ForEach(entries) { entry in
+                if entry.id != entries.first?.id {
+                    TDHairline()
+                }
+                switch entry {
+                case .upload(let item):
+                    SessionItemRow(item: item) {
+                        onDismissUpload(item.id)
+                    }
+                case .note(let record):
+                    PendingNoteRow(
+                        record: record,
+                        onOpen: { onOpen(record) },
+                        onAcknowledge: { onAcknowledge(record.fileUuid) }
+                    )
+                }
             }
         }
     }
 }
 
-struct CaptureHintNote: View {
-    let icon: String
-    let message: String
-    /// Shown under the message when the whole note is tappable.
-    var linkText: String?
+/// One Processing row: the kind of capture as a small icon, then its title,
+/// its status pill and anything under the pill.
+private struct ProcessingRowLayout<Below: View>: View {
+    let systemImage: String
+    let title: String
+    @ViewBuilder let below: () -> Below
 
     var body: some View {
-        HStack(alignment: .top, spacing: Theme.spacingSM) {
-            Image(systemName: icon)
-                .font(.system(size: Theme.fontSizeSM))
-                .foregroundColor(Theme.textSecondary)
-
+        HStack(alignment: .top, spacing: Theme.spacingSMPlus) {
+            Image(systemName: systemImage)
+                .font(.system(size: 16, weight: .regular))
+                .foregroundStyle(Theme.textSecondary)
+                .frame(width: 18, height: 18)
+                .padding(.top, 3)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Theme.spacingSM) {
-                Text(message)
-                    .font(.system(size: Theme.fontSizeXS))
-                    .foregroundColor(Theme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if let linkText {
-                    Text(linkText)
-                        .font(.system(size: Theme.fontSizeXS, weight: .semibold))
-                        .foregroundColor(Theme.accent)
-                }
+                Text(title)
+                    .tdBody()
+                    .foregroundStyle(Theme.textPrimary)
+                    .lineLimit(2)
+                    .frame(minHeight: 24, alignment: .leading)
+                below()
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(Theme.spacingMD)
-        .background(Theme.surface)
-        .cornerRadius(Theme.cornerRadius)
+        .padding(.vertical, Theme.spacingSMPlus)
     }
 }
 
-struct CaptureButton: View {
-    let emoji: String
-    let label: String
-    let subLabel: String
-    let action: () -> Void
+/// Small text buttons under a pill ("Open", "Dismiss"). Each keeps a 44pt
+/// hit area but lays out at Paper's 32pt, so the hit area overlaps 6pt of
+/// the gap above and of the row's padding below.
+private struct ProcessingRowActions<Content: View>: View {
+    @ViewBuilder let content: () -> Content
 
     var body: some View {
-        Button(action: action) {
-            VStack(spacing: Theme.spacingSM) {
-                ZStack {
-                    Circle()
-                        .fill(Theme.accent.opacity(0.1))
-                        .frame(width: 48, height: 48)
-
-                    Text(emoji)
-                        .font(.system(size: 22))
-                }
-
-                VStack(spacing: 2) {
-                    Text(label)
-                        .font(.system(size: Theme.fontSizeSM, weight: .medium))
-                        .foregroundColor(Theme.textPrimary)
-
-                    Text(subLabel)
-                        .font(.system(size: 11))
-                        .foregroundColor(Theme.textSecondary)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, Theme.spacingXL)
-            .background(Theme.surface)
-            .cornerRadius(Theme.cornerRadiusCapture)
+        HStack(spacing: Theme.spacingSMPlus) {
+            content()
         }
+        .padding(.vertical, -6)
     }
 }
 
+private func rowAction(_ title: String, primary: Bool = false, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+        Text(title)
+            .padding(.horizontal, Theme.spacingXS)
+    }
+    .buttonStyle(TDTextLinkStyle(color: primary ? Theme.textPrimary : Theme.textSecondary, size: 13))
+}
+
+/// A capture still on its way to the server.
 struct SessionItemRow: View {
     let item: SessionItem
     /// The dismiss button on a failed upload.
     let onDismiss: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: Theme.spacingMD) {
-                // Thumbnail or icon
-                Group {
-                    if let thumbnailData = item.thumbnailData,
-                       let uiImage = UIImage(data: thumbnailData) {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: 44, height: 44)
-                            .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadiusSM))
-                    } else {
-                        ZStack {
-                            Theme.surface2
-                            Image(systemName: iconForKind)
-                                .foregroundColor(Theme.textSecondary)
-                        }
-                        .frame(width: 44, height: 44)
-                        .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadiusSM))
-                    }
+        ProcessingRowLayout(systemImage: iconForKind, title: title) {
+            switch item.status {
+            case .pending, .uploading:
+                TDStatusPill(mark: .symbol("arrow.up"), text: ProcessingStatusText.uploading)
+                if let progress = item.progress {
+                    TDMeter(value: progress)
                 }
-
-                // Info
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(labelForKind)
-                        .font(.system(size: Theme.fontSizeMD, weight: .medium))
-                        .foregroundColor(Theme.textPrimary)
-                        .lineLimit(1)
-
-                    Text(statusText)
-                        .font(.system(size: Theme.fontSizeXS))
-                        .foregroundColor(statusColor)
-                        .lineLimit(1)
+            case .captured:
+                TDStatusPill(mark: .symbol("checkmark"), text: ProcessingStatusText.text(for: item.status))
+            case .failed(let error):
+                // The upload's own error (such as the 100MB limit) goes
+                // under the pill; it can be too long for one.
+                TDStatusPill(mark: .symbol("exclamationmark.circle"), text: "Couldn't upload")
+                Text(error)
+                    .tdCaption()
+                    .foregroundStyle(Theme.textSecondary)
+                ProcessingRowActions {
+                    rowAction("Dismiss", action: onDismiss)
                 }
-
-                Spacer()
-
-                // Status indicator
-                statusIcon
-            }
-
-            // Hint text for captured items
-            if case .captured = item.status {
-                Text("It'll show up in your notes in a few minutes.")
-                    .font(.system(size: 11))
-                    .foregroundColor(Theme.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 6)
             }
         }
-        .padding(Theme.spacingMD)
-        .background(Theme.surface)
-        .cornerRadius(Theme.cornerRadius)
     }
 
     private var iconForKind: String {
         switch item.kind {
         case .photo: return "photo"
-        case .audio: return "waveform"
+        case .audio: return "mic"
         case .file: return "doc"
-        case .text: return "keyboard"
+        case .text: return "text.alignleft"
         }
     }
 
-    private var labelForKind: String {
+    private var title: String {
         switch item.kind {
         case .photo: return "Photo"
-        case .audio: return "Voice Memo"
+        case .audio: return "Voice"
         case .file: return item.originalFilename
         case .text: return "Note"
         }
     }
-
-    private var statusText: String {
-        ProcessingStatusText.text(for: item.status)
-    }
-
-    private var statusColor: Color {
-        switch item.status {
-        case .captured:
-            return Theme.success
-        case .failed:
-            return Theme.accent
-        default:
-            return Theme.textSecondary
-        }
-    }
-
-    @ViewBuilder
-    private var statusIcon: some View {
-        switch item.status {
-        case .uploading:
-            PulsingDot()
-        case .captured:
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundColor(Theme.success)
-        case .failed:
-            // Same dismiss button as a failed PendingNoteRow; without it a
-            // failed upload's row stayed until the app was relaunched.
-            Button(action: onDismiss) {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(Theme.textSecondary)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Dismiss")
-        case .pending:
-            Image(systemName: "clock")
-                .foregroundColor(Theme.textSecondary)
-        }
-    }
 }
 
-/// "Processing" section on the capture screen: captures still uploading
-/// (one SessionItemRow each), then one row per pending-note record. Both
-/// row types share the same styling (44pt icon tile, surface card) and the
-/// same words (ProcessingStatusText).
-struct ProcessingSection: View {
-    let sessionItems: [SessionItem]
-    let records: [PendingNoteRecord]
-    /// Session item id of a failed upload the user dismissed.
-    let onDismissUpload: (String) -> Void
-    /// An organized row was tapped.
-    let onOpen: (PendingNoteRecord) -> Void
-    /// File uuid of a failed note the user dismissed.
-    let onAcknowledge: (String) -> Void
-
-    var body: some View {
-        VStack(spacing: Theme.spacingMD) {
-            Text("Processing")
-                .sectionLabel()
-                .foregroundColor(Theme.textSecondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            ForEach(sessionItems) { item in
-                SessionItemRow(item: item) {
-                    onDismissUpload(item.id)
-                }
-            }
-
-            ForEach(records) { record in
-                PendingNoteRow(
-                    record: record,
-                    onOpen: { onOpen(record) },
-                    onAcknowledge: { onAcknowledge(record.fileUuid) }
-                )
-            }
-        }
-    }
-}
-
+/// A capture the server has received, from upload to organized.
 struct PendingNoteRow: View {
     let record: PendingNoteRecord
-    /// Tapping an organized row.
+    /// Open on an organized row.
     let onOpen: () -> Void
-    /// The dismiss button on a failed row.
+    /// Dismiss on an organized or failed row.
     let onAcknowledge: () -> Void
 
     var body: some View {
-        HStack(spacing: Theme.spacingMD) {
-            ZStack {
-                Theme.surface2
-                Image(systemName: iconForKind)
-                    .foregroundColor(Theme.textSecondary)
-            }
-            .frame(width: 44, height: 44)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadiusSM))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(primaryText)
-                    .font(.system(size: Theme.fontSizeMD, weight: .medium))
-                    .foregroundColor(Theme.textPrimary)
-                    .lineLimit(2)
-
-                Text(statusText)
-                    .font(.system(size: Theme.fontSizeXS))
-                    .foregroundColor(statusColor)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-
-            statusIndicator
-        }
-        .padding(Theme.spacingMD)
-        .background(Theme.surface)
-        .cornerRadius(Theme.cornerRadius)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if record.lifecycleStatus == .organized {
-                onOpen()
+        ProcessingRowLayout(systemImage: iconForKind, title: primaryText) {
+            switch record.lifecycleStatus {
+            case .uploaded, .transcribed:
+                TDStatusPill(mark: .dot, text: ProcessingStatusText.text(for: record))
+            case .organized:
+                // Amber: the note just landed in one of your categories.
+                TDStatusPill(mark: .symbol("checkmark"), text: ProcessingStatusText.text(for: record), isYourStuff: true)
+                ProcessingRowActions {
+                    if record.openableNoteId != nil {
+                        rowAction("Open", primary: true, action: onOpen)
+                    }
+                    rowAction("Dismiss", action: onAcknowledge)
+                }
+            case .failed:
+                TDStatusPill(mark: .symbol("exclamationmark.circle"), text: ProcessingStatusText.text(for: record))
+                ProcessingRowActions {
+                    rowAction("Dismiss", action: onAcknowledge)
+                }
             }
         }
     }
@@ -730,16 +720,16 @@ struct PendingNoteRow: View {
     private var iconForKind: String {
         switch record.kind {
         case .photo: return "photo"
-        case .voice: return "waveform"
+        case .voice: return "mic"
         case .file: return "doc"
-        case .text: return "keyboard"
+        case .text: return "text.alignleft"
         }
     }
 
     private var kindLabel: String {
         switch record.kind {
         case .photo: return "Photo"
-        case .voice: return "Voice Memo"
+        case .voice: return "Voice"
         case .file: return "File"
         case .text: return "Note"
         }
@@ -747,8 +737,9 @@ struct PendingNoteRow: View {
 
     /// Typed notes show what the user typed immediately, regardless of
     /// status. Voice/photo/file show a kind label until the transcribed
-    /// preview arrives, and the note's title once it is organized (the
-    /// preview is raw extracted text, e.g. "*Image (photo):* A close-up…").
+    /// preview arrives, and the note's title once it is organized. The
+    /// preview is raw markdown (e.g. "*Image (photo):* A close-up…"), so it
+    /// is shown as plain text.
     private var primaryText: String {
         if record.kind == .text, let text = record.localText, !text.isEmpty {
             return text
@@ -756,57 +747,10 @@ struct PendingNoteRow: View {
         if record.lifecycleStatus == .organized, let title = record.title, !title.isEmpty {
             return title
         }
-        if let preview = record.transcribedPreview, !preview.isEmpty {
+        if let preview = record.transcribedPreview.map(PlainTextPreview.text(from:)), !preview.isEmpty {
             return preview
         }
         return kindLabel
-    }
-
-    private var statusText: String {
-        ProcessingStatusText.text(for: record)
-    }
-
-    private var statusColor: Color {
-        switch record.lifecycleStatus {
-        case .organized:
-            return Theme.success
-        case .failed:
-            return Theme.accent
-        case .uploaded, .transcribed:
-            return Theme.textSecondary
-        }
-    }
-
-    @ViewBuilder
-    private var statusIndicator: some View {
-        switch record.lifecycleStatus {
-        case .uploaded, .transcribed:
-            ProgressView()
-                .tint(Theme.textSecondary)
-        case .organized:
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundColor(Theme.success)
-        case .failed:
-            Button(action: onAcknowledge) {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(Theme.textSecondary)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Dismiss")
-        }
-    }
-}
-
-struct PulsingDot: View {
-    @State private var isAnimating = false
-
-    var body: some View {
-        Circle()
-            .fill(Theme.accent)
-            .frame(width: 10, height: 10)
-            .opacity(isAnimating ? 0.3 : 1.0)
-            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isAnimating)
-            .onAppear { isAnimating = true }
     }
 }
 
