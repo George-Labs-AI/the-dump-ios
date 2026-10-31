@@ -7,6 +7,9 @@ struct BrowseView: View {
     @EnvironmentObject private var recategorizationTracker: CategoryRecategorizationTracker
     @StateObject private var viewModel = BrowseViewModel()
     @StateObject private var sessionStore = SessionStore()
+    /// This phone's captures that were organized and not yet opened or
+    /// dismissed: they mark their category "+1".
+    @StateObject private var pendingNotes = PendingNotesViewModel()
     @State private var searchText: String = ""
     @State private var isShowingSearchResults: Bool = false
     @State private var submittedSearchText: String = ""
@@ -15,39 +18,45 @@ struct BrowseView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Theme.background.ignoresSafeArea()
-                
-                Group {
-                    if isShowingInitialLoader {
-                        ProgressView("Loading…")
-                            .foregroundColor(Theme.textPrimary)
-                    } else {
-                        folderList
-                        .scrollContentBackground(.hidden)
-                        .listStyle(.insetGrouped)
-                        .refreshable {
-                            await viewModel.loadCounts()
+            VStack(spacing: 0) {
+                topBar
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("Browse")
+                            .tdHeadline()
+                            .foregroundStyle(Theme.textPrimary)
+                            .accessibilityAddTraits(.isHeader)
+                            .padding(.bottom, Theme.spacingLG)
+
+                        searchField
+
+                        if isShowingInitialLoader {
+                            Text("Loading…")
+                                .tdCaption()
+                                .foregroundStyle(Theme.textSecondary)
+                                .padding(.top, Theme.spacingLG)
+                        } else {
+                            folderList
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, Theme.screenH)
+                    .padding(.top, Theme.spacingSM)
+                    .padding(.bottom, Theme.spacingLG)
+                }
+                .refreshable {
+                    await viewModel.loadCounts()
                 }
             }
+            .background(Theme.background.ignoresSafeArea())
             .appTabBar()
-            .navigationTitle("Folders")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbarBackground(Theme.background, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbar(.hidden, for: .navigationBar)
             .task {
                 await viewModel.loadCounts()
             }
             .onReceive(NotificationCenter.default.publisher(for: .categoryRecategorizationDidFinish)) { _ in
                 Task { await viewModel.loadCounts() }
-            }
-            .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search all notes")
-            .onSubmit(of: .search) {
-                guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-                submittedSearchText = searchText
-                isShowingSearchResults = true
             }
             .navigationDestination(isPresented: $isShowingSearchResults) {
                 SearchResultsView(initialQuery: submittedSearchText)
@@ -62,30 +71,69 @@ struct BrowseView: View {
                     Task { await viewModel.loadCounts() }
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Edit") {
-                        showManageCategories = true
-                    }
-                    .foregroundColor(Theme.textPrimary)
-                    .accessibilityHint("Add, rename or archive your categories")
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: Theme.fontSizeLG))
-                            .foregroundColor(Theme.textSecondary)
-                    }
-                }
-            }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
                     .environmentObject(appState)
                     .environmentObject(sessionStore)
             }
         }
+    }
+
+    /// Settings sits alone at the right of a 44pt bar, as on the Dump tab.
+    private var topBar: some View {
+        HStack {
+            Spacer()
+            Button {
+                showSettings = true
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 20, weight: .regular))
+                    .foregroundStyle(Theme.textSecondary)
+                    .frame(width: Theme.touchMin, height: Theme.touchMin)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(TDPressStyle())
+            .accessibilityLabel("Settings")
+        }
+        .frame(height: 44)
+        .padding(.horizontal, Theme.spacingSMPlus)
+    }
+
+    /// Typing and pressing Search opens the results screen, as before.
+    private var searchField: some View {
+        HStack(spacing: Theme.spacingSM) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 16, weight: .regular))
+                .foregroundStyle(Theme.textSecondary)
+                .accessibilityHidden(true)
+            TextField("", text: $searchText, prompt: Text("Search all notes").foregroundStyle(Theme.placeholder))
+                .font(.system(size: 16))
+                .foregroundStyle(Theme.textPrimary)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+                .onSubmit {
+                    guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                    submittedSearchText = searchText
+                    isShowingSearchResults = true
+                }
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(Theme.textSecondary)
+                        .frame(width: 32, height: Theme.touchMin)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(TDPressStyle())
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.leading, Theme.spacingSMPlus)
+        .padding(.trailing, Theme.spacingSM)
+        .frame(height: Theme.touchMin)
+        .background(RoundedRectangle(cornerRadius: Theme.radiusInput).fill(Theme.surface))
     }
 
     private var isShowingInitialLoader: Bool {
@@ -97,203 +145,168 @@ struct BrowseView: View {
             && viewModel.noteTypeRows.isEmpty
     }
 
+    /// Paper's order: Recent and Routines, then categories, then types,
+    /// dates, media kinds and archived categories.
     private var folderList: some View {
-        List {
+        VStack(alignment: .leading, spacing: 0) {
             errorSection
             recategorizingSection
-            recentSection
-            routinesSection
-            activeCategoriesSection
-            dateGroupSection
-            mimeTypeSection
-            noteTypeSection
-            archivedCategoriesSection
+
+            VStack(spacing: 0) {
+                NavigationLink {
+                    NotesListView(title: "Recent", filter: .recent(limit: 10))
+                } label: {
+                    BrowseRow(systemImage: "clock", title: "Recent", count: viewModel.recentCount)
+                }
+                // Always shown, even before the first routine, so routines
+                // can be created from the phone (the web nav shows its entry
+                // the same way).
+                NavigationLink {
+                    RoutinesListView()
+                } label: {
+                    BrowseRow(
+                        systemImage: "repeat",
+                        title: "Routines",
+                        count: viewModel.routineCount,
+                        detail: viewModel.routineOpenAskCount > 0
+                            ? "\(viewModel.routineOpenAskCount) to review"
+                            : nil
+                    )
+                }
+            }
+            .buttonStyle(TDPressStyle())
+            .padding(.top, Theme.spacingLG)
+
+            categorySection(title: "Categories", rows: viewModel.categoryRows, isArchived: false, showsEdit: true)
+            plainSection(title: "Types", rows: viewModel.noteTypeRows, kind: .noteType) { _ in "tag" }
+            plainSection(title: "Dates", rows: viewModel.dateGroupRows, kind: .dateGroup) { _ in "calendar" }
+            plainSection(title: "Media kinds", rows: viewModel.mimeTypeRows, kind: .mimeType, systemImage: symbolForMediaKind)
+            categorySection(title: "Archived", rows: viewModel.archivedCategoryRows, isArchived: true, showsEdit: false)
         }
     }
 
     @ViewBuilder
     private var errorSection: some View {
         if let error = viewModel.errorMessage {
-            Section {
-                Label(error, systemImage: "exclamationmark.circle")
-                    .font(.system(size: Theme.fontSizeSM))
-                    .foregroundColor(Theme.textPrimary)
-            }
-            .listRowBackground(Theme.surface)
+            Label(error, systemImage: "exclamationmark.circle")
+                .font(.system(size: Theme.fontSizeSM))
+                .foregroundColor(Theme.textPrimary)
+                .padding(.top, Theme.spacingLG)
         }
     }
 
     @ViewBuilder
     private var recategorizingSection: some View {
         if let job = recategorizationTracker.currentActiveJob {
-            Section {
-                ReCategorizingBanner(
-                    categoryName: job.categoryName,
-                    affectedCount: job.total > 0 ? job.total : job.noteCount,
-                    onDismiss: nil
-                )
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: Theme.spacingSM, leading: Theme.spacingMD, bottom: Theme.spacingSM, trailing: Theme.spacingMD))
-            }
-        }
-    }
-
-    private var recentSection: some View {
-        Section {
-            NavigationLink {
-                NotesListView(title: "Recent", filter: .recent(limit: 10))
-            } label: {
-                BrowseFolderRowView(icon: "🕐", title: "Recent", count: viewModel.recentCount)
-            }
-            .listRowBackground(Theme.surface)
-        } header: {
-            Text("Recent")
-                .sectionLabel()
-                .foregroundColor(Theme.textSecondary)
-        }
-    }
-
-    /// Always shown, even before the first routine, so routines can be
-    /// created from the phone (the web nav shows its entry the same way).
-    private var routinesSection: some View {
-        Section {
-            NavigationLink {
-                RoutinesListView()
-            } label: {
-                BrowseFolderRowView(
-                    icon: "🔁",
-                    title: "Routines",
-                    count: viewModel.routineCount,
-                    statusText: viewModel.routineOpenAskCount > 0
-                        ? "\(viewModel.routineOpenAskCount) to review"
-                        : nil
-                )
-            }
-            .listRowBackground(Theme.surface)
-        } header: {
-            Text("Routines")
-                .sectionLabel()
-                .foregroundColor(Theme.textSecondary)
-        }
-    }
-
-    @ViewBuilder
-    private var activeCategoriesSection: some View {
-        if !viewModel.categoryRows.isEmpty {
-            Section {
-                ForEach(viewModel.categoryRows) { row in
-                    categoryNavigationLink(row: row, icon: "📁", isArchived: false)
-                }
-            } header: {
-                Text("Active Categories")
-                    .sectionLabel()
-                    .foregroundColor(Theme.textSecondary)
-            }
-        }
-    }
-
-    private var dateGroupSection: some View {
-        Section {
-            ForEach(viewModel.dateGroupRows) { row in
-                NavigationLink {
-                    BrowseFolderDestinationView(kind: .dateGroup, name: row.name, count: row.count, categoryId: nil)
-                } label: {
-                    BrowseFolderRowView(icon: "📅", title: row.name, count: row.count)
-                }
-                .listRowBackground(Theme.surface)
-            }
-        } header: {
-            Text("Date Groups")
-                .sectionLabel()
-                .foregroundColor(Theme.textSecondary)
-        }
-    }
-
-    private var mimeTypeSection: some View {
-        Section {
-            ForEach(viewModel.mimeTypeRows) { row in
-                NavigationLink {
-                    BrowseFolderDestinationView(kind: .mimeType, name: row.name, count: row.count, categoryId: nil)
-                } label: {
-                    BrowseFolderRowView(icon: emojiForMimeType(row.name), title: row.name, count: row.count)
-                }
-                .listRowBackground(Theme.surface)
-            }
-        } header: {
-            Text("File Types")
-                .sectionLabel()
-                .foregroundColor(Theme.textSecondary)
-        }
-    }
-
-    /// Note types the user's notes have (Recipe, To-Do, …), each with its count.
-    @ViewBuilder
-    private var noteTypeSection: some View {
-        if !viewModel.noteTypeRows.isEmpty {
-            Section {
-                ForEach(viewModel.noteTypeRows) { row in
-                    NavigationLink {
-                        BrowseFolderDestinationView(kind: .noteType, name: row.name, count: row.count, categoryId: nil)
-                    } label: {
-                        BrowseFolderRowView(icon: "🏷️", title: row.name, count: row.count)
-                    }
-                    .listRowBackground(Theme.surface)
-                }
-            } header: {
-                Text("Types")
-                    .sectionLabel()
-                    .foregroundColor(Theme.textSecondary)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var archivedCategoriesSection: some View {
-        if !viewModel.archivedCategoryRows.isEmpty {
-            Section {
-                ForEach(viewModel.archivedCategoryRows) { row in
-                    categoryNavigationLink(row: row, icon: "🗄️", isArchived: true)
-                }
-            } header: {
-                Text("Archived Categories")
-                    .sectionLabel()
-                    .foregroundColor(Theme.textSecondary)
-            }
-        }
-    }
-
-    private func categoryNavigationLink(row: BrowseViewModel.FolderRow, icon: String, isArchived: Bool) -> some View {
-        NavigationLink {
-            BrowseFolderDestinationView(
-                kind: .category,
-                name: row.name,
-                count: row.count,
-                categoryId: row.categoryId,
-                isArchivedCategory: isArchived
+            ReCategorizingBanner(
+                categoryName: job.categoryName,
+                affectedCount: job.total > 0 ? job.total : job.noteCount,
+                onDismiss: nil
             )
-        } label: {
-            BrowseFolderRowView(
-                icon: icon,
-                title: row.name,
-                count: row.count,
-                statusText: categoryStatusText(for: row)
-            )
+            .padding(.top, Theme.spacingLG)
         }
-        .listRowBackground(Theme.surface)
     }
 
-    private func emojiForMimeType(_ name: String) -> String {
+    private func sectionHeader(_ title: String, showsEdit: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            TDSectionLabel(title: title)
+            Spacer()
+            if showsEdit {
+                Button("Edit") {
+                    showManageCategories = true
+                }
+                .buttonStyle(TDTextLinkStyle(size: 13))
+                .accessibilityHint("Add, rename or archive your categories")
+            }
+        }
+        .padding(.top, Theme.spacingXL)
+        .padding(.bottom, Theme.spacingXS)
+    }
+
+    @ViewBuilder
+    private func categorySection(title: String, rows: [BrowseViewModel.FolderRow], isArchived: Bool, showsEdit: Bool) -> some View {
+        if !rows.isEmpty || showsEdit {
+            sectionHeader(title, showsEdit: showsEdit)
+            rowList(rows) { row in
+                NavigationLink {
+                    BrowseFolderDestinationView(
+                        kind: .category,
+                        name: row.name,
+                        count: row.count,
+                        categoryId: row.categoryId,
+                        isArchivedCategory: isArchived
+                    )
+                } label: {
+                    BrowseRow(
+                        emoji: row.emoji,
+                        title: row.name,
+                        count: row.count,
+                        justLanded: isArchived ? 0 : justLandedCount(for: row),
+                        detail: categoryStatusText(for: row)
+                    )
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func plainSection(
+        title: String,
+        rows: [BrowseViewModel.FolderRow],
+        kind: BrowseFolderDestinationView.Kind,
+        systemImage: @escaping (String) -> String
+    ) -> some View {
+        if !rows.isEmpty {
+            sectionHeader(title, showsEdit: false)
+            rowList(rows) { row in
+                NavigationLink {
+                    BrowseFolderDestinationView(kind: kind, name: row.name, count: row.count, categoryId: nil)
+                } label: {
+                    BrowseRow(systemImage: systemImage(row.name), title: row.name, count: row.count)
+                }
+            }
+        }
+    }
+
+    /// Flat rows with 0.5pt hairlines between them.
+    private func rowList<Row: View>(
+        _ rows: [BrowseViewModel.FolderRow],
+        @ViewBuilder row: @escaping (BrowseViewModel.FolderRow) -> Row
+    ) -> some View {
+        VStack(spacing: 0) {
+            ForEach(rows) { item in
+                if item.id != rows.first?.id {
+                    TDHairline()
+                }
+                row(item)
+            }
+        }
+        .buttonStyle(TDPressStyle())
+    }
+
+    private func symbolForMediaKind(_ name: String) -> String {
         let lower = name.lowercased()
-        if lower.hasPrefix("image") { return "📷" }
-        if lower.hasPrefix("audio") || lower.hasPrefix("voice") { return "🎤" }
-        if lower.hasPrefix("text") { return "✏️" }
-        if lower.hasPrefix("document") || lower.hasPrefix("application") { return "📤" }
-        return "📎"
+        if lower.hasPrefix("image") || lower.hasPrefix("photo") { return "photo" }
+        if lower.hasPrefix("audio") || lower.hasPrefix("voice") { return "mic" }
+        if lower.hasPrefix("text") { return "text.alignleft" }
+        if lower.hasPrefix("document") || lower.hasPrefix("application") { return "doc" }
+        return "paperclip"
     }
 
     private func categoryStatusText(for row: BrowseViewModel.FolderRow) -> String? {
         guard let categoryId = row.categoryId else { return nil }
         return recategorizationTracker.isRecategorizing(categoryId: categoryId) ? "Re-categorizing" : nil
+    }
+
+    /// Notes captured on this phone that landed in this category and haven't
+    /// been opened or dismissed yet. Older records have no category id, so
+    /// they match by name.
+    private func justLandedCount(for row: BrowseViewModel.FolderRow) -> Int {
+        pendingNotes.records.filter { record in
+            guard record.lifecycleStatus == .organized else { return false }
+            if let id = record.categoryId { return id == row.categoryId }
+            return record.categoryName?.caseInsensitiveCompare(row.name) == .orderedSame
+        }.count
     }
 }
 
@@ -445,51 +458,79 @@ private struct SearchResultRowView: View {
     }
 }
 
-private struct BrowseFolderRowView: View {
-    let icon: String
+/// One Browse row (Paper, 02 Browse): an icon or a category's emoji, the
+/// name, an amber "+N" when notes from this phone just landed there, the
+/// count (amber with it) and a chevron.
+private struct BrowseRow: View {
+    var systemImage: String?
+    var emoji: String?
     let title: String
     let count: Int
-    let statusText: String?
+    var justLanded = 0
+    var detail: String?
 
-    init(icon: String, title: String, count: Int, statusText: String? = nil) {
-        self.icon = icon
+    init(systemImage: String, title: String, count: Int, detail: String? = nil) {
+        self.systemImage = systemImage
         self.title = title
         self.count = count
-        self.statusText = statusText
+        self.detail = detail
+    }
+
+    init(emoji: String?, title: String, count: Int, justLanded: Int, detail: String?) {
+        self.emoji = emoji
+        self.title = title
+        self.count = count
+        self.justLanded = justLanded
+        self.detail = detail
     }
 
     var body: some View {
         HStack(spacing: Theme.spacingSMPlus) {
-            Text(icon)
-                .font(.system(size: 18))
-                .frame(width: 32, height: 32)
-                .background(Theme.surface2)
-                .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadiusCatIcon))
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: Theme.spacingXS) {
-                    Text(title)
-                        .font(.system(size: Theme.fontSizeMD, weight: .medium))
-                        .foregroundColor(Theme.textPrimary)
-                    if let statusText {
-                        Text(statusText)
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(Theme.warning)
-                            .padding(.horizontal, Theme.spacingSM)
-                            .padding(.vertical, 3)
-                            .background(Theme.warning.opacity(0.14))
-                            .clipShape(Capsule())
-                    }
+            HStack(spacing: systemImage == nil ? 6 : Theme.spacingSMPlus) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 16, weight: .regular))
+                        .foregroundStyle(Theme.textSecondary)
+                        .frame(width: 18, height: 18)
+                        .accessibilityHidden(true)
+                } else {
+                    // A fixed width, so names line up whether a category
+                    // has an emoji or the folder stand-in.
+                    CategoryGlyph(emoji: emoji, size: 16)
+                        .frame(width: 20)
+                }
+                Text(title)
+                    .tdBody()
+                    .foregroundStyle(Theme.textPrimary)
+                    .lineLimit(1)
+                if let detail {
+                    Text(detail)
+                        .tdCaption()
+                        .foregroundStyle(Theme.textSecondary)
+                        .lineLimit(1)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer()
-
+            if justLanded > 0 {
+                Text("+\(justLanded)")
+                    .font(.system(size: 13))
+                    .monospacedDigit()
+                    .foregroundStyle(Theme.amber)
+            }
             Text("\(count)")
-                .font(.system(size: Theme.fontSizeSM, weight: .semibold))
-                .foregroundColor(Theme.textSecondary)
+                .font(.system(size: 16))
+                .monospacedDigit()
+                .foregroundStyle(justLanded > 0 ? Theme.amber : Theme.textSecondary)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(Theme.textSecondary)
+                .accessibilityHidden(true)
         }
-        .padding(.vertical, Theme.spacingXS)
+        .frame(minHeight: 48)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(justLanded > 0 ? "\(count) notes, \(justLanded) just landed" : "\(count) notes")
     }
 }
 

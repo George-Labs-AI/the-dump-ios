@@ -133,6 +133,7 @@ enum NoteStatusMapping {
             updated.organizedNoteId = entry.organizedNoteId
             updated.title = entry.title
             updated.categoryName = entry.categoryName
+            updated.categoryId = entry.categoryId
         case .failed:
             updated.lifecycleStatus = .failed
             if let message = entry.error, !message.isEmpty {

@@ -214,6 +214,11 @@ struct NoteDetailView: View {
         .task {
             await viewModel.loadIfNeeded()
         }
+        .task(id: noteID) {
+            // Opening a note counts as seeing it: clears its "+1" on Browse
+            // and its Processing row on the Dump tab.
+            await PendingNotesStore.shared.acknowledge(organizedNoteId: noteID)
+        }
         .navigationTitle(navTitle)
     }
 

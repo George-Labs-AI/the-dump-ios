@@ -82,6 +82,19 @@ actor PendingNotesStore {
         update(fileUuid: fileUuid) { $0.acknowledged = true }
     }
 
+    /// Mark every organized record that became this note as acknowledged:
+    /// opening a note anywhere counts as seeing it, which clears its "+1" on
+    /// Browse and its row on the Dump tab.
+    func acknowledge(organizedNoteId: String) {
+        loadPersistedRecordsIfNeeded()
+        let matches = recordsByUuid.values.filter {
+            $0.organizedNoteId == organizedNoteId && !$0.acknowledged
+        }
+        for record in matches {
+            update(fileUuid: record.fileUuid) { $0.acknowledged = true }
+        }
+    }
+
     func remove(fileUuid: String) {
         loadPersistedRecordsIfNeeded()
         guard recordsByUuid.removeValue(forKey: fileUuid) != nil else { return }

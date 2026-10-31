@@ -16,6 +16,8 @@ final class BrowseViewModel: ObservableObject {
         let kind: Kind
         let name: String
         let count: Int
+        /// Categories only: the category's own emoji, if one was chosen.
+        var emoji: String?
         
         var id: String { stableID ?? "\(kind)-\(name)" }
     }
@@ -138,7 +140,8 @@ final class BrowseViewModel: ObservableObject {
                     categoryId: categoryId,
                     kind: .category,
                     name: displayName,
-                    count: detail.count
+                    count: detail.count,
+                    emoji: detail.emoji
                 ),
                 archived: detail.isRetired
             )
