@@ -40,10 +40,12 @@ class AudioRecorderService: NSObject, ObservableObject {
     
     private var audioRecorder: AVAudioRecorder?
     private var timer: Timer?
-    /// Pause, rather than silently stop, when a call or another app takes
-    /// the microphone. The voice recorder turns this on; it shows "Paused"
-    /// and a Resume button. A paused memo never restarts on its own.
-    var pausesOnInterruption = false
+    /// End the memo and keep what was recorded when a call or another app
+    /// takes the microphone. It can't be paused instead: by then the system
+    /// has already stopped the recorder, and starting it again would write a
+    /// new file over everything said before the call. The voice recorder
+    /// turns this on, so it goes straight to "Ready to dump."
+    var stopsOnInterruption = false
     private var interruptionCancellable: AnyCancellable?
     private var startTime: Date?
     
@@ -57,10 +59,13 @@ class AudioRecorderService: NSObject, ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] notification in
                 MainActor.assumeIsolated {
-                    guard let self, self.pausesOnInterruption, self.state == .recording,
+                    // A call during a pause ends the memo too, because
+                    // Resume after it would have the same problem.
+                    guard let self, self.stopsOnInterruption,
+                          self.state == .recording || self.state == .paused,
                           let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
                           AVAudioSession.InterruptionType(rawValue: raw) == .began else { return }
-                    self.pauseRecording()
+                    self.stopRecording()
                 }
             }
     }
@@ -125,8 +130,6 @@ class AudioRecorderService: NSObject, ObservableObject {
     }
     
     func resumeRecording() {
-        // An interruption switches the audio session off; switch it back on.
-        try? AVAudioSession.sharedInstance().setActive(true)
         guard audioRecorder?.record() == true else {
             errorMessage = "Couldn't resume recording"
             return

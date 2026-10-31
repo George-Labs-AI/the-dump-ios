@@ -20,7 +20,8 @@ struct VoiceMemoView: View {
     @State private var showDiscardConfirmation = false
     @State private var micUnavailable = false
     /// A failed upload's row on the Dump tab, removed when Upload is tried
-    /// again so it doesn't sit beside the new attempt.
+    /// again so it doesn't sit beside the new attempt, and when the
+    /// recording is discarded so it doesn't outlive it.
     @State private var failedSessionItemID: String?
     /// The last few level readings, newest last, drawn as the waveform.
     @State private var levels: [Float] = Array(repeating: 0, count: VoiceWaveform.barCount)
@@ -208,7 +209,7 @@ struct VoiceMemoView: View {
                 return
             }
         }
-        recorder.pausesOnInterruption = true
+        recorder.stopsOnInterruption = true
         do {
             try recorder.startRecording()
         } catch {
@@ -220,6 +221,10 @@ struct VoiceMemoView: View {
     private func discardAndClose() {
         if recorder.state != .idle {
             recorder.discardRecording()
+        }
+        if let failedSessionItemID {
+            sessionStore.removeItem(id: failedSessionItemID)
+            self.failedSessionItemID = nil
         }
         dismiss()
     }
