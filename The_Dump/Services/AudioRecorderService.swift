@@ -40,6 +40,13 @@ class AudioRecorderService: NSObject, ObservableObject {
     
     private var audioRecorder: AVAudioRecorder?
     private var timer: Timer?
+    /// End the memo and keep what was recorded when a call or another app
+    /// takes the microphone. It can't be paused instead: by then the system
+    /// has already stopped the recorder, and starting it again would write a
+    /// new file over everything said before the call. The voice recorder
+    /// turns this on, so it goes straight to "Ready to dump."
+    var stopsOnInterruption = false
+    private var interruptionCancellable: AnyCancellable?
     private var startTime: Date?
     
     static let maxDurationWarning: TimeInterval = 600 // 10 minutes
@@ -47,6 +54,20 @@ class AudioRecorderService: NSObject, ObservableObject {
     
     override init() {
         super.init()
+        interruptionCancellable = NotificationCenter.default
+            .publisher(for: AVAudioSession.interruptionNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] notification in
+                MainActor.assumeIsolated {
+                    // A call during a pause ends the memo too, because
+                    // Resume after it would have the same problem.
+                    guard let self, self.stopsOnInterruption,
+                          self.state == .recording || self.state == .paused,
+                          let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                          AVAudioSession.InterruptionType(rawValue: raw) == .began else { return }
+                    self.stopRecording()
+                }
+            }
     }
     
     // MARK: - Permissions
@@ -109,7 +130,10 @@ class AudioRecorderService: NSObject, ObservableObject {
     }
     
     func resumeRecording() {
-        audioRecorder?.record()
+        guard audioRecorder?.record() == true else {
+            errorMessage = "Couldn't resume recording"
+            return
+        }
         state = .recording
         startTimer()
     }
@@ -118,6 +142,12 @@ class AudioRecorderService: NSObject, ObservableObject {
         audioRecorder?.stop()
         state = .stopped
         stopTimer()
+        releaseAudioSession()
+    }
+
+    /// Let other apps' audio carry on once recording is done.
+    private func releaseAudioSession() {
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
     
     func discardRecording() {
@@ -129,6 +159,7 @@ class AudioRecorderService: NSObject, ObservableObject {
     }
     
     func reset() {
+        audioRecorder?.stop()
         audioRecorder = nil
         currentFileURL = nil
         state = .idle
@@ -137,6 +168,7 @@ class AudioRecorderService: NSObject, ObservableObject {
         stopTimer()
         errorMessage = nil
         level = 0
+        releaseAudioSession()
     }
     
     // MARK: - Timer

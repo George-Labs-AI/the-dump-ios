@@ -134,7 +134,9 @@ struct ContentView: View {
             guard !items.isEmpty else { return }
             handleLibrarySelection(items)
         }
-        .sheet(isPresented: $showVoiceMemo) {
+        // Full screen, so a stray swipe can't throw a recording away; it
+        // closes with Discard or after Upload.
+        .fullScreenCover(isPresented: $showVoiceMemo) {
             VoiceMemoView()
                 .environmentObject(appState)
                 .environmentObject(sessionStore)
