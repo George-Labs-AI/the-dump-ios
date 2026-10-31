@@ -64,8 +64,10 @@ struct TDMoreLabel: View {
 
 /// Screens with TDTopBar hide the system navigation bar, and UIKit turns the
 /// swipe-from-the-edge back gesture off with it. This turns it back on for
-/// every pushed screen (never on a stack's first screen, where it would
-/// freeze the stack). Checked in the simulator on 2026-10-30.
+/// pushed screens, keeping UIKit's own rules: never on a stack's first
+/// screen (it would freeze the stack), not while a push or pop is still
+/// animating, and not where a screen hides its back button to stop going
+/// back (creating a routine). Checked in the simulator on 2026-10-30.
 extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
     override open func viewDidLoad() {
         super.viewDidLoad()
@@ -74,5 +76,7 @@ extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
 
     public func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         viewControllers.count > 1
+            && transitionCoordinator == nil
+            && topViewController?.navigationItem.hidesBackButton != true
     }
 }
