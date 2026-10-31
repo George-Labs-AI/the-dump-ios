@@ -19,6 +19,9 @@ struct VoiceMemoView: View {
     @State private var showPermissionAlert = false
     @State private var showDiscardConfirmation = false
     @State private var micUnavailable = false
+    /// A failed upload's row on the Dump tab, removed when Upload is tried
+    /// again so it doesn't sit beside the new attempt.
+    @State private var failedSessionItemID: String?
     /// The last few level readings, newest last, drawn as the waveform.
     @State private var levels: [Float] = Array(repeating: 0, count: VoiceWaveform.barCount)
 
@@ -41,7 +44,7 @@ struct VoiceMemoView: View {
                         .monospacedDigit()
                         .foregroundStyle(Theme.textPrimary)
                         .accessibilityLabel("Length")
-                        .accessibilityValue(Self.timerText(recorder.duration))
+                        .accessibilityValue(Self.spokenLength(recorder.duration))
                     Text(caption)
                         .tdCaption()
                         .foregroundStyle(Theme.textSecondary)
@@ -69,10 +72,19 @@ struct VoiceMemoView: View {
         .task {
             await startWhenAllowed()
         }
-        .onChange(of: recorder.level) { _, newLevel in
+        // Each recording tick (the timer moves only while recording) moves
+        // the waveform on, so silence draws as low bars instead of freezing.
+        .onChange(of: recorder.duration) { _, _ in
             guard recorder.state == .recording else { return }
             levels.removeFirst()
-            levels.append(newLevel)
+            levels.append(recorder.level)
+        }
+        .onDisappear {
+            // Closed some other way than Discard or Upload (signed out, say):
+            // don't leave the file or the timer behind.
+            if !isUploading, recorder.state != .idle {
+                recorder.discardRecording()
+            }
         }
         .alert("Microphone Access Required", isPresented: $showPermissionAlert) {
             Button("Open Settings") {
@@ -98,7 +110,7 @@ struct VoiceMemoView: View {
         if micUnavailable { return "The microphone is off for The Dump." }
         switch recorder.state {
         case .idle:
-            return "Starting…"
+            return recorder.errorMessage == nil ? "Starting…" : "Couldn't start recording."
         case .recording:
             return recorder.isOverWarningLimit
                 ? "Recording is getting long. Consider stopping soon."
@@ -153,11 +165,20 @@ struct VoiceMemoView: View {
             }
 
         case .idle:
-            Button("Close") {
-                dismiss()
+            VStack(spacing: Theme.spacingMD) {
+                if recorder.errorMessage != nil, !micUnavailable {
+                    Button("Try again") {
+                        recorder.errorMessage = nil
+                        Task { await startWhenAllowed() }
+                    }
+                    .buttonStyle(TDPrimaryButtonStyle())
+                }
+                Button("Close") {
+                    dismiss()
+                }
+                .buttonStyle(TDTextLinkStyle(size: 17))
+                .fontWeight(.medium)
             }
-            .buttonStyle(TDTextLinkStyle(size: 17))
-            .fontWeight(.medium)
         }
     }
 
@@ -186,9 +207,11 @@ struct VoiceMemoView: View {
                 return
             }
         }
+        recorder.pausesOnInterruption = true
         do {
             try recorder.startRecording()
         } catch {
+            recorder.reset()
             recorder.errorMessage = error.localizedDescription
         }
     }
@@ -201,21 +224,31 @@ struct VoiceMemoView: View {
     }
 
     private func uploadRecording() {
+        guard !isUploading else { return }
         guard let fileURL = recorder.currentFileURL else {
             uploadError = "No recording found"
             return
         }
 
+        // Set at the tap, before any wait, so Upload and Discard are off
+        // while the sign-in token is fetched too.
+        isUploading = true
+        uploadError = nil
+        uploadProgress = 0
+
         Task {
             guard let email = appState.userEmail,
                   let idToken = await appState.idToken else {
                 uploadError = "Not authenticated"
+                uploadProgress = nil
+                isUploading = false
                 return
             }
 
-            isUploading = true
-            uploadError = nil
-            uploadProgress = 0
+            if let failedSessionItemID {
+                sessionStore.removeItem(id: failedSessionItemID)
+                self.failedSessionItemID = nil
+            }
 
             // Create session item
             let item = SessionItem(
@@ -250,12 +283,20 @@ struct VoiceMemoView: View {
                 dismiss()
             } catch {
                 sessionStore.markFailed(id: item.id, error: error.localizedDescription)
+                failedSessionItemID = item.id
                 uploadError = error.localizedDescription
                 uploadProgress = nil
             }
 
             isUploading = false
         }
+    }
+
+    /// "1 minute, 12 seconds": what VoiceOver says, so a length isn't read
+    /// as a time of day.
+    static func spokenLength(_ duration: TimeInterval) -> String {
+        Duration.seconds(max(0, Int(duration)))
+            .formatted(.units(allowed: [.minutes, .seconds], width: .wide))
     }
 
     /// "1:12": minutes without a leading zero, as on Paper.

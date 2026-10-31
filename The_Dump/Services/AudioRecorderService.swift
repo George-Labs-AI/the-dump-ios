@@ -40,6 +40,11 @@ class AudioRecorderService: NSObject, ObservableObject {
     
     private var audioRecorder: AVAudioRecorder?
     private var timer: Timer?
+    /// Pause, rather than silently stop, when a call or another app takes
+    /// the microphone. The voice recorder turns this on; it shows "Paused"
+    /// and a Resume button. A paused memo never restarts on its own.
+    var pausesOnInterruption = false
+    private var interruptionCancellable: AnyCancellable?
     private var startTime: Date?
     
     static let maxDurationWarning: TimeInterval = 600 // 10 minutes
@@ -47,6 +52,17 @@ class AudioRecorderService: NSObject, ObservableObject {
     
     override init() {
         super.init()
+        interruptionCancellable = NotificationCenter.default
+            .publisher(for: AVAudioSession.interruptionNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] notification in
+                MainActor.assumeIsolated {
+                    guard let self, self.pausesOnInterruption, self.state == .recording,
+                          let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                          AVAudioSession.InterruptionType(rawValue: raw) == .began else { return }
+                    self.pauseRecording()
+                }
+            }
     }
     
     // MARK: - Permissions
@@ -109,7 +125,12 @@ class AudioRecorderService: NSObject, ObservableObject {
     }
     
     func resumeRecording() {
-        audioRecorder?.record()
+        // An interruption switches the audio session off; switch it back on.
+        try? AVAudioSession.sharedInstance().setActive(true)
+        guard audioRecorder?.record() == true else {
+            errorMessage = "Couldn't resume recording"
+            return
+        }
         state = .recording
         startTimer()
     }
@@ -118,6 +139,12 @@ class AudioRecorderService: NSObject, ObservableObject {
         audioRecorder?.stop()
         state = .stopped
         stopTimer()
+        releaseAudioSession()
+    }
+
+    /// Let other apps' audio carry on once recording is done.
+    private func releaseAudioSession() {
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
     
     func discardRecording() {
@@ -129,6 +156,7 @@ class AudioRecorderService: NSObject, ObservableObject {
     }
     
     func reset() {
+        audioRecorder?.stop()
         audioRecorder = nil
         currentFileURL = nil
         state = .idle
@@ -137,6 +165,7 @@ class AudioRecorderService: NSObject, ObservableObject {
         stopTimer()
         errorMessage = nil
         level = 0
+        releaseAudioSession()
     }
     
     // MARK: - Timer
