@@ -20,9 +20,10 @@ struct SubCategoryPill: Identifiable, Equatable {
     /// server matches it exactly (case included) against the names stored on
     /// notes, so this is the stored spelling whenever one is known.
     let name: String
-    /// Notes with this sub-category, from /api/note_counts. The server counts
-    /// by name across all categories, so two categories with a sub-category of
-    /// the same name share one number. Nil when counts couldn't be loaded.
+    /// Notes in this category with this sub-category, from the category's
+    /// own sub-category list (or, when that fails, /api/note_counts, which
+    /// counts by name across all categories). Nil when counts couldn't be
+    /// loaded.
     let count: Int?
 
     var id: String { CategoryMapResponse.key(name) }

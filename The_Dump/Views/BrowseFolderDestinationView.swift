@@ -24,19 +24,23 @@ struct BrowseFolderDestinationView: View {
     let count: Int
     let categoryId: Int?
     let isArchivedCategory: Bool
+    /// Categories only: shown before the name in the list's headline.
+    let emoji: String?
 
     init(
         kind: Kind,
         name: String,
         count: Int,
         categoryId: Int?,
-        isArchivedCategory: Bool = false
+        isArchivedCategory: Bool = false,
+        emoji: String? = nil
     ) {
         self.kind = kind
         self.name = name
         self.count = count
         self.categoryId = categoryId
         self.isArchivedCategory = isArchivedCategory
+        self.emoji = emoji
     }
     
     @ViewBuilder
@@ -47,6 +51,7 @@ struct BrowseFolderDestinationView: View {
                 NotesListView(
                     title: name,
                     filter: .category(id: categoryId, name: name),
+                    emoji: emoji,
                     categoryIsArchived: isArchivedCategory,
                     categoryNoteCount: count
                 )
