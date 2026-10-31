@@ -13,25 +13,25 @@ nonisolated enum PlainTextPreview {
         for (pattern, template) in inlineRules {
             text = text.replacingOccurrences(of: pattern, with: template, options: .regularExpression)
         }
-        // A photo or recording's text starts with a label such as
-        // "*Image (photo):*" that only says what kind of capture it was.
-        text = text.replacingOccurrences(of: #"^(Image|Audio|Document|File) \([^)]*\):\s*"#,
-                                         with: "", options: .regularExpression)
         return text
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespaces)
     }
 
-    /// Block markers at the start of a line: quotes, headings, list bullets,
-    /// numbers and task boxes.
+    /// Block markers at the start of a line: quotes, the label a photo's or
+    /// document's description starts with ("*Image (photo):*", on its own
+    /// line, after any text read from it), headings, rules, list bullets,
+    /// numbers and task boxes. Rules come before bullets, so "* * *" isn't
+    /// read as a bullet.
     private static func stripLineMarkers(_ line: String) -> String {
         var text = line.trimmingCharacters(in: .whitespaces)
         let prefixes = [
             #"^(>\s*)+"#,
+            #"^\*?(Image|Audio|Document|File) \([^)]*\):\*?\s*"#,
             #"^#{1,6}\s+"#,
+            #"^([-*_]\s*){3,}$"#,
             #"^([-*+]|\d+[.)])\s+"#,
-            #"^\[[ xX]\]\s+"#,
-            #"^([-*_]\s*){3,}$"#
+            #"^\[[ xX]\]\s+"#
         ]
         for pattern in prefixes {
             text = text.replacingOccurrences(of: pattern, with: "", options: .regularExpression)

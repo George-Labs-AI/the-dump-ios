@@ -4,11 +4,25 @@ import XCTest
 /// Raw markdown previews become the clean text the Dump and Category rows
 /// show.
 final class PlainTextPreviewTests: XCTestCase {
-    func testPhotoLabelAndQuoteAreDropped() {
+    /// The two shapes the file service writes for a photo: a description
+    /// alone, or the text read from it followed by a quoted description.
+    func testPhotoLabelIsDropped() {
         XCTAssertEqual(
-            PlainTextPreview.text(from: "> *Image (photo):* A close-up of a **whiteboard** with notes."),
+            PlainTextPreview.text(from: "*Image (photo):* A close-up of a **whiteboard** with notes."),
             "A close-up of a whiteboard with notes."
         )
+        XCTAssertEqual(
+            PlainTextPreview.text(from: "Q4 goals\nShip iOS\n\n> *Image (handwriting):* A whiteboard with notes."),
+            "Q4 goals Ship iOS A whiteboard with notes."
+        )
+        XCTAssertEqual(
+            PlainTextPreview.text(from: "Agenda\n\n> *Document (slide deck):* A deck about Q4."),
+            "Agenda A deck about Q4."
+        )
+    }
+
+    func testSpacedRulesAreDropped() {
+        XCTAssertEqual(PlainTextPreview.text(from: "Intro\n* * *\n- - -\n---\nMore"), "Intro More")
     }
 
     func testHeadingsListsAndLinesAreJoined() {

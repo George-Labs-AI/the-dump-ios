@@ -119,8 +119,8 @@ struct ContentView: View {
         // screenshots and saved images live — the Files picker can't see
         // those). The library picker runs out of process, so it needs no
         // photo-library permission prompt. The source dialog itself is
-        // attached to the Photo tile (CaptureButtonsSection) so that where
-        // iOS presents it as a popover it anchors to that tile.
+        // attached to the "+" menu in CaptureBar so that where iOS presents
+        // it as a popover it anchors to that button.
         .sheet(isPresented: $showCamera) {
             CameraView(image: $capturedImage)
         }
@@ -477,7 +477,7 @@ struct ClaudeHintCard: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 0) {
+        HStack(alignment: .top, spacing: 6) {
             Button(action: onOpen) {
                 HStack(alignment: .top, spacing: Theme.spacingSMPlus) {
                     Image(systemName: "bubble.left")
@@ -487,12 +487,16 @@ struct ClaudeHintCard: View {
                         .padding(.top, 3)
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: Theme.spacingXS) {
+                        // The padding gives each line Paper's full line
+                        // box: 24 for the title, 18 for the caption.
                         Text("Send notes from Claude or ChatGPT.")
                             .tdBody()
+                            .padding(.vertical, 2.5)
                             .foregroundStyle(Theme.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
                         Text("Set it up in Settings → Connect to Claude.")
                             .tdCaption()
+                            .padding(.vertical, 1.25)
                             .foregroundStyle(Theme.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -519,6 +523,7 @@ struct ClaudeHintCard: View {
         }
         .padding(.vertical, Theme.spacingMD)
         .padding(.leading, Theme.spacingMD)
+        .padding(.trailing, 3)
         .overlay(
             RoundedRectangle(cornerRadius: Theme.radiusCard)
                 .strokeBorder(Theme.hairline, lineWidth: 1)
@@ -611,8 +616,8 @@ private struct ProcessingRowLayout<Below: View>: View {
 }
 
 /// Small text buttons under a pill ("Open", "Dismiss"). Each keeps a 44pt
-/// hit area; the negative padding lets that area overlap the gap above and
-/// the row's padding below, so the row keeps Paper's spacing.
+/// hit area but lays out at Paper's 32pt, so the hit area overlaps 6pt of
+/// the gap above and of the row's padding below.
 private struct ProcessingRowActions<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
@@ -620,8 +625,7 @@ private struct ProcessingRowActions<Content: View>: View {
         HStack(spacing: Theme.spacingSMPlus) {
             content()
         }
-        .padding(.top, -Theme.spacingSM)
-        .padding(.bottom, -Theme.spacingSM)
+        .padding(.vertical, -6)
     }
 }
 

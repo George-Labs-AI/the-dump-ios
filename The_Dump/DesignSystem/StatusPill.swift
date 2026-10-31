@@ -21,6 +21,7 @@ struct TDStatusPill: View {
             case .symbol(let name):
                 Image(systemName: name)
                     .font(.system(size: 11, weight: .regular))
+                    .accessibilityHidden(true)
             case .dot:
                 Circle()
                     .frame(width: 6, height: 6)
