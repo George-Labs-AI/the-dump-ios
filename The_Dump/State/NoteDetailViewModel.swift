@@ -18,15 +18,44 @@ final class NoteDetailViewModel: ObservableObject {
     @Published private(set) var isLoadingAsset: Bool = false
     @Published private(set) var assetResponse: NoteAssetResponse? = nil
     @Published var assetErrorMessage: String? = nil
+    /// The original file's own media type, asked for only when the server
+    /// calls the note "text" (see checkOriginalFileType). Nil until known.
+    @Published private(set) var originalContentType: String?
 
     @Published private(set) var isEditing: Bool = false
     @Published var draft = NoteEditDraft()
     @Published private(set) var editOptions: NoteEditOptions = .empty
     @Published private(set) var isLoadingEditOptions: Bool = false
     @Published private(set) var editOptionsError: String?
+    /// Each category's own emoji, by id, for the category chip and sheets.
+    @Published private(set) var categoryEmojis: [Int: String] = [:]
 
     @Published private(set) var isDeleting: Bool = false
     @Published var deleteErrorMessage: String?
+
+    /// What the top bar says while the title or body is being edited.
+    enum SaveState: Equatable {
+        case idle
+        case saving
+        case saved
+        case titleRequired
+        case failed
+    }
+
+    @Published private(set) var saveState: SaveState = .idle
+    /// The title or body is being typed into (tap to edit, Done to finish).
+    @Published private(set) var isEditingText: Bool = false
+
+    private var autosaveTask: Task<Void, Never>?
+    /// A change typed while a save was in flight; saved when it finishes.
+    private var autosaveQueued = false
+    private static let autosaveDelay: Duration = .milliseconds(800)
+    private static let retryDelay: Duration = .seconds(5)
+    /// Saves still running from screens left mid-edit, by note ID. Each
+    /// opening builds a new model, so without this a note opened again
+    /// could load before the save lands, show the text from before the
+    /// edit, and then autosave that older text over it.
+    private static var savesOnLeave: [String: Task<Void, Never>] = [:]
 
     private let noteID: String
     private var subCategoryObserver: NSObjectProtocol?
@@ -86,6 +115,11 @@ final class NoteDetailViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // Opened again while the last visit's edit is still saving: wait for
+        // that save (the screen says "Loading…"), so this one shows the
+        // saved text rather than the text from before it.
+        await Self.waitForSaveOnLeave(of: noteID)
+
         do {
             let notes = try await NotesService.shared.fetchFullNote(ids: [noteID])
             if let loaded = notes.first {
@@ -98,6 +132,22 @@ final class NoteDetailViewModel: ObservableObject {
         }
 
         isLoading = false
+        // Not awaited, so the category list the screen loads next isn't
+        // held up by it.
+        Task { [weak self] in await self?.checkOriginalFileType() }
+    }
+
+    /// The server calls every file type it doesn't recognise "text" (videos,
+    /// Keynote files, zips, web pages), so on its own the note looks like a
+    /// typed one. For a "text" note with a file, ask what the file really
+    /// is; the row stays hidden until the answer comes, so typed notes never
+    /// flash it. If the check fails, the row stays hidden until the note is
+    /// opened again.
+    private func checkOriginalFileType() async {
+        guard originalContentType == nil, let note, note.has_asset == true,
+              Self.originalFileKind(for: note) == .text,
+              let asset = try? await NotesService.shared.fetchNoteAsset(noteId: noteID) else { return }
+        originalContentType = asset.content_type
     }
 
     /// Set the note together with its parsed body, so read mode never shows
@@ -145,6 +195,10 @@ final class NoteDetailViewModel: ObservableObject {
             // Sub-categories are optional: the note's own still show without them.
             let map = try? await mapResponse
             editOptions = NoteEditOptions(categories: categories.categories, map: map)
+            categoryEmojis = Dictionary(
+                categories.categories.compactMap { category in category.emoji.map { (category.categoryId, $0) } },
+                uniquingKeysWith: { first, _ in first }
+            )
             draft.adoptCategoryID(from: editOptions)
         } catch {
             editOptionsError = "Couldn't load your categories."
@@ -180,7 +234,7 @@ final class NoteDetailViewModel: ObservableObject {
         guard !isSaving else { return false }
         errorMessage = nil
 
-        guard draft.isTitleValid else {
+        guard draft.isTitleSaveable else {
             errorMessage = "Title is required."
             return false
         }
@@ -217,7 +271,12 @@ final class NoteDetailViewModel: ObservableObject {
                     ?? currentNote.category_name,
                 sub_cat_names: updated.sub_cat_names ?? changes.subCategories ?? currentNote.sub_cat_names,
                 tags: currentNote.tags,
-                mime_type: updated.mime_type ?? currentNote.mime_type,
+                // A move never changes the original file, so keep the media
+                // type the note loaded with ("image", "voice", "document" or
+                // "text"). This reply sends the raw stored value instead
+                // ("svg+xml", "x-aiff"), and the app doesn't recognise all
+                // of those, so the original-file row would vanish.
+                mime_type: currentNote.mime_type,
                 note_type: updated.note_type ?? changes.type ?? currentNote.note_type,
                 author: currentNote.author,
                 has_asset: currentNote.has_asset
@@ -231,6 +290,290 @@ final class NoteDetailViewModel: ObservableObject {
             isSaving = false
             return false
         }
+    }
+
+    // MARK: - Editing in place (Paper, 04 Note)
+
+    /// Tap the title or body: edit it as plain text, saved as you go.
+    func beginEditingText() {
+        guard let note, !isEditingText else { return }
+        errorMessage = nil
+        if !isEditing {
+            draft = NoteEditDraft(note: note, noteTypes: NoteTypeCatalog.shared.types)
+        }
+        isEditing = true
+        isEditingText = true
+        saveState = .idle
+    }
+
+    /// Called on every change to the title or body: save once typing pauses.
+    /// A cleared title shows "Title required" but doesn't hold the body back;
+    /// the title is simply left as it was until one is typed.
+    func textDidChange() {
+        guard isEditingText else { return }
+        saveState = Self.saveState(afterTextChangeFrom: saveState, isTitleSaveable: draft.isTitleSaveable)
+        scheduleAutosave(after: Self.autosaveDelay)
+    }
+
+    /// The top bar's status after a change to the title or body. "Title
+    /// required" shows while a changed title is blank and goes as soon as
+    /// it has text again. It can't wait for a save to replace it, because a
+    /// title put back as it was leaves nothing to save.
+    static func saveState(afterTextChangeFrom current: SaveState, isTitleSaveable: Bool) -> SaveState {
+        if !isTitleSaveable { return .titleRequired }
+        return current == .titleRequired ? .idle : current
+    }
+
+    /// Done: save until nothing typed is left, then show the note formatted
+    /// again. With a cleared title or a failed save the text stays open, so
+    /// nothing typed is lost.
+    func finishEditingText() async {
+        autosaveTask?.cancel()
+        // The fields stay editable while a save is in flight, so keep saving
+        // until nothing typed is left.
+        while isEditingText, draft.titleChanged || draft.contentChanged {
+            guard draft.isTitleSaveable else {
+                saveState = .titleRequired
+                return
+            }
+            await waitForSaveInFlight()
+            autosaveTask?.cancel()
+            await autosave()
+            guard saveState != .failed else { return }
+        }
+        guard isEditingText else { return }
+        // Parse first, then leave edit mode in one step, so the old body
+        // doesn't flash before the new one.
+        if let note { await show(note) }
+        autosaveTask?.cancel()
+        isEditingText = false
+        isEditing = false
+        saveState = .idle
+        errorMessage = nil
+    }
+
+    /// Leaving the screen mid-edit (back button or swipe): save what's typed
+    /// even though the screen is gone. The task keeps this model alive until
+    /// it has saved or given up, and opening the note again waits for it.
+    func saveOnLeave() {
+        guard isEditingText else { return }
+        Self.track(Task { await self.finishEditingOnLeave() }, asSaveOnLeaveOf: noteID)
+    }
+
+    /// Keep trying to save for a while, even though the screen is gone. A
+    /// cleared title goes back to the stored one, so the body still saves.
+    func finishEditingOnLeave() async {
+        guard isEditingText else { return }
+        if !draft.isTitleSaveable {
+            draft.title = draft.originalTitle
+        }
+        for attempt in 1...3 {
+            await savePendingTextNow()
+            guard saveState == .failed else { return }
+            autosaveTask?.cancel()
+            // A reopened note waits for this, so no pause after the last try.
+            guard attempt < 3 else { return }
+            try? await Task.sleep(for: Self.retryDelay)
+        }
+    }
+
+    /// Remember `save` as the one still running for `noteID` until it ends.
+    static func track(_ save: Task<Void, Never>, asSaveOnLeaveOf noteID: String) {
+        Self.savesOnLeave[noteID] = save
+        Task {
+            await save.value
+            // A later visit's save may have taken this one's place.
+            if Self.savesOnLeave[noteID] == save {
+                Self.savesOnLeave[noteID] = nil
+            }
+        }
+    }
+
+    /// Wait for a save still running for `noteID` from a screen that was
+    /// left mid-edit, if there is one.
+    static func waitForSaveOnLeave(of noteID: String) async {
+        await Self.savesOnLeave[noteID]?.value
+    }
+
+    /// Save what's typed now, without leaving edit mode: when the app goes to
+    /// the background, and before leaving the screen.
+    func savePendingTextNow() async {
+        guard isEditingText else { return }
+        autosaveTask?.cancel()
+        await waitForSaveInFlight()
+        if draft.titleChanged || draft.contentChanged {
+            await autosave()
+        }
+    }
+
+    private func waitForSaveInFlight() async {
+        while isSaving {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+    }
+
+    /// The timer and the save are separate tasks, so typing, Done or a
+    /// cleared title cancel only the wait, never a save already sent.
+    private func scheduleAutosave(after delay: Duration) {
+        autosaveTask?.cancel()
+        autosaveTask = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled, let self else { return }
+            Task { await self.autosave() }
+        }
+    }
+
+    /// Save the title and body as they are now. One save runs at a time;
+    /// a change typed meanwhile is saved right after. A failure that can go
+    /// away (no connection) retries quietly a few seconds later; one that
+    /// can't (note gone, request refused) says why and waits for the next
+    /// change. Like the Save button before it, a save replaces the server's
+    /// copy, so an edit made elsewhere in the meantime is overwritten.
+    private func autosave() async {
+        guard let current = note, isEditingText else { return }
+        let sentTitle = draft.titleChanged && draft.isTitleValid ? draft.trimmedTitle : nil
+        let sentContent = draft.contentChanged ? draft.content : nil
+        guard sentTitle != nil || sentContent != nil else {
+            if !draft.isTitleSaveable {
+                saveState = .titleRequired
+            } else if saveState == .saving || saveState == .failed {
+                saveState = .saved
+                errorMessage = nil
+            }
+            return
+        }
+        guard sentContent == nil || draft.isContentSizeOK else {
+            saveState = .failed
+            errorMessage = "This note is too long to save. Notes can be up to 500 KB."
+            return
+        }
+        guard !isSaving else {
+            autosaveQueued = true
+            return
+        }
+
+        isSaving = true
+        saveState = .saving
+
+        do {
+            let updated = try await NotesService.shared.editNote(
+                noteId: current.organized_note_id,
+                entries: sentContent,
+                title: sentTitle,
+                categoryId: nil,
+                subCategories: nil,
+                type: nil
+            )
+            let saved = NoteDetail(
+                organized_note_id: current.organized_note_id,
+                title: updated.title ?? sentTitle ?? current.title,
+                note_content: updated.note_content ?? sentContent ?? current.note_content,
+                note_content_modified: current.note_content_modified,
+                category_id: current.category_id,
+                category_name: current.category_name,
+                sub_cat_names: current.sub_cat_names,
+                tags: current.tags,
+                mime_type: current.mime_type,
+                note_type: current.note_type,
+                author: current.author,
+                has_asset: current.has_asset
+            )
+            note = saved
+            // A field this save sent gets the sent text as its baseline; one
+            // it didn't send keeps its old baseline, so text never touched
+            // isn't resent. Anything typed during the save stays changed and
+            // is saved next.
+            var rebased = NoteEditDraft(
+                title: sentTitle ?? draft.originalTitle,
+                content: sentContent ?? draft.originalContent,
+                categoryId: saved.category_id,
+                categoryName: saved.category_name,
+                subCategories: saved.sub_cat_names ?? [],
+                noteType: saved.note_type ?? "",
+                noteTypes: NoteTypeCatalog.shared.types
+            )
+            rebased.title = draft.title
+            rebased.content = draft.content
+            draft = rebased
+            errorMessage = nil
+            isSaving = false
+            saveState = draft.isTitleSaveable ? .saved : .titleRequired
+            if autosaveQueued || draft.titleChanged || draft.contentChanged {
+                autosaveQueued = false
+                scheduleAutosave(after: .zero)
+            }
+        } catch {
+            isSaving = false
+            autosaveQueued = false
+            saveState = .failed
+            errorMessage = error.localizedDescription
+            if !Self.isPermanentSaveError(error) {
+                scheduleAutosave(after: Self.retryDelay)
+            }
+        }
+    }
+
+    /// A refusal (note gone, bad request, conflict) won't succeed on retry;
+    /// the next change or Done tries again.
+    private static func isPermanentSaveError(_ error: Error) -> Bool {
+        switch error as? APIError {
+        case .notFound, .badRequest, .conflict:
+            return true
+        case .httpError(let code, _):
+            return (400..<500).contains(code)
+        default:
+            return false
+        }
+    }
+
+    // MARK: - Move (category, sub-categories, type)
+
+    /// Save a new category, sub-categories or type from the Category sheet or
+    /// the Move panel. Nil leaves that part as it is. A move sends the
+    /// sub-categories with it, because the server drops any the new category
+    /// doesn't have and a move that sends none clears them all.
+    func applyMove(category: NoteCategoryChoice?, subCategories: [String]?, type: String?) async -> Bool {
+        guard let note else { return false }
+        var moveDraft = NoteEditDraft(note: note, noteTypes: NoteTypeCatalog.shared.types)
+        moveDraft.adoptCategoryID(from: editOptions)
+        if let category {
+            moveDraft.selectCategory(category, availableSubCategories: editOptions.subCategories(forCategoryNamed: category.name))
+        }
+        if let subCategories {
+            moveDraft.setSubCategories(subCategories)
+        }
+        if let type {
+            moveDraft.noteType = type
+        }
+        draft = moveDraft
+        return await saveEdits()
+    }
+
+    /// The categories the note can move to: the active ones, plus its own
+    /// even if that one has been archived.
+    var moveCategoryChoices: [NoteCategoryChoice] {
+        guard let note else { return [] }
+        var fresh = NoteEditDraft(note: note, noteTypes: NoteTypeCatalog.shared.types)
+        fresh.adoptCategoryID(from: editOptions)
+        return fresh.categoryChoices(from: editOptions)
+    }
+
+    /// The note's category ID, with the active category's ID adopted when an
+    /// older note has only its name (see NoteEditDraft.adoptCategoryID).
+    var currentCategoryID: Int? {
+        guard let note else { return nil }
+        var fresh = NoteEditDraft(note: note, noteTypes: NoteTypeCatalog.shared.types)
+        fresh.adoptCategoryID(from: editOptions)
+        return fresh.originalCategoryId
+    }
+
+    /// Sub-categories the note would lose by moving to `category`: the ones
+    /// that category doesn't have, matched ignoring case. Empty until the
+    /// category list has loaded, so the warning never guesses.
+    func subCategoriesDropped(movingTo category: NoteCategoryChoice) -> [String] {
+        guard editOptions.isLoaded, let note, category.id != currentCategoryID else { return [] }
+        let kept = Set(editOptions.subCategories(forCategoryNamed: category.name).map(NoteEditDraft.normalized))
+        return (note.sub_cat_names ?? []).filter { !kept.contains(NoteEditDraft.normalized($0)) }
     }
 
     // MARK: - Delete
@@ -256,24 +599,54 @@ final class NoteDetailViewModel: ObservableObject {
 
     // MARK: - Original file
 
-    var hasOriginalAsset: Bool { Self.showsOriginalButton(for: note) }
+    var hasOriginalAsset: Bool {
+        Self.showsOriginalButton(for: note, originalContentType: originalContentType)
+    }
 
     var assetIconName: String { Self.originalButtonIcon(for: note) }
 
-    /// Whether to show the original-file button. Same rule as the web's
-    /// Original buttons: every note the server says has an original file
-    /// (has_asset), whatever its kind, and no others. Servers
-    /// that don't send has_asset fall back to the old guess from the media
-    /// type. A file missing from storage still answers "No original file
-    /// available for this note."
-    static func showsOriginalButton(for note: NoteDetail?) -> Bool {
+    /// Whether to show the original-file button: notes the server says have
+    /// an original file (has_asset), except plain text. A typed or shared
+    /// note's original is the same text again, so Paper shows the button
+    /// only for photos, recordings and files; the web still shows it for
+    /// all of them. The server also calls files it doesn't recognise "text",
+    /// so for those the file's own media type (`originalContentType`)
+    /// decides, and the button stays hidden until it is known. Servers that
+    /// don't send has_asset fall back to the old guess from the media type.
+    /// A file missing from storage still answers "No original file available
+    /// for this note."
+    static func showsOriginalButton(for note: NoteDetail?, originalContentType: String? = nil) -> Bool {
         guard let note else { return false }
-        if let hasAsset = note.has_asset { return hasAsset }
+        if let hasAsset = note.has_asset {
+            guard hasAsset else { return false }
+            if originalFileKind(for: note) != .text { return true }
+            guard let originalContentType else { return false }
+            return !isPlainTextFile(contentType: originalContentType)
+        }
         let mt = note.mime_type?.lowercased() ?? ""
         let nt = note.note_type?.lowercased() ?? ""
         if mt.hasPrefix("image") || mt.hasPrefix("photo") || nt == "photo" { return true }
         if mt.hasPrefix("audio") || mt.hasPrefix("voice") || nt == "voice" { return true }
         return false
+    }
+
+    /// Typed notes (iPhone and web), shared text, notes saved from Claude and
+    /// plain email bodies are stored as .txt or .md files, which the server
+    /// reports as text/plain or text/markdown. Anything else is a real file.
+    static func isPlainTextFile(contentType: String) -> Bool {
+        let type = contentType.trimmingCharacters(in: .whitespaces).lowercased()
+        return type == "text/plain" || type == "text/markdown"
+    }
+
+    /// What kind of original a note has. The app's older words for photos
+    /// and recordings ("image", "photo", "voice" as the media or note type)
+    /// count as well as real media types.
+    static func originalFileKind(for note: NoteDetail) -> OriginalFileKind {
+        let mt = note.mime_type?.lowercased() ?? ""
+        let nt = note.note_type?.lowercased() ?? ""
+        if mt.hasPrefix("image") || mt.hasPrefix("photo") || nt == "photo" { return .image }
+        if mt.hasPrefix("audio") || mt.hasPrefix("voice") || nt == "voice" { return .voice }
+        return OriginalFileKind(mimeType: note.mime_type)
     }
 
     /// SF Symbol name for the original asset button. Same kinds as the web's

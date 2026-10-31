@@ -179,7 +179,7 @@ struct ContentView: View {
             }
         }
         .navigationDestination(item: $openedNoteID) { noteID in
-            NoteDetailView(noteID: noteID)
+            NoteDetailView(noteID: noteID, backTitle: "Your Dump")
         }
         .environmentObject(sessionStore)
         .alert(errorAlertTitle, isPresented: $showErrorAlert) {

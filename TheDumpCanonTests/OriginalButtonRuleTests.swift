@@ -1,8 +1,8 @@
 import XCTest
 @testable import The_Dump
 
-/// When the note screen offers "View original": the web's rule, so both
-/// platforms show the button for the same notes.
+/// When the note screen offers "View original": the web's rule, except
+/// that plain-text notes (typed or shared) don't get it, as on Paper.
 @MainActor
 final class OriginalButtonRuleTests: XCTestCase {
     private func note(mime: String, hasAsset: Bool?, type: String = "Log") throws -> NoteDetail {
@@ -13,10 +13,42 @@ final class OriginalButtonRuleTests: XCTestCase {
         """.utf8))
     }
 
-    func testShownForEveryKindTheServerSaysHasAFile() throws {
-        for mime in ["image", "voice", "document", "text"] {
+    func testShownForPhotosRecordingsAndFilesTheServerSaysHaveAFile() throws {
+        for mime in ["image", "voice", "document", "image/jpeg", "audio/mp4", "application/pdf", "text/markdown"] {
             XCTAssertTrue(NoteDetailViewModel.showsOriginalButton(for: try note(mime: mime, hasAsset: true)), mime)
         }
+    }
+
+    // A typed or shared note's original is the same text again.
+    func testHiddenForPlainTextEvenWithAFile() throws {
+        for mime in ["text", "text/plain", ""] {
+            XCTAssertFalse(NoteDetailViewModel.showsOriginalButton(for: try note(mime: mime, hasAsset: true)), mime)
+        }
+    }
+
+    // The server also calls files it doesn't recognise "text", so for a
+    // "text" note the file's own media type decides.
+    func testTextNoteWithAPlainTextFileStaysHidden() throws {
+        for type in ["text/plain", "text/markdown", "TEXT/PLAIN "] {
+            XCTAssertFalse(NoteDetailViewModel.showsOriginalButton(
+                for: try note(mime: "text", hasAsset: true), originalContentType: type), type)
+        }
+    }
+
+    func testTextNoteWithAnyOtherFileShowsIt() throws {
+        for type in ["video/mp4", "video/quicktime", "text/html", "application/zip", "key", ""] {
+            XCTAssertTrue(NoteDetailViewModel.showsOriginalButton(
+                for: try note(mime: "text", hasAsset: true), originalContentType: type), type)
+        }
+    }
+
+    func testPhotosRecordingsAndDocumentsDontNeedTheFilesType() throws {
+        for mime in ["image", "voice", "document"] {
+            XCTAssertTrue(NoteDetailViewModel.showsOriginalButton(
+                for: try note(mime: mime, hasAsset: true), originalContentType: "text/plain"), mime)
+        }
+        XCTAssertFalse(NoteDetailViewModel.showsOriginalButton(
+            for: try note(mime: "text", hasAsset: false), originalContentType: "video/mp4"))
     }
 
     func testHiddenWhenTheServerSaysThereIsNoFile() throws {

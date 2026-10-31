@@ -221,6 +221,11 @@ struct NoteEditDraft: Equatable {
         return true
     }
 
+    /// Replace the chosen sub-categories (up to 3), as the Move panel does.
+    mutating func setSubCategories(_ names: [String]) {
+        subCategories = Array(names.prefix(Self.maxSubCategories))
+    }
+
     var subCategoriesChanged: Bool {
         Set(subCategories.map(Self.normalized)) != Set(originalSubCategories.map(Self.normalized))
     }
@@ -260,8 +265,13 @@ struct NoteEditDraft: Equatable {
 
     var isTitleValid: Bool { !trimmedTitle.isEmpty }
 
+    /// A title is required only when it is being changed: a note stored
+    /// without one can still be moved and have its body saved.
+    var isTitleSaveable: Bool { !titleChanged || isTitleValid }
+
+    /// Measured on the text as sent, as the upload check measures it.
     var isContentSizeOK: Bool {
-        content.trimmingCharacters(in: .whitespacesAndNewlines).utf8.count <= Self.maxContentBytes
+        content.utf8.count <= Self.maxContentBytes
     }
 
     // MARK: - Saving
@@ -273,7 +283,7 @@ struct NoteEditDraft: Equatable {
     /// The size limit only applies when the text is sent, so a note already
     /// over it can still be moved, retyped or renamed.
     var canSave: Bool {
-        hasChanges && isTitleValid && (!contentChanged || isContentSizeOK)
+        hasChanges && isTitleSaveable && (!contentChanged || isContentSizeOK)
     }
 
     /// The fields to send to /api/edit_note; nil means "leave unchanged".
