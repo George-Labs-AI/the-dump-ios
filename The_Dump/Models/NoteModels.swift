@@ -48,6 +48,9 @@ struct CategoryDetail: Decodable, Identifiable {
     let categoryName: String
     let count: Int
     let isRetired: Bool
+    /// The category's own emoji, archived categories included; nil when
+    /// nobody chose one.
+    let emoji: String?
 
     var id: String {
         if let categoryID {
@@ -61,6 +64,7 @@ struct CategoryDetail: Decodable, Identifiable {
         case categoryName = "category_name"
         case count
         case isRetired = "is_retired"
+        case emoji
     }
 }
 

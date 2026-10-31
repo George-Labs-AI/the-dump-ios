@@ -36,6 +36,48 @@ final class PendingNotesStoreTests: XCTestCase {
         PendingNoteRecord(fileUuid: uuid, storagePath: "uploads/u/\(uuid).jpg", kind: kind)
     }
 
+    // MARK: - Acknowledging by note
+
+    func test_acknowledgeByNote_marksOnlyThatNotesRecords() async {
+        let store = makeStore()
+        var opened = makeRecord("a")
+        opened.lifecycleStatus = .organized
+        opened.organizedNoteId = "note-1"
+        var other = makeRecord("b")
+        other.lifecycleStatus = .organized
+        other.organizedNoteId = "note-2"
+        await store.add(opened)
+        await store.add(other)
+
+        await store.acknowledge(organizedNoteId: "note-1")
+
+        let records = await store.allRecords()
+        XCTAssertEqual(records.first { $0.fileUuid == "a" }?.acknowledged, true)
+        XCTAssertEqual(records.first { $0.fileUuid == "b" }?.acknowledged, false)
+    }
+
+    func test_noteOpenedBeforeItIsOrganized_isAcknowledgedWhenItIs() async {
+        let store = makeStore()
+        await store.add(makeRecord("a"))
+
+        await store.acknowledge(organizedNoteId: "note-1")
+        await store.update(fileUuid: "a") {
+            $0.lifecycleStatus = .organized
+            $0.organizedNoteId = "note-1"
+        }
+
+        let records = await store.allRecords()
+        XCTAssertEqual(records.first?.acknowledged, true)
+    }
+
+    func test_completedStatus_keepsTheCategoryId() {
+        let entry = FileStatusEntry(fileUuid: "a", status: "completed", organizedNoteId: "note-1",
+                                    title: "Hotel vending", categoryId: 42, categoryName: "Business Ideas")
+        let updated = NoteStatusMapping.apply(entry, to: makeRecord("a"))
+        XCTAssertEqual(updated.lifecycleStatus, .organized)
+        XCTAssertEqual(updated.categoryId, 42)
+    }
+
     // MARK: - Persistence
 
     func test_add_isVisibleToAFreshInstanceOnTheSameSuite() async {

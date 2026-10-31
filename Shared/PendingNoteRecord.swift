@@ -45,6 +45,9 @@ struct PendingNoteRecord: Codable, Equatable, Identifiable, Sendable {
     /// From the `completed` payload.
     var organizedNoteId: String?
     var categoryName: String?
+    /// From the `completed` payload: which category the note landed in, so
+    /// Browse can mark it "+1". Optional + Codable, so older records decode.
+    var categoryId: Int?
     var title: String?
     /// From the `failed` payload's `error` string. Optional + Codable, so
     /// records persisted before this field existed decode unchanged.
@@ -67,6 +70,7 @@ struct PendingNoteRecord: Codable, Equatable, Identifiable, Sendable {
         transcribedPreview: String? = nil,
         organizedNoteId: String? = nil,
         categoryName: String? = nil,
+        categoryId: Int? = nil,
         title: String? = nil,
         errorMessage: String? = nil,
         acknowledged: Bool = false
@@ -80,6 +84,7 @@ struct PendingNoteRecord: Codable, Equatable, Identifiable, Sendable {
         self.transcribedPreview = transcribedPreview
         self.organizedNoteId = organizedNoteId
         self.categoryName = categoryName
+        self.categoryId = categoryId
         self.title = title
         self.errorMessage = errorMessage
         self.acknowledged = acknowledged

@@ -16,6 +16,8 @@ final class BrowseViewModel: ObservableObject {
         let kind: Kind
         let name: String
         let count: Int
+        /// Categories only: the category's own emoji, if one was chosen.
+        var emoji: String?
         
         var id: String { stableID ?? "\(kind)-\(name)" }
     }
@@ -32,9 +34,15 @@ final class BrowseViewModel: ObservableObject {
     @Published private(set) var routineCount: Int = 0
     @Published private(set) var routineOpenAskCount: Int = 0
     private var routineSummaryTask: Task<Void, Never>?
+    /// A reload asked for while one was running; it runs once that finishes,
+    /// so a note that landed mid-load is still counted.
+    private var reloadRequested = false
 
     func loadCounts() async {
-        guard !isLoading else { return }
+        guard !isLoading else {
+            reloadRequested = true
+            return
+        }
         isLoading = true
         errorMessage = nil
 
@@ -75,6 +83,10 @@ final class BrowseViewModel: ObservableObject {
         }
 
         isLoading = false
+        if reloadRequested {
+            reloadRequested = false
+            await loadCounts()
+        }
     }
 
     /// Refresh the Routines row independently of the folder counts. One
@@ -120,6 +132,12 @@ final class BrowseViewModel: ObservableObject {
         categories: [CategoryResponse]
     ) -> (active: [FolderRow], archived: [FolderRow]) {
         let namesByID = Dictionary(uniqueKeysWithValues: categories.map { ($0.categoryId, $0.name) })
+        // The category list is where emoji are edited (Settings), so it comes
+        // first; the counts reply carries archived categories' emoji too.
+        let emojiByID = Dictionary(
+            categories.compactMap { category in category.emoji.map { (category.categoryId, $0) } },
+            uniquingKeysWith: { first, _ in first }
+        )
 
         let resolvedRows = details.compactMap { detail -> (row: FolderRow, archived: Bool)? in
             // CategoryDetail.count is an Int property, not a collection
@@ -138,7 +156,8 @@ final class BrowseViewModel: ObservableObject {
                     categoryId: categoryId,
                     kind: .category,
                     name: displayName,
-                    count: detail.count
+                    count: detail.count,
+                    emoji: emojiByID[categoryId] ?? detail.emoji
                 ),
                 archived: detail.isRetired
             )
