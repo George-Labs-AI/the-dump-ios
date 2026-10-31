@@ -535,20 +535,34 @@ final class NoteDetailViewModel: ObservableObject {
 
     var assetIconName: String { Self.originalButtonIcon(for: note) }
 
-    /// Whether to show the original-file button. Same rule as the web's
-    /// Original buttons: every note the server says has an original file
-    /// (has_asset), whatever its kind, and no others. Servers
-    /// that don't send has_asset fall back to the old guess from the media
-    /// type. A file missing from storage still answers "No original file
-    /// available for this note."
+    /// Whether to show the original-file button: notes the server says have
+    /// an original file (has_asset), except plain text. A typed or shared
+    /// note's original is the same text again, so Paper shows the button
+    /// only for photos, recordings and files; the web still shows it for
+    /// all of them. Servers that don't send has_asset fall back to the old
+    /// guess from the media type. A file missing from storage still answers
+    /// "No original file available for this note."
     static func showsOriginalButton(for note: NoteDetail?) -> Bool {
         guard let note else { return false }
-        if let hasAsset = note.has_asset { return hasAsset }
+        if let hasAsset = note.has_asset {
+            return hasAsset && originalFileKind(for: note) != .text
+        }
         let mt = note.mime_type?.lowercased() ?? ""
         let nt = note.note_type?.lowercased() ?? ""
         if mt.hasPrefix("image") || mt.hasPrefix("photo") || nt == "photo" { return true }
         if mt.hasPrefix("audio") || mt.hasPrefix("voice") || nt == "voice" { return true }
         return false
+    }
+
+    /// What kind of original a note has. The app's older words for photos
+    /// and recordings ("image", "photo", "voice" as the media or note type)
+    /// count as well as real media types.
+    static func originalFileKind(for note: NoteDetail) -> OriginalFileKind {
+        let mt = note.mime_type?.lowercased() ?? ""
+        let nt = note.note_type?.lowercased() ?? ""
+        if mt.hasPrefix("image") || mt.hasPrefix("photo") || nt == "photo" { return .image }
+        if mt.hasPrefix("audio") || mt.hasPrefix("voice") || nt == "voice" { return .voice }
+        return OriginalFileKind(mimeType: note.mime_type)
     }
 
     /// SF Symbol name for the original asset button. Same kinds as the web's

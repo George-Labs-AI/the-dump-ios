@@ -402,11 +402,7 @@ struct NoteDetailView: View {
     }
 
     private func originalFileKind(_ note: NoteDetail) -> OriginalFileKind {
-        let mime = note.mime_type?.lowercased() ?? ""
-        let type = note.note_type?.lowercased() ?? ""
-        if mime.hasPrefix("image") || mime.hasPrefix("photo") || type == "photo" { return .image }
-        if mime.hasPrefix("audio") || mime.hasPrefix("voice") || type == "voice" { return .voice }
-        return OriginalFileKind(mimeType: note.mime_type)
+        NoteDetailViewModel.originalFileKind(for: note)
     }
 
     private func originalFileLabel(_ note: NoteDetail) -> String {
