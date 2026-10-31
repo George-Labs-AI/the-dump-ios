@@ -132,6 +132,12 @@ final class BrowseViewModel: ObservableObject {
         categories: [CategoryResponse]
     ) -> (active: [FolderRow], archived: [FolderRow]) {
         let namesByID = Dictionary(uniqueKeysWithValues: categories.map { ($0.categoryId, $0.name) })
+        // The category list is where emoji are edited (Settings), so it comes
+        // first; the counts reply carries archived categories' emoji too.
+        let emojiByID = Dictionary(
+            categories.compactMap { category in category.emoji.map { (category.categoryId, $0) } },
+            uniquingKeysWith: { first, _ in first }
+        )
 
         let resolvedRows = details.compactMap { detail -> (row: FolderRow, archived: Bool)? in
             // CategoryDetail.count is an Int property, not a collection
@@ -151,7 +157,7 @@ final class BrowseViewModel: ObservableObject {
                     kind: .category,
                     name: displayName,
                     count: detail.count,
-                    emoji: detail.emoji
+                    emoji: emojiByID[categoryId] ?? detail.emoji
                 ),
                 archived: detail.isRetired
             )
