@@ -274,6 +274,8 @@ struct NotesListView: View {
             .listRowInsets(EdgeInsets(top: 0, leading: Theme.screenH, bottom: 0, trailing: Theme.screenH))
             .listRowBackground(Theme.background)
             .listRowSeparator(.hidden)
+            // Paper drops the per-note chevron; the kind icon leads instead.
+            .navigationLinkIndicatorVisibility(.hidden)
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
