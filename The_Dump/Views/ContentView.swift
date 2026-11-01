@@ -59,13 +59,18 @@ struct ContentView: View {
                             .accessibilityAddTraits(.isHeader)
                             .padding(.bottom, Theme.spacingLG)
 
-                        if !isClaudeHintDismissed {
-                            ClaudeHintCard(
-                                onOpen: { showConnectToClaude = true },
-                                onDismiss: { isClaudeHintDismissed = true }
-                            )
-                        }
+                        CaptureGrid(
+                            photoSourceDialogPresented: $showPhotoSourceDialog,
+                            onPhotoTap: { guardCapture { showPhotoSourceDialog = true } },
+                            onTakePhoto: { showCamera = true },
+                            onChooseFromLibrary: { showPhotoLibraryPicker = true },
+                            onVoiceTap: { guardCapture { showVoiceMemo = true } },
+                            onFileTap: { guardCapture { showFilePicker = true } },
+                            onTextTap: { guardCapture { showTextNote = true } }
+                        )
 
+                        // Processing sits right under the tiles, so a capture
+                        // shows up next to where it was tapped.
                         // One Processing section holds both: captures still
                         // uploading (session rows), then captures the server
                         // is working on (pending-note records, note-status
@@ -73,7 +78,7 @@ struct ContentView: View {
                         // upload success, so each capture shows once (modulo
                         // a 1-2 frame gap while the view model mirrors the
                         // store).
-                        if !sessionStore.items.isEmpty || !pendingNotesViewModel.records.isEmpty {
+                        if isProcessingShown {
                             ProcessingSection(
                                 sessionItems: sessionStore.items,
                                 records: pendingNotesViewModel.records,
@@ -90,7 +95,15 @@ struct ContentView: View {
                                     pendingNotesViewModel.acknowledge(fileUuid: fileUuid)
                                 }
                             )
-                            .padding(.top, Theme.spacingXL)
+                            .padding(.top, Theme.spacingLG)
+                        }
+
+                        if !isClaudeHintDismissed {
+                            ClaudeHintCard(
+                                onOpen: { showConnectToClaude = true },
+                                onDismiss: { isClaudeHintDismissed = true }
+                            )
+                            .padding(.top, isProcessingShown ? Theme.spacingMD : Theme.spacingLG)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -100,27 +113,14 @@ struct ContentView: View {
                 }
             }
             .background(Theme.background.ignoresSafeArea())
-            // The capture bar sits above the tab bar, which .appTabBar()
-            // adds below it.
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                CaptureBar(
-                    photoSourceDialogPresented: $showPhotoSourceDialog,
-                    onPhotoTap: { guardCapture { showPhotoSourceDialog = true } },
-                    onTakePhoto: { showCamera = true },
-                    onChooseFromLibrary: { showPhotoLibraryPicker = true },
-                    onFileTap: { guardCapture { showFilePicker = true } },
-                    onTextTap: { guardCapture { showTextNote = true } },
-                    onVoiceTap: { guardCapture { showVoiceMemo = true } }
-                )
-            }
             .appTabBar()
             .toolbar(.hidden, for: .navigationBar)
         // Photo has two sources: the camera, or the photo library (where
         // screenshots and saved images live — the Files picker can't see
         // those). The library picker runs out of process, so it needs no
         // photo-library permission prompt. The source dialog itself is
-        // attached to the "+" menu in CaptureBar so that where iOS presents
-        // it as a popover it anchors to that button.
+        // attached to the Photo tile in CaptureGrid so that where iOS
+        // presents it as a popover it anchors to that tile.
         .sheet(isPresented: $showCamera) {
             CameraView(image: $capturedImage)
         }
@@ -190,6 +190,10 @@ struct ContentView: View {
             Text(errorAlertMessage)
         }
     }
+    }
+
+    private var isProcessingShown: Bool {
+        !sessionStore.items.isEmpty || !pendingNotesViewModel.records.isEmpty
     }
 
     /// Settings sits alone at the right of a 44pt bar (Paper, 01 Dump).
@@ -398,77 +402,76 @@ struct ContentView: View {
 
 // MARK: - Subviews
 
-/// The bar at the bottom of the Dump tab (Paper, 01 Dump): a field that opens
-/// the note sheet, with "+" for a photo or file, and the white mic for voice.
-struct CaptureBar: View {
-    /// Drives the "Add a photo" source dialog, attached to the "+" button.
+/// The four capture tiles at the top of the Dump tab (Paper, 01b Dump,
+/// proposal B). One tap starts each kind of capture; Photo first asks for
+/// the camera or the library.
+struct CaptureGrid: View {
+    /// Drives the "Add a photo" source dialog, attached to the Photo tile.
     @Binding var photoSourceDialogPresented: Bool
     let onPhotoTap: () -> Void
     let onTakePhoto: () -> Void
     let onChooseFromLibrary: () -> Void
+    let onVoiceTap: () -> Void
     let onFileTap: () -> Void
     let onTextTap: () -> Void
-    let onVoiceTap: () -> Void
 
     var body: some View {
-        HStack(spacing: Theme.spacingSM) {
-            HStack(spacing: 0) {
-                Menu {
-                    Button(action: onPhotoTap) {
-                        Label("Photo", systemImage: "photo")
+        VStack(spacing: Theme.spacingSM) {
+            HStack(spacing: Theme.spacingSM) {
+                CaptureTile(title: "Photo", systemImage: "camera", action: onPhotoTap)
+                    .accessibilityLabel("Add a photo")
+                    .confirmationDialog(
+                        "Add a photo",
+                        isPresented: $photoSourceDialogPresented,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Take Photo", action: onTakePhoto)
+                        Button("Choose from Library", action: onChooseFromLibrary)
+                        Button("Cancel", role: .cancel) {}
                     }
-                    Button(action: onFileTap) {
-                        Label("File", systemImage: "doc")
-                    }
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 20, weight: .regular))
-                        .foregroundStyle(Theme.textSecondary)
-                        .frame(width: Theme.touchMin, height: Theme.touchMin)
-                        .contentShape(Rectangle())
-                }
-                .accessibilityLabel("Add a photo or file")
-                .confirmationDialog(
-                    "Add a photo",
-                    isPresented: $photoSourceDialogPresented,
-                    titleVisibility: .visible
-                ) {
-                    Button("Take Photo", action: onTakePhoto)
-                    Button("Choose from Library", action: onChooseFromLibrary)
-                    Button("Cancel", role: .cancel) {}
-                }
-
-                Button(action: onTextTap) {
-                    Text("Dump something…")
-                        .font(.system(size: 16))
-                        .foregroundStyle(Theme.placeholder)
-                        .padding(.horizontal, Theme.spacingXS)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(TDPressStyle())
-                .accessibilityLabel("Write a note")
+                CaptureTile(title: "Voice", systemImage: "mic", action: onVoiceTap)
+                    .accessibilityLabel("Record a voice note")
             }
-            .padding(.leading, 6)
-            .padding(.trailing, Theme.spacingSMPlus)
-            .frame(height: Theme.buttonHeight)
-            .background(Capsule().fill(Theme.surface))
-
-            Button(action: onVoiceTap) {
-                Image(systemName: "mic")
-                    .font(.system(size: 20, weight: .regular))
-                    .foregroundStyle(Theme.buttonPrimaryForeground)
-                    .frame(width: Theme.buttonHeight, height: Theme.buttonHeight)
-                    .background(Circle().fill(Theme.buttonPrimaryBackground))
-                    .contentShape(Circle())
+            HStack(spacing: Theme.spacingSM) {
+                CaptureTile(title: "File", systemImage: "doc", action: onFileTap)
+                    .accessibilityLabel("Add a file")
+                CaptureTile(title: "Note", systemImage: "pencil.line", action: onTextTap)
+                    .accessibilityLabel("Write a note")
             }
-            .buttonStyle(TDPressStyle(pressedOpacity: 0.7))
-            .accessibilityLabel("Record a voice note")
         }
-        .padding(.horizontal, Theme.screenH)
-        .padding(.top, Theme.spacingSM)
-        .padding(.bottom, Theme.spacingSMPlus)
-        .background(Theme.background)
+    }
+}
+
+/// One capture tile: an icon at the top left and a label at the bottom
+/// left, on a 96pt surface card with card corners.
+private struct CaptureTile: View {
+    let title: String
+    let systemImage: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 0) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 20, weight: .regular))
+                    .foregroundStyle(Theme.textPrimary)
+                    .frame(height: 22, alignment: .leading)
+                    .accessibilityHidden(true)
+                Spacer(minLength: 0)
+                Text(title)
+                    .tdButton()
+                    .foregroundStyle(Theme.textPrimary)
+            }
+            .padding(Theme.spacingMD)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: 96)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.radiusCard)
+                    .fill(Theme.surface)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: Theme.radiusCard))
+        }
+        .buttonStyle(TDPressStyle(pressedOpacity: 0.6))
     }
 }
 
