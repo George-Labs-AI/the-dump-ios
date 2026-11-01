@@ -191,6 +191,43 @@ struct CategoryGlyph: View {
     }
 }
 
+// MARK: - Segmented control
+
+/// Two to four views of the same thing ("Interactive / Text"): a 44pt
+/// surface track with 12pt corners; the chosen segment lifts to raised with
+/// medium text, the others are grey.
+struct TDSegmentedControl<Value: Hashable>: View {
+    let options: [(value: Value, label: String)]
+    @Binding var selection: Value
+
+    var body: some View {
+        HStack(spacing: Theme.spacingXS) {
+            ForEach(options, id: \.value) { option in
+                let isOn = option.value == selection
+                Button {
+                    selection = option.value
+                } label: {
+                    Text(option.label)
+                        .font(.system(size: 13, weight: isOn ? .medium : .regular))
+                        .foregroundStyle(isOn ? Theme.textPrimary : Theme.textSecondary)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(
+                            RoundedRectangle(cornerRadius: Theme.radiusTag)
+                                .fill(isOn ? Theme.raised : Color.clear)
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(isOn ? .isSelected : [])
+            }
+        }
+        .padding(Theme.spacingXS)
+        .frame(height: Theme.touchMin)
+        .background(RoundedRectangle(cornerRadius: Theme.radiusInput).fill(Theme.surface))
+    }
+}
+
 #Preview {
     VStack(alignment: .leading, spacing: Theme.spacingMD) {
         TDSectionLabel(title: "Categories")

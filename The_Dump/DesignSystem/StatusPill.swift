@@ -14,6 +14,18 @@ struct TDStatusPill: View {
     let mark: Mark
     let text: String
     var isYourStuff = false
+    /// Grey text for a quiet state, such as "Paused" or "Waiting for first
+    /// report".
+    var isMuted = false
+    /// A primary-text outline instead of the hairline, for a state that
+    /// wants attention ("Failed", "Not running"). Tone is carried by the
+    /// mark and the outline, never by colour.
+    var needsAttention = false
+
+    private var foreground: Color {
+        if isYourStuff { return Theme.amber }
+        return isMuted ? Theme.textSecondary : Theme.textPrimary
+    }
 
     var body: some View {
         HStack(spacing: Theme.spacingXS) {
@@ -30,10 +42,10 @@ struct TDStatusPill: View {
                 .font(.system(size: 13))
                 .lineLimit(1)
         }
-        .foregroundStyle(isYourStuff ? Theme.amber : Theme.textPrimary)
+        .foregroundStyle(foreground)
         .padding(.horizontal, Theme.spacingSM)
         .frame(height: 24)
-        .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 1))
+        .overlay(Capsule().strokeBorder(needsAttention ? Theme.textPrimary : Theme.hairline, lineWidth: 1))
         .accessibilityElement(children: .combine)
     }
 }

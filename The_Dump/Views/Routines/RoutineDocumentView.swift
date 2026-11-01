@@ -11,16 +11,18 @@ struct RoutineDocumentView: View {
     private let routineSlug: String
     private let documentSlug: String
     private let title: String
+    private let backTitle: String
     @StateObject private var viewModel: RoutineDocumentViewModel
     @State private var selectedNoteID: String?
     @State private var showNote = false
     @State private var showText = false
     @State private var interactiveFailed = false
 
-    init(routineSlug: String, documentSlug: String, title: String) {
+    init(routineSlug: String, documentSlug: String, title: String, backTitle: String = "Back") {
         self.routineSlug = routineSlug
         self.documentSlug = documentSlug
         self.title = title
+        self.backTitle = backTitle
         _viewModel = StateObject(wrappedValue: RoutineDocumentViewModel(
             routineSlug: routineSlug,
             documentSlug: documentSlug,
@@ -29,35 +31,42 @@ struct RoutineDocumentView: View {
     }
 
     var body: some View {
-        ZStack {
-            Theme.background.ignoresSafeArea()
+        VStack(spacing: 0) {
+            topBar
 
             Group {
                 if viewModel.isLoading && viewModel.document == nil {
-                    ProgressView("Loading…")
-                        .foregroundColor(Theme.textPrimary)
+                    Text("Loading…")
+                        .tdBody()
+                        .foregroundStyle(Theme.textSecondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let error = viewModel.errorMessage, viewModel.document == nil {
                     VStack(spacing: Theme.spacingMD) {
                         Label(error, systemImage: "exclamationmark.circle")
-                            .font(.system(size: Theme.fontSizeSM))
-                            .foregroundColor(Theme.textPrimary)
+                            .font(.system(size: 16))
+                            .foregroundStyle(Theme.textPrimary)
                             .multilineTextAlignment(.center)
 
                         Button("Retry") {
                             Task { await viewModel.reload() }
                         }
-                        .buttonStyle(PrimaryButtonStyle())
+                        .buttonStyle(TDPrimaryButtonStyle())
                     }
-                    .padding(Theme.spacingLG)
+                    .padding(Theme.screenH)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let document = viewModel.document {
                     if let html = document.interactiveHTML, !html.isEmpty, !showText {
-                        VStack(alignment: .leading, spacing: Theme.spacingSM) {
-                            VStack(alignment: .leading, spacing: Theme.spacingSM) {
-                                DocumentHeader(document: document, summaryLineLimit: 3)
+                        VStack(alignment: .leading, spacing: Theme.spacingMD) {
+                            // Same gaps as the Text layout, so switching
+                            // views doesn't move the control.
+                            VStack(alignment: .leading, spacing: Theme.spacingSMPlus) {
+                                DocumentHeader(document: document, summaryLineLimit: 3) {
+                                    copyMarkdown(document)
+                                }
                                 presentationPicker
                             }
-                            .padding(.horizontal, Theme.spacingLG)
-                            .padding(.top, Theme.spacingMD)
+                            .padding(.horizontal, Theme.screenH)
+                            .padding(.top, Theme.spacingSM)
 
                             InteractiveCanonView(html: html) {
                                 interactiveFailed = true
@@ -68,15 +77,17 @@ struct RoutineDocumentView: View {
                     } else {
                         ScrollView {
                             LazyVStack(alignment: .leading, spacing: Theme.spacingSMPlus) {
-                                DocumentHeader(document: document)
+                                DocumentHeader(document: document) {
+                                    copyMarkdown(document)
+                                }
 
                                 if let html = document.interactiveHTML, !html.isEmpty {
                                     presentationPicker
                                 }
                                 if interactiveFailed {
-                                    Text("The interactive view could not load. The document text is available below.")
-                                        .font(.system(size: Theme.fontSizeSM))
-                                        .foregroundColor(Theme.textSecondary)
+                                    Text("The interactive view didn’t load. Here’s the text.")
+                                        .tdCaption()
+                                        .foregroundStyle(Theme.textSecondary)
                                 }
 
                                 ForEach(viewModel.visibleBlocks) { indexed in
@@ -87,11 +98,13 @@ struct RoutineDocumentView: View {
                                     loadMoreFooter
                                 } else if viewModel.blocks.isEmpty {
                                     Text("This document is empty.")
-                                        .font(.system(size: Theme.fontSizeSM))
-                                        .foregroundColor(Theme.textSecondary)
+                                        .tdBody()
+                                        .foregroundStyle(Theme.textSecondary)
                                 }
                             }
-                            .padding(Theme.spacingLG)
+                            .padding(.horizontal, Theme.screenH)
+                            .padding(.top, Theme.spacingSM)
+                            .padding(.bottom, Theme.spacingLG)
                         }
                         // Second gate on links: only http(s) leaves the app, and
                         // the runner's note token opens NoteDetailView in place.
@@ -106,43 +119,20 @@ struct RoutineDocumentView: View {
                         })
                     }
                 } else {
-                    Text("No content.")
-                        .font(.system(size: Theme.fontSizeSM))
-                        .foregroundColor(Theme.textSecondary)
+                    Text("This document is empty.")
+                        .tdBody()
+                        .foregroundStyle(Theme.textSecondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
         }
+        .background(Theme.background.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
+        // Hidden with the bar; names the screen for VoiceOver.
         .navigationTitle(viewModel.document?.title ?? title)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(Theme.background, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                if let document = viewModel.document {
-                    Menu {
-                        if viewModel.hasMore {
-                            Button {
-                                viewModel.showAll()
-                                showText = true
-                            } label: {
-                                Label("Show entire document", systemImage: "arrow.down.to.line")
-                            }
-                        }
-                        Button {
-                            UIPasteboard.general.string = document.body
-                        } label: {
-                            Label("Copy markdown", systemImage: "doc.on.doc")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .foregroundColor(Theme.textSecondary)
-                    }
-                }
-            }
-        }
         .navigationDestination(isPresented: $showNote) {
             if let selectedNoteID {
-                NoteDetailView(noteID: selectedNoteID, backTitle: "Document")
+                NoteDetailView(noteID: selectedNoteID, backTitle: viewModel.document?.title ?? title)
             }
         }
         .task {
@@ -150,19 +140,37 @@ struct RoutineDocumentView: View {
         }
     }
 
+    /// "‹ {routine}" and, for a long document, "•••" with "Show entire
+    /// document".
+    private var topBar: some View {
+        TDTopBar(backTitle: backTitle) {
+            if viewModel.document != nil, viewModel.hasMore {
+                Menu {
+                    Button {
+                        viewModel.showAll()
+                        showText = true
+                    } label: {
+                        Label("Show entire document", systemImage: "arrow.down.to.line")
+                    }
+                } label: {
+                    TDMoreLabel()
+                }
+            }
+        }
+    }
+
+    private func copyMarkdown(_ document: RoutineDocument) {
+        UIPasteboard.general.string = document.body
+    }
+
     private var presentationPicker: some View {
-        VStack(alignment: .leading, spacing: Theme.spacingXS) {
-            Picker("Document view", selection: $showText) {
-                Text("Interactive").tag(false)
-                Text("Text").tag(true)
-            }
-            .pickerStyle(.segmented)
-            .onChange(of: showText) { _, value in
-                if !value { interactiveFailed = false }
-            }
-            Text("Read-only. Source links are available in Text. Interactive controls reset when switching views.")
-                .font(.system(size: Theme.fontSizeXS))
-                .foregroundColor(Theme.textSecondary)
+        TDSegmentedControl(
+            options: [(value: false, label: "Interactive"), (value: true, label: "Text")],
+            selection: $showText
+        )
+        .accessibilityLabel("Document view")
+        .onChange(of: showText) { _, value in
+            if !value { interactiveFailed = false }
         }
     }
 
@@ -174,78 +182,60 @@ struct RoutineDocumentView: View {
                 .frame(height: 1)
                 .onAppear { viewModel.showMore() }
 
-            Button {
+            Button("Show more (\(viewModel.remainingCount) more sections)") {
                 viewModel.showMore()
-            } label: {
-                Text("Show more (\(viewModel.remainingCount) more sections)")
-                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(SecondaryButtonStyle())
+            .buttonStyle(TDTextLinkStyle(color: Theme.textPrimary, size: 16))
 
             Button("Show entire document") {
                 viewModel.showAll()
             }
-            .font(.system(size: Theme.fontSizeSM))
-            .foregroundColor(Theme.accent)
+            .buttonStyle(TDTextLinkStyle(size: 16))
         }
         .padding(.top, Theme.spacingMD)
     }
 }
 
+/// The document's title as the screen headline, when it was updated (no
+/// version number: it means nothing to the reader), Copy markdown, and the
+/// runner's summary when it sent one.
 private struct DocumentHeader: View {
     let document: RoutineDocument
     var summaryLineLimit: Int? = nil
+    let onCopy: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.spacingSM) {
-            HStack(spacing: Theme.spacingSM) {
+            Text(document.title)
+                .tdHeadline()
+                .foregroundStyle(Theme.textPrimary)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.bottom, Theme.spacingSM)
+
+            HStack(spacing: Theme.spacingSMPlus) {
                 if let updated = RoutineDateParser.relative(document.updatedAt) {
-                    MetaPill(text: "updated \(updated)", icon: "clock")
+                    Text("Updated \(updated)")
+                        .tdCaption()
+                        .foregroundStyle(Theme.textSecondary)
                 }
-                MetaPill(text: "version \(document.revision)", icon: "number")
-                if let kind = document.docKind?.trimmingCharacters(in: .whitespacesAndNewlines), !kind.isEmpty {
-                    MetaPill(text: kind, icon: "tag")
-                }
-                Spacer()
+                Spacer(minLength: 0)
+                Button("Copy markdown", action: onCopy)
+                    .buttonStyle(TDTextLinkStyle(size: 13))
             }
 
             if let summary = document.summary?.trimmingCharacters(in: .whitespacesAndNewlines), !summary.isEmpty {
                 Text(summary)
-                    .font(.system(size: Theme.fontSizeSM))
-                    .foregroundColor(Theme.textSecondary)
+                    .tdBody()
+                    .foregroundStyle(Theme.textSecondary)
                     .lineLimit(summaryLineLimit)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-
-            Rectangle()
-                .fill(Theme.borderLight)
-                .frame(height: 1)
         }
-        .padding(.bottom, Theme.spacingXS)
-    }
-}
-
-private struct MetaPill: View {
-    let text: String
-    let icon: String
-
-    var body: some View {
-        HStack(spacing: Theme.spacingXS) {
-            Image(systemName: icon)
-                .font(.system(size: 10))
-            Text(text)
-                .font(.system(size: Theme.fontSizeXS))
-        }
-        .foregroundColor(Theme.textSecondary)
-        .padding(.horizontal, Theme.spacingSM)
-        .padding(.vertical, Theme.spacingXS)
-        .background(Theme.surface)
-        .cornerRadius(Theme.cornerRadius)
     }
 }
 
 #Preview {
     NavigationStack {
-        RoutineDocumentView(routineSlug: "example", documentSlug: "index", title: "Index")
+        RoutineDocumentView(routineSlug: "example", documentSlug: "index", title: "Index", backTitle: "Example Routine")
     }
 }
