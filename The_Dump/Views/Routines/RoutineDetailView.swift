@@ -38,6 +38,10 @@ struct RoutineDetailView: View {
         }
         .background(Theme.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
+        // The bar is hidden, so this title doesn't show; it names the
+        // screen for VoiceOver and for the back button of the screens below
+        // that still use the system bar (questions, runner instructions).
+        .navigationTitle(routineName)
         .navigationDestination(isPresented: $showAsks) {
             RoutineAsksView(routineSlug: slug, routineName: routineName) { askID in
                 viewModel.removeAnswered(askID: askID)

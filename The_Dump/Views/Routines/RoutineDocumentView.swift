@@ -128,6 +128,8 @@ struct RoutineDocumentView: View {
         }
         .background(Theme.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
+        // Hidden with the bar; names the screen for VoiceOver.
+        .navigationTitle(viewModel.document?.title ?? title)
         .navigationDestination(isPresented: $showNote) {
             if let selectedNoteID {
                 NoteDetailView(noteID: selectedNoteID, backTitle: viewModel.document?.title ?? title)
