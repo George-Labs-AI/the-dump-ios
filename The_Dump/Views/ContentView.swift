@@ -53,11 +53,18 @@ struct ContentView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        Text("Your Dump")
+                        Text("Dump your thoughts")
                             .tdHeadline()
                             .foregroundStyle(Theme.textPrimary)
+                            // One line on every iPhone: shrinks a little on
+                            // the narrow ones (SE, mini) instead of wrapping.
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                             .accessibilityAddTraits(.isHeader)
-                            .padding(.bottom, Theme.spacingLG)
+                            // About a thumb's width (96pt) on top of the usual
+                            // gap, so the capture tiles sit lower, nearer where
+                            // eyes and thumbs land (THEDUMP-162).
+                            .padding(.bottom, Theme.spacingLG + 96)
 
                         CaptureGrid(
                             photoSourceDialogPresented: $showPhotoSourceDialog,
@@ -181,7 +188,7 @@ struct ContentView: View {
             }
         }
         .navigationDestination(item: $openedNoteID) { noteID in
-            NoteDetailView(noteID: noteID, backTitle: "Your Dump")
+            NoteDetailView(noteID: noteID, backTitle: "Dump")
         }
         .environmentObject(sessionStore)
         .alert(errorAlertTitle, isPresented: $showErrorAlert) {
