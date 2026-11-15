@@ -10,6 +10,7 @@ struct VoiceMemoView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var sessionStore: SessionStore
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
 
     @StateObject private var recorder = AudioRecorderService()
 
@@ -81,7 +82,19 @@ struct VoiceMemoView: View {
             levels.removeFirst()
             levels.append(recorder.level)
         }
+        // The screen stays awake while recording, so the phone doesn't lock
+        // itself mid-memo. If it is locked by hand, recording carries on in
+        // the background (UIBackgroundModes audio in The_Dump-Info.plist).
+        .onChange(of: recorder.state) { _, state in
+            UIApplication.shared.isIdleTimerDisabled = state == .recording
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                recorder.endIfSystemHaltedRecording()
+            }
+        }
         .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = false
             // Closed some other way than Discard or Upload (signed out, say):
             // don't leave the file or the timer behind.
             if !isUploading, recorder.state != .idle {
