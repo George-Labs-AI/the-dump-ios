@@ -710,6 +710,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "The_Dump-Info.plist";
 				GOOGLE_APP_ID = "1:233207431940:ios:c9c5a4a7668fc38bb04651";
 				INFOPLIST_KEY_CFBundleDisplayName = "The Dump";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
@@ -755,6 +756,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "The_Dump-Info.plist";
 				GOOGLE_APP_ID = "1:233207431940:ios:c9c5a4a7668fc38bb04651";
 				INFOPLIST_KEY_CFBundleDisplayName = "The Dump";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";

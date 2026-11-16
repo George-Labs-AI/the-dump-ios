@@ -145,6 +145,17 @@ class AudioRecorderService: NSObject, ObservableObject {
         releaseAudioSession()
     }
 
+    /// End the memo and keep what was recorded if the system halted the
+    /// recorder while the app was out of view. The screen would otherwise
+    /// still say "Recording" with nothing being recorded, and Pause then
+    /// Resume would start the file over. Called when the app comes back to
+    /// the front; does nothing while the recorder is still running.
+    func endIfSystemHaltedRecording() {
+        guard stopsOnInterruption, state == .recording,
+              audioRecorder?.isRecording == false else { return }
+        stopRecording()
+    }
+
     /// Let other apps' audio carry on once recording is done.
     private func releaseAudioSession() {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
